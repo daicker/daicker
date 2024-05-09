@@ -56,6 +56,8 @@ func Lex(code string) ([]*simplexer.Token, error) {
 		simplexer.NewRegexpTokenType(ADD, `\+`),
 		simplexer.NewRegexpTokenType(ASSIGN, `:=`),
 		simplexer.NewRegexpTokenType(COMMA, `,`),
+		simplexer.NewRegexpTokenType(ARROW, `=>`),
+		simplexer.NewRegexpTokenType(BSLASH, `\\`),
 		simplexer.NewRegexpTokenType(LBRACKET, `\(`),
 		simplexer.NewRegexpTokenType(RBRACKET, `\)`),
 	}

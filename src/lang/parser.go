@@ -28,29 +28,35 @@ type yySymType struct {
 	Expr   Expr
 	Var    Var
 	Vars   []Var
+	Param  Param
+	Params []Param
 }
 
-const ADD = 57346
-const COMMA = 57347
-const ASSIGN = 57348
-const INTEGER = 57349
-const STRING = 57350
-const IDENTIFIER = 57351
-const LBRACKET = 57352
-const RBRACKET = 57353
+const ASSIGN = 57346
+const ARROW = 57347
+const COMMA = 57348
+const ADD = 57349
+const INTEGER = 57350
+const STRING = 57351
+const IDENTIFIER = 57352
+const LBRACKET = 57353
+const RBRACKET = 57354
+const BSLASH = 57355
 
 var yyToknames = [...]string{
 	"$end",
 	"error",
 	"$unk",
-	"ADD",
-	"COMMA",
 	"ASSIGN",
+	"ARROW",
+	"COMMA",
+	"ADD",
 	"INTEGER",
 	"STRING",
 	"IDENTIFIER",
 	"LBRACKET",
 	"RBRACKET",
+	"BSLASH",
 }
 
 var yyStatenames = [...]string{}
@@ -59,7 +65,7 @@ const yyEofCode = 1
 const yyErrCode = 2
 const yyInitialStackSize = 16
 
-//line src/lang/parser.go.y:105
+//line src/lang/parser.go.y:119
 
 //line yacctab:1
 var yyExca = [...]int8{
@@ -70,40 +76,44 @@ var yyExca = [...]int8{
 
 const yyPrivate = 57344
 
-const yyLast = 18
+const yyLast = 27
 
 var yyAct = [...]int8{
-	8, 9, 10, 11, 13, 18, 17, 5, 7, 3,
-	14, 15, 12, 4, 6, 16, 2, 1,
+	8, 22, 18, 9, 10, 11, 13, 14, 12, 15,
+	23, 20, 21, 5, 16, 17, 14, 24, 3, 7,
+	19, 4, 2, 6, 1, 26, 25,
 }
 
 var yyPact = [...]int16{
-	-2, -1000, -1000, -1000, -2, 2, -1000, -6, 6, -1000,
-	-1000, -1000, -1000, -1000, -6, -5, -1000, -4, -1000,
+	3, -1000, -1000, -1000, 3, 15, -1000, -5, 9, -1000,
+	-1000, -1000, -2, -5, -5, 1, 0, -1000, -11, 4,
+	-1000, -1000, 12, 1, -5, -1000, 9,
 }
 
 var yyPgo = [...]int8{
-	0, 17, 16, 9, 13, 0, 12, 11, 11,
+	0, 24, 22, 18, 21, 0, 20, 2,
 }
 
 var yyR1 = [...]int8{
 	0, 1, 2, 3, 3, 4, 5, 5, 5, 5,
-	5, 6, 7, 8,
+	5, 5, 7, 7, 7, 6,
 }
 
 var yyR2 = [...]int8{
 	0, 1, 1, 2, 0, 3, 1, 1, 3, 1,
-	1, 4, 0, 1,
+	6, 3, 3, 1, 0, 1,
 }
 
 var yyChk = [...]int16{
-	-1000, -1, -2, -3, -4, 9, -3, 6, -5, 7,
-	8, 9, -6, 10, 4, -7, -5, 11, 9,
+	-1000, -1, -2, -3, -4, 10, -3, 4, -5, 8,
+	9, 10, 13, 11, 7, 11, -5, -5, -7, -6,
+	10, 12, 12, 6, 5, -7, -5,
 }
 
 var yyDef = [...]int8{
 	4, -2, 1, 2, 4, 0, 3, 0, 5, 6,
-	7, 9, 10, 12, 0, 0, 8, 0, 11,
+	7, 9, 0, 0, 0, 14, 0, 8, 0, 13,
+	15, 11, 0, 14, 0, 12, 10,
 }
 
 var yyTok1 = [...]int8{
@@ -112,6 +122,7 @@ var yyTok1 = [...]int8{
 
 var yyTok2 = [...]int8{
 	2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+	12, 13,
 }
 
 var yyTok3 = [...]int8{
@@ -457,32 +468,32 @@ yydefault:
 
 	case 1:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line src/lang/parser.go.y:41
+//line src/lang/parser.go.y:47
 		{
 			yylex.(*TokenIterationLexer).result = yyDollar[1].Module
 			yyVAL.Module = yyDollar[1].Module
 		}
 	case 2:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line src/lang/parser.go.y:46
+//line src/lang/parser.go.y:52
 		{
 			yyVAL.Module = Module{Vars: yyDollar[1].Vars}
 		}
 	case 3:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line src/lang/parser.go.y:49
+//line src/lang/parser.go.y:55
 		{
 			yyVAL.Vars = append([]Var{yyDollar[1].Var}, yyDollar[2].Vars...)
 		}
 	case 4:
 		yyDollar = yyS[yypt-0 : yypt+1]
-//line src/lang/parser.go.y:50
+//line src/lang/parser.go.y:56
 		{
 			yyVAL.Vars = []Var{}
 		}
 	case 5:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line src/lang/parser.go.y:53
+//line src/lang/parser.go.y:59
 		{
 			yyVAL.Var = Var{
 				Name:  yyDollar[1].token.Literal,
@@ -492,7 +503,7 @@ yydefault:
 		}
 	case 6:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line src/lang/parser.go.y:62
+//line src/lang/parser.go.y:68
 		{
 			v, err := strconv.Atoi(yyDollar[1].token.Literal)
 			if err != nil {
@@ -505,7 +516,7 @@ yydefault:
 		}
 	case 7:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line src/lang/parser.go.y:72
+//line src/lang/parser.go.y:78
 		{
 			yyVAL.Expr = &SString{
 				Value: strings.Replace(yyDollar[1].token.Literal, "\"", "", -1),
@@ -514,7 +525,7 @@ yydefault:
 		}
 	case 8:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line src/lang/parser.go.y:78
+//line src/lang/parser.go.y:84
 		{
 			yyVAL.Expr = &App{
 				Func:  yyDollar[2].token.Literal,
@@ -524,7 +535,7 @@ yydefault:
 		}
 	case 9:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line src/lang/parser.go.y:85
+//line src/lang/parser.go.y:91
 		{
 			yyVAL.Expr = &Ref{
 				Name:  yyDollar[1].token.Literal,
@@ -532,10 +543,44 @@ yydefault:
 			}
 		}
 	case 10:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line src/lang/parser.go.y:91
+		yyDollar = yyS[yypt-6 : yypt+1]
+//line src/lang/parser.go.y:97
 		{
-
+			yyVAL.Expr = &Func{
+				Params: yyDollar[3].Params,
+				Expr:   yyDollar[6].Expr,
+				Range:  NewRangeFromToken(*yyDollar[1].token).Union(yyDollar[6].Expr.GetRange()),
+			}
+		}
+	case 11:
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line src/lang/parser.go.y:104
+		{
+			yyVAL.Expr = yyDollar[2].Expr
+		}
+	case 12:
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line src/lang/parser.go.y:110
+		{
+			yyVAL.Params = append([]Param{yyDollar[1].Param}, yyDollar[3].Params...)
+		}
+	case 13:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line src/lang/parser.go.y:111
+		{
+			yyVAL.Params = []Param{yyDollar[1].Param}
+		}
+	case 14:
+		yyDollar = yyS[yypt-0 : yypt+1]
+//line src/lang/parser.go.y:112
+		{
+			yyVAL.Params = []Param{}
+		}
+	case 15:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line src/lang/parser.go.y:116
+		{
+			yyVAL.Param = Param{Name: yyDollar[1].token.Literal, Range: NewRangeFromToken(*yyDollar[1].token)}
 		}
 	}
 	goto yystack /* stack new state and value */

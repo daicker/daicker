@@ -21,21 +21,27 @@ func Parse(tokens []*simplexer.Token) (Module, error) {
 	Expr   Expr
 	Var    Var
 	Vars   []Var
+	Param  Param
+	Params []Param
 }
 
-%left ADD
-%left COMMA
 %right ASSIGN
+%right ARROW
+%left COMMA
+%left ADD
 
 %token <token> INTEGER STRING
 %token <token> IDENTIFIER
 %token <token> ADD
 %token <token> LBRACKET RBRACKET
+%token <token> ARROW BSLASH
 
 %type <Module> Root Module
 %type <Vars> Vars
 %type <Var> Var
 %type <Expr> Expr
+%type <Param> Param
+%type <Params> Params
 %%
 
 Root: Module {
@@ -88,18 +94,26 @@ Expr
 			Range: NewRangeFromToken(*$1),
 		}
 	}
-	| Func {
-
+	| BSLASH LBRACKET Params RBRACKET ARROW Expr {
+		$$ = &Func{
+			Params: $3,
+			Expr:   $6,
+			Range:  NewRangeFromToken(*$1).Union($6.GetRange()),
+		}
+	}
+	| LBRACKET Expr RBRACKET {
+		$$ = $2
 	}
 	;
 
-Func
-  : LBRACKET Params RBRACKET IDENTIFIER
-
 Params
-  :
+  : Param COMMA Params { $$ = append([]Param{ $1 }, $3...)}
+	| Param { $$ = []Param{ $1 } }
+	| { $$ = []Param{} }
+	;
 
 Param
-  : IDENTIFIER
+  : IDENTIFIER { $$ = Param{ Name: $1.Literal, Range: NewRangeFromToken(*$1) } }
+	;
 
 %%
