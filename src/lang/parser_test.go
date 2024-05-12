@@ -96,6 +96,19 @@ func TestParse(t *testing.T) {
 				},
 			},
 		},
+		{
+			input: "f := g(1)",
+			expected: Module{
+				Name: "",
+				Vars: []Var{
+					{
+						Name:  "f",
+						Expr:  newApp("g", 0, 5, 0, 9, newSInt(1, 0, 7, 0, 8)),
+						Range: newRange(0, 0, 0, 9),
+					},
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {

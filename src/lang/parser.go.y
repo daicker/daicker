@@ -19,6 +19,7 @@ func Parse(tokens []*simplexer.Token) (Module, error) {
 	token  *simplexer.Token
 	Module Module
 	Expr   Expr
+	Exprs  []Expr
 	Var    Var
 	Vars   []Var
 	Param  Param
@@ -40,6 +41,7 @@ func Parse(tokens []*simplexer.Token) (Module, error) {
 %type <Vars> Vars
 %type <Var> Var
 %type <Expr> Expr
+%type <Exprs> Args
 %type <Param> Param
 %type <Params> Params
 %%
@@ -88,6 +90,13 @@ Expr
 			Range: $1.GetRange().Union($3.GetRange()),
 		}
 	}
+	| IDENTIFIER LBRACKET Args RBRACKET {
+		$$ = &App{
+			Func: $1.Literal,
+			Args: $3,
+			Range: NewRangeFromToken(*$1).Union(NewRangeFromToken(*$4)),
+		}
+	}
 	| IDENTIFIER {
 		$$ = &Ref{
 			Name: $1.Literal,
@@ -105,6 +114,11 @@ Expr
 		$$ = $2
 	}
 	;
+
+Args
+  : Expr COMMA Args { $$ = append([]Expr{ $1 }, $3...)}
+	| Expr { $$ = []Expr{ $1 } }
+	| { $$ = []Expr{} }
 
 Params
   : Param COMMA Params { $$ = append([]Param{ $1 }, $3...)}
