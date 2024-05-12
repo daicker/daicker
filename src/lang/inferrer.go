@@ -6,25 +6,31 @@ import (
 
 type inferrer struct {
 	module Module
+	env    map[string]Type
 }
 
 func Infer(e Expr, module Module) (Type, error) {
 	infer := &inferrer{
 		module: module,
+		env:    map[string]Type{},
 	}
 	res, err := e.Accept(infer)
-	return res.(Type), err
-}
-
-func (infer *inferrer) VisitFunc(e Func) (any, error) {
-	returnType, err := e.Expr.Accept(infer)
 	if err != nil {
 		return nil, err
 	}
+	return res.(Type), nil
+}
 
-	ts := []Type{}
-	for range e.Params {
+func (infer *inferrer) VisitFunc(e Func) (any, error) {
+	ts := ArgsType{}
+	for _, p := range e.Params {
+		infer.env[p.Name] = TAny
 		ts = append(ts, TAny)
+	}
+
+	returnType, err := e.Expr.Accept(infer)
+	if err != nil {
+		return nil, err
 	}
 
 	return FuncType{
@@ -34,6 +40,10 @@ func (infer *inferrer) VisitFunc(e Func) (any, error) {
 }
 
 func (infer *inferrer) VisitRef(e Ref) (any, error) {
+	t, ok := infer.env[e.Name]
+	if ok {
+		return t, nil
+	}
 	v, ok := FindVar(e.Name, infer.module.Vars)
 	if !ok {
 		return nil, NewCodeError(e.Range, fmt.Sprintf("%s is not defined", e.Name))
@@ -42,7 +52,7 @@ func (infer *inferrer) VisitRef(e Ref) (any, error) {
 }
 
 func (infer *inferrer) VisitApp(e App) (any, error) {
-	ts := []Type{}
+	ts := ArgsType{}
 	for _, arg := range e.Args {
 		t, err := arg.Accept(infer)
 		if err != nil {
@@ -50,11 +60,29 @@ func (infer *inferrer) VisitApp(e App) (any, error) {
 		}
 		ts = append(ts, t.(Type))
 	}
-	f, ok := FindFixtureFunctions(e.Func, ts)
-	if !ok {
+	v, ok := FindVar(e.Func, infer.module.Vars)
+	if ok {
+		t, err := v.Expr.Accept(infer)
+		if err != nil {
+			return nil, err
+		}
+		switch t := t.(type) {
+		case FuncType:
+			ok, _ := t.Applicable(ts)
+			if ok {
+				return t.Returns, nil
+			}
+		default:
+		}
+	}
+	fs := FindFixtureFunctions(e.Func, ts)
+	if len(fs) == 0 {
 		return nil, NewCodeError(e.Range, fmt.Sprintf("%s(%s) is not defined", e.Func, ArgsType(ts).String()))
 	}
-	return f.Type.Returns, nil
+	if len(fs) > 1 {
+		return TAny, nil
+	}
+	return fs[0].Type.Returns, nil
 }
 
 func (infer *inferrer) VisitSString(e SString) (any, error) {

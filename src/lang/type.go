@@ -42,7 +42,7 @@ func (t1 DataType) Equal(t2 Type) bool {
 }
 
 func (t1 DataType) Contains(t2 Type) bool {
-	return t1 == TAny || t1.String() == t2.String()
+	return t1.Equal(TAny) || t2.Equal(TAny) || t1.Equal(t2)
 }
 
 func (args ArgsType) String() string {
@@ -58,7 +58,7 @@ func (ft FuncType) Applicable(argTypes ArgsType) (bool, error) {
 		return false, fmt.Errorf("wrong number of arguments")
 	}
 	for i, t := range ft.Arguments {
-		if !t.Contains(argTypes[i]) {
+		if !argTypes[i].Contains(t) {
 			return false, fmt.Errorf("wrong type argument")
 		}
 	}

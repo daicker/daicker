@@ -25,12 +25,12 @@ var FixtureFunctions = []fixtureFunction{
 	},
 }
 
-func FindFixtureFunctions(name string, args ArgsType) (fixtureFunction, bool) {
+func FindFixtureFunctions(name string, args ArgsType) (fs []fixtureFunction) {
 	for _, v := range FixtureFunctions {
 		ok, _ := v.Type.Applicable(args)
 		if v.Name == name && ok {
-			return v, true
+			fs = append(fs, v)
 		}
 	}
-	return fixtureFunction{}, false
+	return fs
 }

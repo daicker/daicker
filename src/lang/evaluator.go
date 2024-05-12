@@ -65,11 +65,11 @@ func (eval *evaluator) VisitApp(e App) (any, error) {
 	// 	return f.Expr.Evaluate(vars)
 	// }
 
-	f, ok := FindFixtureFunctions(e.Func, argType)
-	if !ok {
+	fs := FindFixtureFunctions(e.Func, argType)
+	if len(fs) == 0 {
 		return nil, NewCodeError(e.Range, fmt.Sprintf("%s(%s) is not defined", e.Func, argType.String()))
 	}
-	return f.Function(args)
+	return fs[0].Function(args)
 }
 
 func (eval *evaluator) VisitSString(e SString) (any, error) {
