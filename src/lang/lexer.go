@@ -50,6 +50,7 @@ func Lex(code string) ([]*simplexer.Token, error) {
 	l := simplexer.NewLexer(reader)
 
 	l.TokenTypes = []simplexer.TokenType{
+		simplexer.NewRegexpTokenType(MODULE, "module"),
 		simplexer.NewRegexpTokenType(IDENTIFIER, `[a-zA-Z_][a-zA-Z0-9_]*`),
 		simplexer.NewRegexpTokenType(INTEGER, `[0-9]+`),
 		simplexer.NewRegexpTokenType(STRING, `"([^"]*)"`),

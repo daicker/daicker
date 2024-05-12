@@ -171,9 +171,10 @@ func TextDocumentSemanticTokensFull(context *glsp.Context, params *protocol.Sema
 	return CreateSemanticTokens(tokens)
 }
 
-var tokenTypes = []string{"number", "string", "operator", "variable"}
+var tokenTypes = []string{"number", "string", "operator", "variable", "keyword"}
 
 var tokenMap = map[int]string{
+	MODULE:     "keyword",
 	IDENTIFIER: "variable",
 	INTEGER:    "number",
 	STRING:     "string",

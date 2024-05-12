@@ -36,6 +36,7 @@ func Parse(tokens []*simplexer.Token) (Module, error) {
 %token <token> ADD
 %token <token> LBRACKET RBRACKET
 %token <token> ARROW BSLASH
+%token <token> MODULE
 
 %type <Module> Root Module
 %type <Vars> Vars
@@ -51,7 +52,7 @@ Root: Module {
 	$$ = $1
 }
 
-Module: Vars { $$ = Module{ Vars: $1 } }
+Module: MODULE IDENTIFIER Vars { $$ = Module{ Name: $2.Literal, Vars: $3 } }
 
 Vars
   : Var Vars { $$ = append([]Var{ $1 }, $2...) }

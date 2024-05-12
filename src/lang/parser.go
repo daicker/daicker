@@ -43,6 +43,7 @@ const IDENTIFIER = 57352
 const LBRACKET = 57353
 const RBRACKET = 57354
 const BSLASH = 57355
+const MODULE = 57356
 
 var yyToknames = [...]string{
 	"$end",
@@ -58,6 +59,7 @@ var yyToknames = [...]string{
 	"LBRACKET",
 	"RBRACKET",
 	"BSLASH",
+	"MODULE",
 }
 
 var yyStatenames = [...]string{}
@@ -66,7 +68,7 @@ const yyEofCode = 1
 const yyErrCode = 2
 const yyInitialStackSize = 16
 
-//line src/lang/parser.go.y:146
+//line src/lang/parser.go.y:147
 
 //line yacctab:1
 var yyExca = [...]int8{
@@ -77,24 +79,25 @@ var yyExca = [...]int8{
 
 const yyPrivate = 57344
 
-const yyLast = 39
+const yyLast = 41
 
 var yyAct = [...]int8{
-	26, 25, 15, 33, 10, 11, 12, 14, 9, 13,
-	31, 18, 22, 7, 20, 21, 28, 19, 17, 24,
-	8, 5, 18, 27, 32, 18, 30, 23, 36, 29,
-	34, 3, 16, 4, 35, 2, 6, 37, 1,
+	28, 27, 17, 12, 13, 14, 16, 3, 15, 20,
+	11, 35, 33, 24, 30, 9, 22, 23, 21, 19,
+	7, 26, 10, 4, 20, 29, 34, 20, 32, 25,
+	5, 38, 36, 31, 18, 6, 37, 8, 2, 39,
+	1,
 }
 
 var yyPact = [...]int16{
-	11, -1000, -1000, -1000, 11, 9, -1000, -4, 8, 15,
-	-1000, -1000, 6, 3, -4, 0, 21, -1000, -4, -4,
-	8, 4, 25, 8, -1000, -2, 18, -9, -1000, -4,
-	-1000, -1000, -4, 23, 15, -1000, -4, 15,
+	-7, -1000, -1000, 13, 10, -1000, 10, 11, -1000, -5,
+	9, 17, -1000, -1000, 7, 5, -5, 1, 23, -1000,
+	-5, -5, 9, 2, 29, 9, -1000, 0, 20, -1,
+	-1000, -5, -1000, -1000, -5, 26, 17, -1000, -5, 17,
 }
 
 var yyPgo = [...]int8{
-	0, 38, 35, 31, 33, 0, 1, 32, 2,
+	0, 40, 38, 30, 35, 0, 1, 34, 2,
 }
 
 var yyR1 = [...]int8{
@@ -104,23 +107,23 @@ var yyR1 = [...]int8{
 }
 
 var yyR2 = [...]int8{
-	0, 1, 1, 2, 0, 3, 6, 1, 1, 3,
+	0, 1, 3, 2, 0, 3, 6, 1, 1, 3,
 	4, 1, 6, 3, 3, 1, 0, 3, 1, 0,
 	1,
 }
 
 var yyChk = [...]int16{
-	-1000, -1, -2, -3, -4, 10, -3, 4, 11, -5,
-	8, 9, 10, 13, 11, -8, -7, 10, 7, 11,
-	11, -5, 12, 6, -5, -6, -5, -8, 12, 4,
-	-8, 12, 6, 12, -5, -6, 5, -5,
+	-1000, -1, -2, 14, 10, -3, -4, 10, -3, 4,
+	11, -5, 8, 9, 10, 13, 11, -8, -7, 10,
+	7, 11, 11, -5, 12, 6, -5, -6, -5, -8,
+	12, 4, -8, 12, 6, 12, -5, -6, 5, -5,
 }
 
 var yyDef = [...]int8{
-	4, -2, 1, 2, 4, 0, 3, 0, 19, 5,
-	7, 8, 11, 0, 0, 0, 18, 20, 0, 16,
-	19, 0, 0, 19, 9, 0, 15, 0, 13, 0,
-	17, 10, 16, 0, 6, 14, 0, 12,
+	0, -2, 1, 0, 4, 2, 4, 0, 3, 0,
+	19, 5, 7, 8, 11, 0, 0, 0, 18, 20,
+	0, 16, 19, 0, 0, 19, 9, 0, 15, 0,
+	13, 0, 17, 10, 16, 0, 6, 14, 0, 12,
 }
 
 var yyTok1 = [...]int8{
@@ -129,7 +132,7 @@ var yyTok1 = [...]int8{
 
 var yyTok2 = [...]int8{
 	2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
-	12, 13,
+	12, 13, 14,
 }
 
 var yyTok3 = [...]int8{
@@ -475,32 +478,32 @@ yydefault:
 
 	case 1:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line src/lang/parser.go.y:49
+//line src/lang/parser.go.y:50
 		{
 			yylex.(*TokenIterationLexer).result = yyDollar[1].Module
 			yyVAL.Module = yyDollar[1].Module
 		}
 	case 2:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line src/lang/parser.go.y:54
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line src/lang/parser.go.y:55
 		{
-			yyVAL.Module = Module{Vars: yyDollar[1].Vars}
+			yyVAL.Module = Module{Name: yyDollar[2].token.Literal, Vars: yyDollar[3].Vars}
 		}
 	case 3:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line src/lang/parser.go.y:57
+//line src/lang/parser.go.y:58
 		{
 			yyVAL.Vars = append([]Var{yyDollar[1].Var}, yyDollar[2].Vars...)
 		}
 	case 4:
 		yyDollar = yyS[yypt-0 : yypt+1]
-//line src/lang/parser.go.y:58
+//line src/lang/parser.go.y:59
 		{
 			yyVAL.Vars = []Var{}
 		}
 	case 5:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line src/lang/parser.go.y:61
+//line src/lang/parser.go.y:62
 		{
 			yyVAL.Var = Var{
 				Name:  yyDollar[1].token.Literal,
@@ -510,7 +513,7 @@ yydefault:
 		}
 	case 6:
 		yyDollar = yyS[yypt-6 : yypt+1]
-//line src/lang/parser.go.y:68
+//line src/lang/parser.go.y:69
 		{
 			f := &Func{
 				Params: yyDollar[3].Params,
@@ -525,7 +528,7 @@ yydefault:
 		}
 	case 7:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line src/lang/parser.go.y:83
+//line src/lang/parser.go.y:84
 		{
 			v, err := strconv.Atoi(yyDollar[1].token.Literal)
 			if err != nil {
@@ -538,7 +541,7 @@ yydefault:
 		}
 	case 8:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line src/lang/parser.go.y:93
+//line src/lang/parser.go.y:94
 		{
 			yyVAL.Expr = &SString{
 				Value: strings.Replace(yyDollar[1].token.Literal, "\"", "", -1),
@@ -547,7 +550,7 @@ yydefault:
 		}
 	case 9:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line src/lang/parser.go.y:99
+//line src/lang/parser.go.y:100
 		{
 			yyVAL.Expr = &App{
 				Func:  yyDollar[2].token.Literal,
@@ -557,7 +560,7 @@ yydefault:
 		}
 	case 10:
 		yyDollar = yyS[yypt-4 : yypt+1]
-//line src/lang/parser.go.y:106
+//line src/lang/parser.go.y:107
 		{
 			yyVAL.Expr = &App{
 				Func:  yyDollar[1].token.Literal,
@@ -567,7 +570,7 @@ yydefault:
 		}
 	case 11:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line src/lang/parser.go.y:113
+//line src/lang/parser.go.y:114
 		{
 			yyVAL.Expr = &Ref{
 				Name:  yyDollar[1].token.Literal,
@@ -576,7 +579,7 @@ yydefault:
 		}
 	case 12:
 		yyDollar = yyS[yypt-6 : yypt+1]
-//line src/lang/parser.go.y:119
+//line src/lang/parser.go.y:120
 		{
 			yyVAL.Expr = &Func{
 				Params: yyDollar[3].Params,
@@ -586,49 +589,49 @@ yydefault:
 		}
 	case 13:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line src/lang/parser.go.y:126
+//line src/lang/parser.go.y:127
 		{
 			yyVAL.Expr = yyDollar[2].Expr
 		}
 	case 14:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line src/lang/parser.go.y:132
+//line src/lang/parser.go.y:133
 		{
 			yyVAL.Exprs = append([]Expr{yyDollar[1].Expr}, yyDollar[3].Exprs...)
 		}
 	case 15:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line src/lang/parser.go.y:133
+//line src/lang/parser.go.y:134
 		{
 			yyVAL.Exprs = []Expr{yyDollar[1].Expr}
 		}
 	case 16:
 		yyDollar = yyS[yypt-0 : yypt+1]
-//line src/lang/parser.go.y:134
+//line src/lang/parser.go.y:135
 		{
 			yyVAL.Exprs = []Expr{}
 		}
 	case 17:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line src/lang/parser.go.y:137
+//line src/lang/parser.go.y:138
 		{
 			yyVAL.Params = append([]Param{yyDollar[1].Param}, yyDollar[3].Params...)
 		}
 	case 18:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line src/lang/parser.go.y:138
+//line src/lang/parser.go.y:139
 		{
 			yyVAL.Params = []Param{yyDollar[1].Param}
 		}
 	case 19:
 		yyDollar = yyS[yypt-0 : yypt+1]
-//line src/lang/parser.go.y:139
+//line src/lang/parser.go.y:140
 		{
 			yyVAL.Params = []Param{}
 		}
 	case 20:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line src/lang/parser.go.y:143
+//line src/lang/parser.go.y:144
 		{
 			yyVAL.Param = Param{Name: yyDollar[1].token.Literal, Range: NewRangeFromToken(*yyDollar[1].token)}
 		}
