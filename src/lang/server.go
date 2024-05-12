@@ -3,6 +3,7 @@ package lang
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/macrat/simplexer"
 	"github.com/tliron/commonlog"
@@ -23,7 +24,7 @@ var (
 var Files = map[string]string{}
 var Modules = map[string]Module{}
 
-func Start() {
+func LanguageServerStart() {
 	// This increases logging verbosity (optional)
 	commonlog.Configure(2, nil)
 
@@ -172,25 +173,29 @@ func TextDocumentSemanticTokensFull(context *glsp.Context, params *protocol.Sema
 
 var tokenTypes = []string{"number", "string", "operator", "variable"}
 
+var tokenMap = map[int]string{
+	IDENTIFIER: "variable",
+	INTEGER:    "number",
+	STRING:     "string",
+	ADD:        "operator",
+	ASSIGN:     "operator",
+	COMMA:      "operator",
+	ARROW:      "operator",
+	BSLASH:     "operator",
+	LBRACKET:   "operator",
+	RBRACKET:   "operator",
+}
+
 func TokenKindNumber(token *simplexer.Token) (uint32, error) {
-	switch token.Type.GetID() {
-	case INTEGER:
-		return 0, nil
-	case STRING:
-		return 1, nil
-	case ASSIGN:
-		return 2, nil
-	case ADD:
-		return 2, nil
-	case LBRACKET:
-		return 2, nil
-	case RBRACKET:
-		return 2, nil
-	case IDENTIFIER:
-		return 3, nil
-	default:
+	kind, ok := tokenMap[int(token.Type.GetID())]
+	if !ok {
 		return 99, fmt.Errorf("cannot mapping token kind: token id (%d)", token.Type.GetID())
 	}
+	i := slices.Index(tokenTypes, kind)
+	if i == -1 {
+		return 99, fmt.Errorf("cannot mapping token kind: token id (%d)", token.Type.GetID())
+	}
+	return uint32(i), nil
 }
 
 func CreateSemanticTokens(tokens []*simplexer.Token) (*protocol.SemanticTokens, error) {

@@ -65,6 +65,19 @@ Var
 			Range: NewRangeFromToken(*$1).Union($3.GetRange()),
 		}
 	}
+	| IDENTIFIER LBRACKET Params RBRACKET ASSIGN Expr {
+		f := &Func{
+			Params: $3,
+			Expr:   $6,
+			Range:  NewRangeFromToken(*$2).Union($6.GetRange()),
+		}
+		$$ = Var{
+			Name: $1.Literal,
+			Expr: f,
+			Range: NewRangeFromToken(*$1).Union($6.GetRange()),
+		}
+	}
+	;
 
 Expr
 	: INTEGER {
