@@ -18,6 +18,10 @@ description:         Please see the README on GitHub at <https://github.com/daic
 dependencies:
 - base >= 4.7 && < 5
 - megaparsec == 9.6.1
+- scientific == 0.3.8.0
+- hspec == 2.11.9
+- hspec-core == 2.11.9
+- hspec-megaparsec == 2.2.1
 
 library:
   source-dirs: src

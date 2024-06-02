@@ -3,9 +3,9 @@ import Language.Daicker.Span (Span)
 
 data Module = Module Identifier [Import] [Export] [Define]
 
-data Import = Import Identifier Span deriving (Show)
-data Export = Export Identifier Span deriving (Show)
-data Define = Define Identifier Value Span deriving (Show)
+data Import = Import Identifier Span deriving (Show, Eq)
+data Export = Export Identifier Span deriving (Show, Eq)
+data Define = Define Identifier Value Span deriving (Show, Eq)
 
 data Value
   = VNull Span
@@ -17,7 +17,7 @@ data Value
   | VRef Identifier Span
   | VApp Value [Value] Span
   | VFun [VArg] Value Span
-  deriving (Show)
+  deriving (Show, Eq)
 
 type VArg = Identifier
-data Identifier = Identifier String Span deriving (Show)
+data Identifier = Identifier String Span deriving (Show, Eq)

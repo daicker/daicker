@@ -3,6 +3,7 @@ module Language.Daicker.Parser where
 import Text.Megaparsec
 import qualified Text.Megaparsec.Char.Lexer as L
 import Data.Void ( Void )
+import Data.Scientific ( toRealFloat )
 import Language.Daicker.AST
 import Text.Megaparsec.Char
 import Text.Megaparsec.Byte.Lexer (float)
@@ -56,7 +57,7 @@ tBool = lexeme (choice
   ] <?> "bool")
 
 tNumber :: Parser Double
-tNumber = lexeme (L.signed sc (lexeme L.float) <?> "number")
+tNumber = lexeme (L.signed sc (lexeme $ toRealFloat <$> L.scientific) <?> "number")
 
 tString :: Parser String
 tString = lexeme (char '"' *> manyTill L.charLiteral (char '"') <?> "string")

@@ -31,7 +31,11 @@ library
       src
   build-depends:
       base >=4.7 && <5
+    , hspec ==2.11.9
+    , hspec-core ==2.11.9
+    , hspec-megaparsec ==2.2.1
     , megaparsec ==9.6.1
+    , scientific ==0.3.8.0
   default-language: Haskell2010
 
 executable daicker-exe
@@ -44,13 +48,18 @@ executable daicker-exe
   build-depends:
       base >=4.7 && <5
     , daicker
+    , hspec ==2.11.9
+    , hspec-core ==2.11.9
+    , hspec-megaparsec ==2.2.1
     , megaparsec ==9.6.1
+    , scientific ==0.3.8.0
   default-language: Haskell2010
 
 test-suite daicker-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Language.Daicker.ParserSpec
       Paths_daicker
   hs-source-dirs:
       test
@@ -58,5 +67,9 @@ test-suite daicker-test
   build-depends:
       base >=4.7 && <5
     , daicker
+    , hspec ==2.11.9
+    , hspec-core ==2.11.9
+    , hspec-megaparsec ==2.2.1
     , megaparsec ==9.6.1
+    , scientific ==0.3.8.0
   default-language: Haskell2010
