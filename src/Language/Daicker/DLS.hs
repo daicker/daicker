@@ -41,3 +41,17 @@ handlers =
             range = Range pos pos
         responder (Right $ InL rsp)
     ]
+
+serve :: IO Int
+serve =
+  runServer $
+    ServerDefinition
+      { parseConfig = const $ const $ Right ()
+      , onConfigChange = const $ pure ()
+      , defaultConfig = ()
+      , configSection = "demo"
+      , doInitialize = \env _req -> pure $ Right env
+      , staticHandlers = const handlers
+      , interpretHandler = \env -> Iso (runLspT env) liftIO
+      , options = defaultOptions
+      }
