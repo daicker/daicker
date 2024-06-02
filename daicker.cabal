@@ -23,6 +23,7 @@ source-repository head
 library
   exposed-modules:
       Language.Daicker.AST
+      Language.Daicker.DLS
       Language.Daicker.Parser
       Language.Daicker.Span
   other-modules:
@@ -31,14 +32,17 @@ library
       src
   build-depends:
       base >=4.7 && <5
-    , hspec ==2.11.9
-    , hspec-core ==2.11.9
-    , hspec-megaparsec ==2.2.1
-    , megaparsec ==9.6.1
-    , scientific ==0.3.8.0
+    , hspec >=2.11 && <3
+    , hspec-core >=2.11 && <3
+    , hspec-megaparsec >=2.2 && <3
+    , lsp >=2.6 && <3
+    , megaparsec >=9.6 && <10
+    , optparse-applicative ==0.18.*
+    , scientific ==0.3.*
+    , text >=2.0 && <3
   default-language: Haskell2010
 
-executable daicker-exe
+executable daicker
   main-is: Main.hs
   other-modules:
       Paths_daicker
@@ -48,11 +52,14 @@ executable daicker-exe
   build-depends:
       base >=4.7 && <5
     , daicker
-    , hspec ==2.11.9
-    , hspec-core ==2.11.9
-    , hspec-megaparsec ==2.2.1
-    , megaparsec ==9.6.1
-    , scientific ==0.3.8.0
+    , hspec >=2.11 && <3
+    , hspec-core >=2.11 && <3
+    , hspec-megaparsec >=2.2 && <3
+    , lsp >=2.6 && <3
+    , megaparsec >=9.6 && <10
+    , optparse-applicative ==0.18.*
+    , scientific ==0.3.*
+    , text >=2.0 && <3
   default-language: Haskell2010
 
 test-suite daicker-test
@@ -67,9 +74,12 @@ test-suite daicker-test
   build-depends:
       base >=4.7 && <5
     , daicker
-    , hspec ==2.11.9
-    , hspec-core ==2.11.9
-    , hspec-megaparsec ==2.2.1
-    , megaparsec ==9.6.1
-    , scientific ==0.3.8.0
+    , hspec >=2.11 && <3
+    , hspec-core >=2.11 && <3
+    , hspec-megaparsec >=2.2 && <3
+    , lsp >=2.6 && <3
+    , megaparsec >=9.6 && <10
+    , optparse-applicative ==0.18.*
+    , scientific ==0.3.*
+    , text >=2.0 && <3
   default-language: Haskell2010

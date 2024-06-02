@@ -12,19 +12,47 @@ packages:
   original:
     hackage: megaparsec-9.6.1
 - completed:
-    hackage: scientific-0.3.8.0@sha256:acb4a24641487f230dda24383d9f7d1737a178ccc812373bc8c14f2b0378795e,4358
+    hackage: scientific-0.3.7.0@sha256:909755ab19b453169ff85281323da1488407776b2360bd9f7afdd219fd306ef2,4869
     pantry-tree:
-      sha256: 178bbe09cb2d2a4cc4d590efeb77d7b400837ec8c1a11e2d21d93345d5f661e9
+      sha256: 00e74ee83063c8c5cf5c726d9ed079a7f67051f3ddd9e2ecbbe3c6ea06271061
       size: 657
   original:
-    hackage: scientific-0.3.8.0
+    hackage: scientific-0.3.7.0
 - completed:
-    hackage: primitive-0.9.0.0@sha256:2e08c5409e3559c7f1669ef50e9a0d9a397e68ecf51110d5e2cedf05cdd7d93c,3171
+    hackage: primitive-0.8.0.0@sha256:d0ff45fa6e61f92af23611ceb8b9a6a04c236b50fb70c60e2ed3bfa532703670,3241
     pantry-tree:
-      sha256: a862f3979a8ed2ae047287de3c7376f749ee97d5a27c9c55a4c6d94ffb7d1601
-      size: 1793
+      sha256: 3cd206dde51c1589698d8e4a501887e0d6954900e9082b31ac013f09a58fd84f
+      size: 1721
   original:
-    hackage: primitive-0.9.0.0
+    hackage: primitive-0.8.0.0
+- completed:
+    hackage: lsp-2.6.0.0@sha256:356bb47d924cdc208fd3401267a9e26fd826602a76a196d26f32998ac2da34dd,4062
+    pantry-tree:
+      sha256: 2b050ef01e94521ab899142bcce9b55b222fa0170b3569b9d38bfdc8cd115c80
+      size: 1120
+  original:
+    hackage: lsp-2.6.0.0
+- completed:
+    hackage: lsp-types-2.2.0.0@sha256:2f049a7e1a17cae50e9d25dae207669e9a1a1ba306a818d9614a46c40b063f17,34860
+    pantry-tree:
+      sha256: 32fe525e13f40204a894d2e4ec8712bee19bf1836b5f59ddecb77e5b060abb04
+      size: 51996
+  original:
+    hackage: lsp-types-2.2.0.0
+- completed:
+    hackage: text-2.0.2@sha256:71b5fa8c64d3c1fd0a08f993463220867b08290a2256e94b0952bf0e8f5a45cc,9905
+    pantry-tree:
+      sha256: 25f3b6dd211e30f9e0ef5047bb9f30df7a9296cf1043873e31558196dfe78676
+      size: 7514
+  original:
+    hackage: text-2.0.2
+- completed:
+    hackage: optparse-applicative-0.18.1.0@sha256:b4cf8d9018e5e67cb1f14edb5130b6d05ad8bc1b5f6bd4efaa6ec0b7f28f559d,5132
+    pantry-tree:
+      sha256: 32f52adc150eb146bf4d167ff0cb21fc1e3cd7ecc1b9e5e83b986a1cd1bc58cd
+      size: 3124
+  original:
+    hackage: optparse-applicative-0.18.1.0
 - completed:
     hackage: hspec-2.11.9@sha256:6e7fb7a40404f11b028f1b19f07779887b2c8af04cbae7eaea73e83c440954c7,1763
     pantry-tree:

@@ -17,17 +17,20 @@ description:         Please see the README on GitHub at <https://github.com/daic
 
 dependencies:
 - base >= 4.7 && < 5
-- megaparsec == 9.6.1
-- scientific == 0.3.8.0
-- hspec == 2.11.9
-- hspec-core == 2.11.9
-- hspec-megaparsec == 2.2.1
+- megaparsec >= 9.6 && < 10
+- scientific >= 0.3 && < 0.4
+- lsp >= 2.6 && < 3
+- text >= 2.0 && < 3
+- optparse-applicative >= 0.18 && < 0.19
+- hspec >= 2.11 && < 3
+- hspec-core >= 2.11 && < 3
+- hspec-megaparsec >= 2.2 && < 3
 
 library:
   source-dirs: src
 
 executables:
-  daicker-exe:
+  daicker:
     main:                Main.hs
     source-dirs:         app
     ghc-options:

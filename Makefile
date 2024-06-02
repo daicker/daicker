@@ -1,5 +1,5 @@
 install:
-	go build -o /usr/local/bin/daicker src/main.go
+	stack --local-bin-path /usr/local/bin/ install
 uninstall:
 	rm /usr/local/bin/daicker
 build-parser:
