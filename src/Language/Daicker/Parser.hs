@@ -10,8 +10,35 @@ import Text.Megaparsec.Byte.Lexer (float)
 import Language.Daicker.Span
 import Control.Monad (void)
 import GHC.Conc (par)
+import Language.LSP.Protocol.Lens (HasIdentifier(identifier))
+import System.IO (readFile)
 
 type Parser = Parsec Void String
+
+syntaxCheck :: String -> IO ()
+syntaxCheck fileName = do
+  src <- readFile fileName
+  case parse pModule fileName src of
+    Right _ -> pure ()
+    Left e -> putStrLn $ errorBundlePretty e
+
+pModule :: Parser Module
+pModule = Module <$> (tModule *> pIdentifier) <*> many pImport <*> many pExport <*> many pDefine <* eof
+
+pImport :: Parser Import
+pImport = do
+  (i, span) <- spanned (tImport *> pIdentifier)
+  return $ Import i span
+
+pExport :: Parser Export
+pExport = do
+  (i, span) <- spanned (tExport *> pIdentifier)
+  return $ Export i span
+
+pDefine :: Parser Define
+pDefine = do
+  ((i, _, v), span) <- spanned ((,,) <$> pIdentifier <*> tEqual <*> pValue)
+  return $ Define i v span
 
 pValue :: Parser Value
 pValue = choice
@@ -44,11 +71,16 @@ pString = do
 
 pRef :: Parser Value
 pRef = do
+  (i, span) <- spanned pIdentifier
+  return $ VRef i span
+
+pIdentifier :: Parser Identifier
+pIdentifier = do
   (t, span) <- spanned tIdentifier
-  return $ VRef (Identifier t span) span
+  return $ Identifier t span
 
 tNull :: Parser ()
-tNull = lexeme (void (string "null"))
+tNull = lexeme $ void (string "null" <?> "null")
 
 tBool :: Parser Bool
 tBool = lexeme (choice
@@ -64,6 +96,18 @@ tString = lexeme (char '"' *> manyTill L.charLiteral (char '"') <?> "string")
 
 tIdentifier :: Parser String
 tIdentifier = lexeme ((:) <$> (lowerChar <|> upperChar) <*> many alphaNumChar <?> "identifier")
+
+tEqual :: Parser ()
+tEqual = lexeme $ void (char '=' <?> "equal")
+
+tModule :: Parser ()
+tModule = lexeme $ void (string "module" <?> "module")
+
+tImport :: Parser ()
+tImport = lexeme $ void (string "import" <?> "import")
+
+tExport :: Parser ()
+tExport = lexeme $ void (string "export" <?> "export")
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
