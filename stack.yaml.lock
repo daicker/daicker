@@ -54,6 +54,20 @@ packages:
   original:
     hackage: optparse-applicative-0.18.1.0
 - completed:
+    hackage: lens-5.3.2@sha256:644d56d05bd6b2606c8d52f50a4302bacb3cb330d03cb260b1d98dd3589af576,15231
+    pantry-tree:
+      sha256: 4fb4b19602dad330dc131ddb988ad427304ca596efcdbe201d732bba337c0ae7
+      size: 8350
+  original:
+    hackage: lens-5.3.2
+- completed:
+    hackage: co-log-core-0.3.2.2@sha256:42846149b80c4d7b4c94d229bd156f33fb41dae4e4b2ed8f929647a9316894dd,4070
+    pantry-tree:
+      sha256: cf87e3cbee6611be655104ffd7937b5911e07942ec0ebcf5d7cb504ff1d7ea55
+      size: 584
+  original:
+    hackage: co-log-core-0.3.2.2
+- completed:
     hackage: hspec-2.11.9@sha256:6e7fb7a40404f11b028f1b19f07779887b2c8af04cbae7eaea73e83c440954c7,1763
     pantry-tree:
       sha256: 011f3767b57b7ecc9b34c390a6a0f9951bb0e503401365cf99ab79316ab2a898

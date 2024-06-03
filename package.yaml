@@ -22,6 +22,10 @@ dependencies:
 - lsp >= 2.6 && < 3
 - text >= 2.0 && < 3
 - optparse-applicative >= 0.18 && < 0.19
+- lens >= 5.0 && < 6
+- aeson >= 2.0 && < 3
+- stm >= 2.0 && < 3
+- co-log-core >= 0.3.0 && < 0.4
 - hspec >= 2.11 && < 3
 - hspec-core >= 2.11 && < 3
 - hspec-megaparsec >= 2.2 && < 3

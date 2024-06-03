@@ -47,6 +47,8 @@ extra-deps:
   - lsp-types-2.2.0.0
   - text-2.0.2
   - optparse-applicative-0.18.1.0
+  - lens-5.3.2
+  - co-log-core-0.3.2.2
   - hspec-2.11.9
   - hspec-core-2.11.9
   - hspec-discover-2.11.9
