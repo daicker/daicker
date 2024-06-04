@@ -15,7 +15,7 @@ import Control.Monad.IO.Class
 import Control.Lens hiding (Iso)
 import Control.Concurrent
 import Control.Concurrent.STM.TChan
-import Data.Text as T
+import qualified Data.Text as T
 import qualified Data.Aeson as J
 import Language.LSP.Protocol.Message ()
 import Language.LSP.Protocol.Types
@@ -28,6 +28,10 @@ import qualified Language.LSP.Protocol.Types as LSP
 import Language.LSP.Diagnostics
 import Control.Concurrent.STM
 import Control.Monad (forever)
+import Text.Megaparsec (ParseErrorBundle (bundlePosState), bundlePosState, PosState (PosState), SourcePos (SourcePos), unPos, errorBundlePretty)
+import Data.Void (Void)
+import Language.Daicker.Parser (syntaxCheck)
+import Language.LSP.VFS (VirtualFile(VirtualFile), virtualFileText, virtualFileVersion)
 
 data Config = Config {fooTheBar :: Bool, wibbleFactor :: Int}
   deriving (Generic, Show)
@@ -37,36 +41,63 @@ instance J.ToJSON Config where
 
 instance J.FromJSON Config where
 
-sendDiagnostics :: LSP.NormalizedUri -> Maybe Int32 -> LspM Config ()
-sendDiagnostics fileUri version = do
-  let
-    diags =
-      [ LSP.Diagnostic
-          (LSP.Range (LSP.Position 0 1) (LSP.Position 0 5))
-          (Just LSP.DiagnosticSeverity_Warning) -- severity
-          Nothing -- code
-          Nothing
-          (Just "lsp-hello") -- source
-          "Example diagnostic message"
-          Nothing -- tags
-          (Just [])
-          Nothing
-      ]
+sendDiagnostics :: LSP.NormalizedUri -> Maybe Int32 -> [ParseErrorBundle String Void] -> LspM Config ()
+sendDiagnostics fileUri version es = do
+  let diags = map (\e -> do
+        let (PosState _ _ (SourcePos _ l c) _ _) = bundlePosState e
+        LSP.Diagnostic
+            (LSP.mkRange (fromIntegral $ unPos l - 1) (fromIntegral $ unPos c - 1) (fromIntegral $ unPos l - 1) (fromIntegral $ unPos c))
+            (Just LSP.DiagnosticSeverity_Error) -- severity
+            Nothing -- code
+            Nothing
+            (Just "daicker") -- source
+            (T.pack $ errorBundlePretty e)
+            Nothing -- tags
+            (Just [])
+            Nothing
+        ) es
   publishDiagnostics 100 fileUri version (partitionBySource diags)
 
 handle :: (m ~ LspM Config) => L.LogAction m (WithSeverity T.Text) -> Handlers m
 handle logger =
   mconcat
-    [ notificationHandler LSP.SMethod_TextDocumentDidOpen $ \msg -> do
-        let doc = msg ^. LSP.params . LSP.textDocument . LSP.uri
-            fileName = LSP.uriToFilePath doc
-        logger <& ("Processing DidOpenTextDocument for: " <> T.pack (show fileName)) `WithSeverity` Info
-        sendDiagnostics (LSP.toNormalizedUri doc) (Just 0)
+    [ notificationHandler LSP.SMethod_Initialized $ \_msg -> do
+        logger <& "Processing the Initialized notification" `WithSeverity` Info
+    , notificationHandler LSP.SMethod_TextDocumentDidOpen $ \msg -> do
+        let doc = msg
+                ^. LSP.params
+                  . LSP.textDocument
+                  . LSP.uri
+                  . to LSP.toNormalizedUri
+        logger <& ("Processing DidOpenTextDocument for: " <> T.pack (show doc)) `WithSeverity` Info
+        mdoc <- getVirtualFile doc
+        case mdoc of
+          Just file -> sendDiagnostics doc (Just $ virtualFileVersion file) $ syntaxCheck (show doc) (T.unpack $ virtualFileText file)
+          Nothing -> sendDiagnostics doc Nothing []
+    , notificationHandler LSP.SMethod_TextDocumentDidChange $ \msg -> do
+        let doc =
+              msg
+                ^. LSP.params
+                  . LSP.textDocument
+                  . LSP.uri
+                  . to LSP.toNormalizedUri
+        mdoc <- getVirtualFile doc
+        logger <& ("Processing TextDocumentDidChange for: " <> T.pack (show doc)) `WithSeverity` Info
+        case mdoc of
+          Just file -> sendDiagnostics doc (Just $ virtualFileVersion file) $ syntaxCheck (show doc) (T.unpack $ virtualFileText file)
+          Nothing -> sendDiagnostics doc Nothing []
     , notificationHandler LSP.SMethod_TextDocumentDidSave $ \msg -> do
-        let doc = msg ^. LSP.params . LSP.textDocument . LSP.uri
-            fileName = LSP.uriToFilePath doc
-        logger <& ("Processing DidSaveTextDocument  for: " <> T.pack (show fileName)) `WithSeverity` Info
-        sendDiagnostics (LSP.toNormalizedUri doc) Nothing
+        let doc =
+              msg
+                ^. LSP.params
+                  . LSP.textDocument
+                  . LSP.uri
+                  . to LSP.toNormalizedUri
+        logger <& ("Processing DidSaveTextDocument  for: " <> T.pack (show doc)) `WithSeverity` Info
+        mdoc <- getVirtualFile doc
+        case mdoc of
+          Just file -> sendDiagnostics doc (Just $ virtualFileVersion file) $ syntaxCheck (show doc) (T.unpack $ virtualFileText file)
+          Nothing -> sendDiagnostics doc Nothing []
     ]
 
 newtype ReactorInput

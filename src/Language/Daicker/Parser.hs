@@ -11,16 +11,14 @@ import Language.Daicker.Span
 import Control.Monad (void)
 import GHC.Conc (par)
 import Language.LSP.Protocol.Lens (HasIdentifier(identifier))
-import System.IO (readFile)
 
 type Parser = Parsec Void String
 
-syntaxCheck :: String -> IO ()
-syntaxCheck fileName = do
-  src <- readFile fileName
+syntaxCheck :: String -> String -> [ParseErrorBundle String Void]
+syntaxCheck fileName src = do
   case parse pModule fileName src of
-    Right _ -> pure ()
-    Left e -> putStrLn $ errorBundlePretty e
+    Right _ -> []
+    Left e -> [e]
 
 pModule :: Parser Module
 pModule = Module <$> (tModule *> pIdentifier) <*> many pImport <*> many pExport <*> many pDefine <* eof
