@@ -32,6 +32,10 @@ import Text.Megaparsec (ParseErrorBundle (bundlePosState), bundlePosState, PosSt
 import Data.Void (Void)
 import Language.Daicker.Parser (syntaxCheck)
 import Language.LSP.VFS (VirtualFile(VirtualFile), virtualFileText, virtualFileVersion)
+import Text.Megaparsec.Error (ParseErrorBundle(bundleErrors), errorOffset)
+import Text.Megaparsec.State (PosState(pstateSourcePos))
+import qualified Data.List.NonEmpty as NEL
+import Text.Megaparsec.Stream (reachOffset)
 
 data Config = Config {fooTheBar :: Bool, wibbleFactor :: Int}
   deriving (Generic, Show)
@@ -44,9 +48,11 @@ instance J.FromJSON Config where
 sendDiagnostics :: LSP.NormalizedUri -> Maybe Int32 -> [ParseErrorBundle String Void] -> LspM Config ()
 sendDiagnostics fileUri version es = do
   let diags = map (\e -> do
-        let (PosState _ _ (SourcePos _ l c) _ _) = bundlePosState e
+        let (SourcePos _ l c) = errorBundleSourcePos e
         LSP.Diagnostic
-            (LSP.mkRange (fromIntegral $ unPos l - 1) (fromIntegral $ unPos c - 1) (fromIntegral $ unPos l - 1) (fromIntegral $ unPos c))
+            (LSP.mkRange
+              (fromIntegral $ unPos l - 1) (fromIntegral $ unPos c - 1)
+              (fromIntegral $ unPos l - 1) (fromIntegral $ unPos c))
             (Just LSP.DiagnosticSeverity_Error) -- severity
             Nothing -- code
             Nothing
@@ -69,10 +75,11 @@ handle logger =
                   . LSP.textDocument
                   . LSP.uri
                   . to LSP.toNormalizedUri
+        let (NormalizedUri _ path) = doc
         logger <& ("Processing DidOpenTextDocument for: " <> T.pack (show doc)) `WithSeverity` Info
         mdoc <- getVirtualFile doc
         case mdoc of
-          Just file -> sendDiagnostics doc (Just $ virtualFileVersion file) $ syntaxCheck (show doc) (T.unpack $ virtualFileText file)
+          Just file -> sendDiagnostics doc (Just $ virtualFileVersion file) $ syntaxCheck (T.unpack path) (T.unpack $ virtualFileText file)
           Nothing -> sendDiagnostics doc Nothing []
     , notificationHandler LSP.SMethod_TextDocumentDidChange $ \msg -> do
         let doc =
@@ -81,10 +88,11 @@ handle logger =
                   . LSP.textDocument
                   . LSP.uri
                   . to LSP.toNormalizedUri
+        let (NormalizedUri _ path) = doc
         mdoc <- getVirtualFile doc
         logger <& ("Processing TextDocumentDidChange for: " <> T.pack (show doc)) `WithSeverity` Info
         case mdoc of
-          Just file -> sendDiagnostics doc (Just $ virtualFileVersion file) $ syntaxCheck (show doc) (T.unpack $ virtualFileText file)
+          Just file -> sendDiagnostics doc (Just $ virtualFileVersion file) $ syntaxCheck (T.unpack path) (T.unpack $ virtualFileText file)
           Nothing -> sendDiagnostics doc Nothing []
     , notificationHandler LSP.SMethod_TextDocumentDidSave $ \msg -> do
         let doc =
@@ -93,10 +101,11 @@ handle logger =
                   . LSP.textDocument
                   . LSP.uri
                   . to LSP.toNormalizedUri
+        let (NormalizedUri _ path) = doc
         logger <& ("Processing DidSaveTextDocument  for: " <> T.pack (show doc)) `WithSeverity` Info
         mdoc <- getVirtualFile doc
         case mdoc of
-          Just file -> sendDiagnostics doc (Just $ virtualFileVersion file) $ syntaxCheck (show doc) (T.unpack $ virtualFileText file)
+          Just file -> sendDiagnostics doc (Just $ virtualFileVersion file) $ syntaxCheck (T.unpack path) (T.unpack $ virtualFileText file)
           Nothing -> sendDiagnostics doc Nothing []
     ]
 
@@ -165,3 +174,10 @@ reactor logger inp = do
   forever $ do
     ReactorAction act <- atomically $ readTChan inp
     act
+
+errorBundleSourcePos :: ParseErrorBundle String Void -> SourcePos
+errorBundleSourcePos peb = do
+  let pst = bundlePosState peb
+  let e = NEL.head $ bundleErrors peb
+  let (_, pst') = reachOffset (errorOffset e) pst
+  pstateSourcePos pst'
