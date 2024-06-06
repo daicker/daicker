@@ -1,5 +1,6 @@
+{-# LANGUAGE InstanceSigs #-}
 module Language.Daicker.AST where
-import Language.Daicker.Span (Span)
+import Language.Daicker.Span (Span, Spanned, span)
 
 data Module = Module Identifier [Import] [Export] [Define]
 
@@ -21,3 +22,32 @@ data Value
 
 type VArg = Identifier
 data Identifier = Identifier String Span deriving (Show, Eq)
+
+instance Spanned Import where
+  span :: Import -> Span
+  span (Import _ s) = s
+
+instance Spanned Export where
+  span :: Export -> Span
+  span (Export _ s) = s
+
+instance Spanned Define where
+  span :: Define -> Span
+  span (Define _ _ s) = s
+
+instance Spanned Value where
+  span :: Value -> Span
+  span v = case v of
+    VNull s -> s
+    VBool _ s -> s
+    VNumber _ s -> s
+    VString _ s -> s
+    VArray _ s -> s
+    VObject _ s -> s
+    VRef _ s -> s
+    VApp _ _ s -> s
+    VFun _ _ s -> s
+
+instance Spanned Identifier where
+  span :: Identifier -> Span
+  span (Identifier _ s) = s

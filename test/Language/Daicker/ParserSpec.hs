@@ -2,15 +2,23 @@ module Language.Daicker.ParserSpec (spec) where
 
 import Test.Hspec
 import Text.Megaparsec
-import Language.Daicker.Parser (pValue, pImport)
+import Language.Daicker.Parser (pValue, pImport, pDefine)
 import Language.Daicker.Span (mkSpan)
 import Language.Daicker.AST
+import Language.Daicker.DLS (errorBundleSourcePos)
 
 spec :: Spec
 spec = do
   describe "import" $ do
     it "import a"
       $ parse pImport "test" "import a" `shouldBe` Right (Import (Identifier "a" (mkSpan "test" 1 8 1 9)) (mkSpan "test" 1 1 1 9))
+  describe "define" $ do
+    it "a = 1"
+      $ parse pDefine "test" "a = 1" `shouldBe`
+        Right (Define
+          (Identifier "a" (mkSpan "test" 1 1 1 2))
+          (VNumber 1 (mkSpan "test" 1 5 1 6))
+          (mkSpan "test" 1 1 1 6))
   describe "value parser" $ do
     describe "null" $ do
       it "null"

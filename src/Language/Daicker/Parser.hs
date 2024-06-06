@@ -7,7 +7,7 @@ import Data.Scientific ( toRealFloat )
 import Language.Daicker.AST
 import Text.Megaparsec.Char
 import Text.Megaparsec.Byte.Lexer (float)
-import Language.Daicker.Span
+import Language.Daicker.Span as S
 import Control.Monad (void)
 import GHC.Conc (par)
 import Language.LSP.Protocol.Lens (HasIdentifier(identifier))
@@ -25,18 +25,22 @@ pModule = Module <$> (tModule *> pIdentifier) <*> many pImport <*> many pExport 
 
 pImport :: Parser Import
 pImport = do
-  (i, span) <- spanned (tImport *> pIdentifier)
-  return $ Import i span
+  s <- tImport
+  i <- pIdentifier
+  return $ Import i (S.span s S.<> S.span i)
 
 pExport :: Parser Export
 pExport = do
-  (i, span) <- spanned (tExport *> pIdentifier)
-  return $ Export i span
+  s <- tExport
+  i <- pIdentifier
+  return $ Export i (S.span s S.<> S.span i)
 
 pDefine :: Parser Define
 pDefine = do
-  ((i, _, v), span) <- spanned ((,,) <$> pIdentifier <*> tEqual <*> pValue)
-  return $ Define i v span
+  i <- pIdentifier
+  tEqual
+  v <- pValue
+  return $ Define i v (S.span i S.<> S.span v)
 
 pValue :: Parser Value
 pValue = choice
@@ -49,63 +53,63 @@ pValue = choice
 
 pNull :: Parser Value
 pNull = do
-  (_, span) <- spanned tNull
+  (_, span) <- tNull
   return $ VNull span
 
 pBool :: Parser Value
 pBool = do
-  (t, span) <- spanned tBool
-  return $ VBool t span
+  (t, s) <- tBool
+  return $ VBool t s
 
 pNumber :: Parser Value
 pNumber = do
-  (t, span) <- spanned tNumber
-  return $ VNumber t span
+  (t, s) <- tNumber
+  return $ VNumber t s
 
 pString :: Parser Value
 pString = do
-  (t, span) <- spanned tString
-  return $ VString t span
+  (t, s) <- tString
+  return $ VString t s
 
 pRef :: Parser Value
 pRef = do
-  (i, span) <- spanned pIdentifier
-  return $ VRef i span
+  i <- pIdentifier
+  return $ VRef i (S.span i)
 
 pIdentifier :: Parser Identifier
 pIdentifier = do
-  (t, span) <- spanned tIdentifier
-  return $ Identifier t span
+  (t, s) <- tIdentifier
+  return $ Identifier t s
 
-tNull :: Parser ()
-tNull = lexeme $ void (string "null" <?> "null")
+tNull :: Parser ((), Span)
+tNull = lexeme $ spanned $ void (string "null" <?> "null")
 
-tBool :: Parser Bool
-tBool = lexeme (choice
+tBool :: Parser (Bool, Span)
+tBool = lexeme $ spanned (choice
   [ True <$ string "true"
   , False <$ string "false"
   ] <?> "bool")
 
-tNumber :: Parser Double
-tNumber = lexeme (L.signed sc (lexeme $ toRealFloat <$> L.scientific) <?> "number")
+tNumber :: Parser (Double, Span)
+tNumber = lexeme $ spanned (L.signed sc (lexeme $ toRealFloat <$> L.scientific) <?> "number")
 
-tString :: Parser String
-tString = lexeme (char '"' *> manyTill L.charLiteral (char '"') <?> "string")
+tString :: Parser (String, Span)
+tString = lexeme $ spanned (char '"' *> manyTill L.charLiteral (char '"') <?> "string")
 
-tIdentifier :: Parser String
-tIdentifier = lexeme ((:) <$> (lowerChar <|> upperChar) <*> many alphaNumChar <?> "identifier")
+tIdentifier :: Parser (String, Span)
+tIdentifier = lexeme $ spanned ((:) <$> (lowerChar <|> upperChar) <*> many alphaNumChar <?> "identifier")
 
-tEqual :: Parser ()
-tEqual = lexeme $ void (char '=' <?> "equal")
+tEqual :: Parser ((), Span)
+tEqual = lexeme $ spanned $ void (char '=' <?> "equal")
 
-tModule :: Parser ()
-tModule = lexeme $ void (string "module" <?> "module")
+tModule :: Parser ((), Span)
+tModule = lexeme $ spanned $ void (string "module" <?> "module")
 
-tImport :: Parser ()
-tImport = lexeme $ void (string "import" <?> "import")
+tImport :: Parser ((), Span)
+tImport = lexeme $ spanned $ void (string "import" <?> "import")
 
-tExport :: Parser ()
-tExport = lexeme $ void (string "export" <?> "export")
+tExport :: Parser ((), Span)
+tExport = lexeme $ spanned $ void (string "export" <?> "export")
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
@@ -118,4 +122,4 @@ spanned parser = do
   start <- getSourcePos
   x <- parser
   end <- getSourcePos
-  pure (x,  Span start end)
+  pure (x, Span start end)
