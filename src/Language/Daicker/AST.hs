@@ -1,11 +1,15 @@
 {-# LANGUAGE InstanceSigs #-}
+
 module Language.Daicker.AST where
+
 import Language.Daicker.Span (Span, Spanned, span)
 
 data Module = Module Identifier [Import] [Export] [Define]
 
 data Import = Import Identifier Span deriving (Show, Eq)
+
 data Export = Export Identifier Span deriving (Show, Eq)
+
 data Define = Define Identifier Value Span deriving (Show, Eq)
 
 data Value
@@ -21,6 +25,7 @@ data Value
   deriving (Show, Eq)
 
 type VArg = Identifier
+
 data Identifier = Identifier String Span deriving (Show, Eq)
 
 instance Spanned Import where

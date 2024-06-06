@@ -1,16 +1,23 @@
 module Language.Daicker.Parser where
 
-import Text.Megaparsec
-import qualified Text.Megaparsec.Char.Lexer as L
-import Data.Void ( Void )
-import Data.Scientific ( toRealFloat )
-import Language.Daicker.AST
-import Text.Megaparsec.Char
-import Text.Megaparsec.Byte.Lexer (float)
-import Language.Daicker.Span as S
 import Control.Monad (void)
+import Data.Scientific (toRealFloat)
+import Data.Void (Void)
 import GHC.Conc (par)
-import Language.LSP.Protocol.Lens (HasIdentifier(identifier))
+import Language.Daicker.AST
+import Language.Daicker.Span as S
+import Language.LSP.Protocol.Lens (HasIdentifier (identifier))
+import Text.Megaparsec
+import Text.Megaparsec.Byte.Lexer (float)
+import Text.Megaparsec.Char
+  ( alphaNumChar,
+    char,
+    lowerChar,
+    space1,
+    string,
+    upperChar,
+  )
+import qualified Text.Megaparsec.Char.Lexer as L
 
 type Parser = Parsec Void String
 
@@ -43,13 +50,14 @@ pDefine = do
   return $ Define i v (S.span i S.<> S.span v)
 
 pValue :: Parser Value
-pValue = choice
-  [ pNull
-  , pBool
-  , pNumber
-  , pString
-  , pRef
-  ]
+pValue =
+  choice
+    [ pNull,
+      pBool,
+      pNumber,
+      pString,
+      pRef
+    ]
 
 pNull :: Parser Value
 pNull = do
@@ -85,10 +93,15 @@ tNull :: Parser ((), Span)
 tNull = lexeme $ spanned $ void (string "null" <?> "null")
 
 tBool :: Parser (Bool, Span)
-tBool = lexeme $ spanned (choice
-  [ True <$ string "true"
-  , False <$ string "false"
-  ] <?> "bool")
+tBool =
+  lexeme $
+    spanned
+      ( choice
+          [ True <$ string "true",
+            False <$ string "false"
+          ]
+          <?> "bool"
+      )
 
 tNumber :: Parser (Double, Span)
 tNumber = lexeme $ spanned (L.signed sc (lexeme $ toRealFloat <$> L.scientific) <?> "number")
