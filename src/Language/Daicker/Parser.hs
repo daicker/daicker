@@ -15,6 +15,7 @@ import Text.Megaparsec.Char
     lowerChar,
     space1,
     string,
+    symbolChar,
     upperChar,
   )
 import qualified Text.Megaparsec.Char.Lexer as L
@@ -56,7 +57,8 @@ pValue =
       pBool,
       pNumber,
       pString,
-      pRef
+      pRef,
+      pApp
     ]
 
 pNull :: Parser Value
@@ -83,6 +85,13 @@ pRef :: Parser Value
 pRef = do
   i <- pIdentifier
   return $ VRef i (S.span i)
+
+pApp :: Parser Value
+pApp = do
+  v <- pValue
+  i <- optional $ between tLBracket tRBracket pIdentifier
+  args <- spanned $ between tLParenthesis tRParenthesis (pValue `sepBy` tComma)
+  return $ VApp i v (fst args) (S.span v S.<> S.span args)
 
 pIdentifier :: Parser Identifier
 pIdentifier = do
@@ -123,6 +132,33 @@ tImport = lexeme $ spanned $ void (string "import" <?> "import")
 
 tExport :: Parser ((), Span)
 tExport = lexeme $ spanned $ void (string "export" <?> "export")
+
+-- | Left Parenthesis Token "("
+tLParenthesis :: Parser ((), Span)
+tLParenthesis = lexeme $ spanned $ void (char '(' <?> "(")
+
+-- | Right Parenthesis Token ")"
+tRParenthesis :: Parser ((), Span)
+tRParenthesis = lexeme $ spanned $ void (char ')' <?> ")")
+
+-- | Left Bracket Token "["
+tLBracket :: Parser ((), Span)
+tLBracket = lexeme $ spanned $ void (char '[' <?> "[")
+
+-- | Right Bracket Token "]"
+tRBracket :: Parser ((), Span)
+tRBracket = lexeme $ spanned $ void (char ']' <?> "]")
+
+-- | Left Brace Token "{"
+tLBrace :: Parser ((), Span)
+tLBrace = lexeme $ spanned $ void (char '{' <?> "{")
+
+-- | Right Brace Token "}"
+tRBrace :: Parser ((), Span)
+tRBrace = lexeme $ spanned $ void (char '}' <?> "}")
+
+tComma :: Parser ((), Span)
+tComma = lexeme $ spanned $ void (char ',')
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc

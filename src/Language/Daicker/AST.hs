@@ -20,11 +20,13 @@ data Value
   | VArray [Value] Span
   | VObject [(String, Value)] Span
   | VRef Identifier Span
-  | VApp Value [Value] Span
+  | VApp (Maybe VImage) Value [Value] Span
   | VFun [VArg] Value Span
   deriving (Show, Eq)
 
 type VArg = Identifier
+
+type VImage = Identifier
 
 data Identifier = Identifier String Span deriving (Show, Eq)
 
@@ -42,16 +44,15 @@ instance Spanned Define where
 
 instance Spanned Value where
   span :: Value -> Span
-  span v = case v of
-    VNull s -> s
-    VBool _ s -> s
-    VNumber _ s -> s
-    VString _ s -> s
-    VArray _ s -> s
-    VObject _ s -> s
-    VRef _ s -> s
-    VApp _ _ s -> s
-    VFun _ _ s -> s
+  span (VNull s) = s
+  span (VBool _ s) = s
+  span (VNumber _ s) = s
+  span (VString _ s) = s
+  span (VArray _ s) = s
+  span (VObject _ s) = s
+  span (VRef _ s) = s
+  span (VApp _ _ _ s) = s
+  span (VFun _ _ s) = s
 
 instance Spanned Identifier where
   span :: Identifier -> Span
