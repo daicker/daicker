@@ -58,6 +58,7 @@ pValue =
       pNumber,
       pString,
       pRef,
+      pFunc,
       pApp
     ]
 
@@ -92,6 +93,13 @@ pApp = do
   i <- optional $ between tLBracket tRBracket pIdentifier
   args <- spanned $ between tLParenthesis tRParenthesis (pValue `sepBy` tComma)
   return $ VApp i v (fst args) (S.span v S.<> S.span args)
+
+pFunc :: Parser Value
+pFunc = do
+  args <- spanned $ between tLParenthesis tRParenthesis (pIdentifier `sepBy` tComma)
+  tArrow
+  v <- pValue
+  return $ VFun (fst args) v (S.span args S.<> S.span v)
 
 pIdentifier :: Parser Identifier
 pIdentifier = do
@@ -156,6 +164,10 @@ tLBrace = lexeme $ spanned $ void (char '{' <?> "{")
 -- | Right Brace Token "}"
 tRBrace :: Parser ((), Span)
 tRBrace = lexeme $ spanned $ void (char '}' <?> "}")
+
+-- | Right Arrow Token "->"
+tArrow :: Parser ((), Span)
+tArrow = lexeme $ spanned $ void (string "->" <?> "->")
 
 tComma :: Parser ((), Span)
 tComma = lexeme $ spanned $ void (char ',')

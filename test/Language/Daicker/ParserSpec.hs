@@ -71,3 +71,15 @@ spec = do
                 [VNumber 1 (mkSpan "test" 1 11 1 12)]
                 (mkSpan "test" 1 1 1 13)
             )
+    describe "fun" $ do
+      it "(a) -> a" $ do
+        parse pValue "test" "(a) -> a"
+          `shouldBe` Right
+            ( VFun
+                [Identifier "a" (mkSpan "test" 1 2 1 3)]
+                ( VRef
+                    (Identifier "a" (mkSpan "test" 1 8 1 9))
+                    (mkSpan "test" 1 8 1 9)
+                )
+                (mkSpan "test" 1 1 1 9)
+            )
