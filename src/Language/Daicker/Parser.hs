@@ -50,6 +50,12 @@ pDefine = do
   v <- pValue
   return $ Define i v (S.span i S.<> S.span v)
 
+pApp :: Parser Value
+pApp = do
+  v <- pValue
+  args <- spanned $ between tLParenthesis tRParenthesis (pValue `sepBy` tComma)
+  return $ VApp Nothing v (fst args) (S.span v S.<> S.span args)
+
 pValue :: Parser Value
 pValue =
   choice
@@ -57,6 +63,8 @@ pValue =
       pBool,
       pNumber,
       pString,
+      pArray,
+      pObject,
       pRef,
       pFunc,
       pApp
@@ -86,13 +94,6 @@ pRef :: Parser Value
 pRef = do
   i <- pIdentifier
   return $ VRef i (S.span i)
-
-pApp :: Parser Value
-pApp = do
-  v <- pValue
-  i <- optional $ between tLBracket tRBracket pIdentifier
-  args <- spanned $ between tLParenthesis tRParenthesis (pValue `sepBy` tComma)
-  return $ VApp i v (fst args) (S.span v S.<> S.span args)
 
 pFunc :: Parser Value
 pFunc = do
@@ -125,6 +126,23 @@ tNumber = lexeme $ spanned (L.signed sc (lexeme $ toRealFloat <$> L.scientific) 
 
 tString :: Parser (String, Span)
 tString = lexeme $ spanned (char '"' *> manyTill L.charLiteral (char '"') <?> "string")
+
+pArray :: Parser Value
+pArray = do
+  (vs, s) <- spanned $ between tLBracket tRBracket (pValue `sepBy` tComma)
+  return $ VArray vs s
+
+pObject :: Parser Value
+pObject = do
+  (obj, s) <- spanned $ between tLBrace tRBrace (pair `sepBy` tComma)
+  return $ VObject obj s
+  where
+    pair :: Parser (VKey, Value)
+    pair = do
+      (t, s) <- tString
+      tColon
+      v <- pValue
+      return (Identifier t s, v)
 
 tIdentifier :: Parser (String, Span)
 tIdentifier = lexeme $ spanned ((:) <$> (lowerChar <|> upperChar) <*> many alphaNumChar <?> "identifier")
@@ -171,6 +189,9 @@ tArrow = lexeme $ spanned $ void (string "->" <?> "->")
 
 tComma :: Parser ((), Span)
 tComma = lexeme $ spanned $ void (char ',')
+
+tColon :: Parser ((), Span)
+tColon = lexeme $ spanned $ void (char ':')
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc

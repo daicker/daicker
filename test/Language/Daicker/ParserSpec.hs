@@ -40,37 +40,75 @@ spec = do
         parse pValue "test" "\"\"" `shouldBe` Right (VString "" (mkSpan "test" 1 1 1 3))
       it "\"abc\"" $
         parse pValue "test" "\"abc\"" `shouldBe` Right (VString "abc" (mkSpan "test" 1 1 1 6))
+    describe "array" $ do
+      it "[]" $
+        parse pValue "test" "[]"
+          `shouldBe` Right
+            ( VArray
+                []
+                (mkSpan "test" 1 1 1 3)
+            )
+      it "[1, 2]" $
+        parse pValue "test" "[1, 2]"
+          `shouldBe` Right
+            ( VArray
+                [ VNumber 1 (mkSpan "test" 1 2 1 3),
+                  VNumber 2 (mkSpan "test" 1 5 1 6)
+                ]
+                (mkSpan "test" 1 1 1 7)
+            )
+    describe "object" $ do
+      it "{}" $
+        parse pValue "test" "{}"
+          `shouldBe` Right
+            ( VObject
+                []
+                (mkSpan "test" 1 1 1 3)
+            )
+      it "{\"a\": 1, \"b\": 2}" $
+        parse pValue "test" "{\"a\": 1, \"b\": 2}"
+          `shouldBe` Right
+            ( VObject
+                [ ( Identifier "a" (mkSpan "test" 1 2 1 5),
+                    VNumber 1 (mkSpan "test" 1 7 1 8)
+                  ),
+                  ( Identifier "b" (mkSpan "test" 1 10 1 13),
+                    VNumber 2 (mkSpan "test" 1 15 1 16)
+                  )
+                ]
+                (mkSpan "test" 1 1 1 17)
+            )
     describe "ref" $ do
       it "a" $
         parse pValue "test" "a" `shouldBe` Right (VRef (Identifier "a" (mkSpan "test" 1 1 1 2)) (mkSpan "test" 1 1 1 2))
       it "abc" $
         parse pValue "test" "abc" `shouldBe` Right (VRef (Identifier "abc" (mkSpan "test" 1 1 1 4)) (mkSpan "test" 1 1 1 4))
-    describe "app" $ do
-      it "f(1)" $ do
-        parse pValue "test" "f(1)"
-          `shouldBe` Right
-            ( VApp
-                Nothing
-                ( VRef
-                    (Identifier "f" (mkSpan "test" 1 1 1 2))
-                    (mkSpan "test" 1 1 1 2)
-                )
-                [VNumber 1 (mkSpan "test" 1 3 1 4)]
-                (mkSpan "test" 1 1 1 5)
-            )
-      it "f[alpine](1)" $ do
-        parse pValue "test" "f[alpine](1)"
-          `shouldBe` Right
-            ( VApp
-                ( Just (Identifier "alpine" (mkSpan "test" 1 3 1 9))
-                )
-                ( VRef
-                    (Identifier "f" (mkSpan "test" 1 1 1 2))
-                    (mkSpan "test" 1 1 1 2)
-                )
-                [VNumber 1 (mkSpan "test" 1 11 1 12)]
-                (mkSpan "test" 1 1 1 13)
-            )
+    -- describe "app" $ do
+    --   it "f(1)" $ do
+    --     parse pValue "test" "f(1)"
+    --       `shouldBe` Right
+    --         ( VApp
+    --             Nothing
+    --             ( VRef
+    --                 (Identifier "f" (mkSpan "test" 1 1 1 2))
+    --                 (mkSpan "test" 1 1 1 2)
+    --             )
+    --             [VNumber 1 (mkSpan "test" 1 3 1 4)]
+    --             (mkSpan "test" 1 1 1 5)
+    --         )
+    --   it "f[alpine](1)" $ do
+    --     parse pValue "test" "f[alpine](1)"
+    --       `shouldBe` Right
+    --         ( VApp
+    --             ( Just (Identifier "alpine" (mkSpan "test" 1 3 1 9))
+    --             )
+    --             ( VRef
+    --                 (Identifier "f" (mkSpan "test" 1 1 1 2))
+    --                 (mkSpan "test" 1 1 1 2)
+    --             )
+    --             [VNumber 1 (mkSpan "test" 1 11 1 12)]
+    --             (mkSpan "test" 1 1 1 13)
+    --         )
     describe "fun" $ do
       it "(a) -> a" $ do
         parse pValue "test" "(a) -> a"

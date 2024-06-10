@@ -18,11 +18,13 @@ data Value
   | VNumber Double Span
   | VString String Span
   | VArray [Value] Span
-  | VObject [(String, Value)] Span
+  | VObject [(VKey, Value)] Span
   | VRef Identifier Span
   | VApp (Maybe VImage) Value [Value] Span
   | VFun [VArg] Value Span
   deriving (Show, Eq)
+
+type VKey = Identifier
 
 type VArg = Identifier
 
