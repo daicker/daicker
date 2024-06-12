@@ -1,9 +1,9 @@
-name:                daicker
-version:             0.1.0.0
-github:              "daicker/daicker"
-license:             AGPL-3.0
-author:              "Toru Ikeda"
-copyright:           "2024 Toru Ikeda"
+name: daicker
+version: 0.1.0.0
+github: "daicker/daicker"
+license: AGPL-3.0
+author: "Toru Ikeda"
+copyright: "2024 Toru Ikeda"
 
 extra-source-files: []
 # Metadata used when publishing your package
@@ -13,44 +13,45 @@ extra-source-files: []
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/daicker/daicker#readme>
+description: Please see the README on GitHub at <https://github.com/daicker/daicker#readme>
 
 dependencies:
-- base >= 4.7 && < 5
-- megaparsec >= 9.6 && < 10
-- scientific >= 0.3 && < 0.4
-- lsp >= 2.6 && < 3
-- text >= 2.0 && < 3
-- optparse-applicative >= 0.18 && < 0.19
-- lens >= 5.0 && < 6
-- aeson >= 2.0 && < 3
-- stm >= 2.0 && < 3
-- co-log-core >= 0.3.0 && < 0.4
-- hspec >= 2.11 && < 3
-- hspec-core >= 2.11 && < 3
-- hspec-megaparsec >= 2.2 && < 3
+  - base >= 4.7 && < 5
+  - megaparsec >= 9.6 && < 10
+  - parser-combinators >= 1.0 && < 2
+  - scientific >= 0.3 && < 0.4
+  - lsp >= 2.6 && < 3
+  - text >= 2.0 && < 3
+  - optparse-applicative >= 0.18 && < 0.19
+  - lens >= 5.0 && < 6
+  - aeson >= 2.0 && < 3
+  - stm >= 2.0 && < 3
+  - co-log-core >= 0.3.0 && < 0.4
+  - hspec >= 2.11 && < 3
+  - hspec-core >= 2.11 && < 3
+  - hspec-megaparsec >= 2.2 && < 3
 
 library:
   source-dirs: src
 
 executables:
   daicker:
-    main:                Main.hs
-    source-dirs:         app
+    main: Main.hs
+    source-dirs: app
     ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
     dependencies:
-    - daicker
+      - daicker
 
 tests:
   daicker-test:
-    main:                Spec.hs
-    source-dirs:         test
+    main: Spec.hs
+    source-dirs: test
     ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
     dependencies:
-    - daicker
+      - daicker

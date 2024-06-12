@@ -1,6 +1,7 @@
 module Language.Daicker.Parser where
 
 import Control.Monad (void)
+import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
 import Data.Scientific (toRealFloat)
 import Data.Void (Void)
 import GHC.Conc (par)
@@ -45,16 +46,19 @@ pExport = do
 
 pDefine :: Parser Define
 pDefine = do
+  (_, s) <- tDefine
   i <- pIdentifier
   tEqual
-  v <- pValue
-  return $ Define i v (S.span i S.<> S.span v)
+  v <- pApp
+  return $ Define i v (s S.<> S.span v)
 
 pApp :: Parser Value
 pApp = do
   v <- pValue
-  args <- spanned $ between tLParenthesis tRParenthesis (pValue `sepBy` tComma)
-  return $ VApp Nothing v (fst args) (S.span v S.<> S.span args)
+  args <- spanned $ many pValue
+  case args of
+    ([], _) -> return v
+    _ -> return $ VApp Nothing v (fst args) (S.span v S.<> S.span args)
 
 pValue :: Parser Value
 pValue =
@@ -67,7 +71,7 @@ pValue =
       pObject,
       pRef,
       pFunc,
-      pApp
+      pApp'
     ]
 
 pNull :: Parser Value
@@ -95,12 +99,18 @@ pRef = do
   i <- pIdentifier
   return $ VRef i (S.span i)
 
+pApp' :: Parser Value
+pApp' = do
+  (VApp c f args _, s) <- spanned $ between tLParenthesis tRParenthesis pApp
+  return $ VApp c f args s
+
 pFunc :: Parser Value
 pFunc = do
-  args <- spanned $ between tLParenthesis tRParenthesis (pIdentifier `sepBy` tComma)
+  (_, s) <- tBackslash
+  args <- spanned $ many pIdentifier
   tArrow
   v <- pValue
-  return $ VFun (fst args) v (S.span args S.<> S.span v)
+  return $ VFun (fst args) v (s S.<> S.span v)
 
 pIdentifier :: Parser Identifier
 pIdentifier = do
@@ -122,7 +132,7 @@ tBool =
       )
 
 tNumber :: Parser (Double, Span)
-tNumber = lexeme $ spanned (L.signed sc (lexeme $ toRealFloat <$> L.scientific) <?> "number")
+tNumber = lexeme $ spanned (L.signed sc (toRealFloat <$> L.scientific) <?> "number")
 
 tString :: Parser (String, Span)
 tString = lexeme $ spanned (char '"' *> manyTill L.charLiteral (char '"') <?> "string")
@@ -145,10 +155,14 @@ pObject = do
       return (Identifier t s, v)
 
 tIdentifier :: Parser (String, Span)
-tIdentifier = lexeme $ spanned ((:) <$> (lowerChar <|> upperChar) <*> many alphaNumChar <?> "identifier")
+tIdentifier = try $ do
+  id <- lexeme $ spanned ((:) <$> (lowerChar <|> upperChar) <*> many alphaNumChar <?> "identifier")
+  if fst id `elem` ["module", "import", "export", "define"]
+    then fail $ "Keyword " ++ fst id ++ " cannot be an identifier"
+    else return id
 
 tEqual :: Parser ((), Span)
-tEqual = lexeme $ spanned $ void (char '=' <?> "equal")
+tEqual = lexeme $ spanned $ void (char '=' <?> "=")
 
 tModule :: Parser ((), Span)
 tModule = lexeme $ spanned $ void (string "module" <?> "module")
@@ -158,6 +172,9 @@ tImport = lexeme $ spanned $ void (string "import" <?> "import")
 
 tExport :: Parser ((), Span)
 tExport = lexeme $ spanned $ void (string "export" <?> "export")
+
+tDefine :: Parser ((), Span)
+tDefine = lexeme $ spanned $ void (string "define" <?> "define")
 
 -- | Left Parenthesis Token "("
 tLParenthesis :: Parser ((), Span)
@@ -188,10 +205,13 @@ tArrow :: Parser ((), Span)
 tArrow = lexeme $ spanned $ void (string "->" <?> "->")
 
 tComma :: Parser ((), Span)
-tComma = lexeme $ spanned $ void (char ',')
+tComma = lexeme $ spanned $ void (char ',' <?> ",")
 
 tColon :: Parser ((), Span)
-tColon = lexeme $ spanned $ void (char ':')
+tColon = lexeme $ spanned $ void (char ':' <?> ":")
+
+tBackslash :: Parser ((), Span)
+tBackslash = lexeme $ spanned $ void (char '\\' <?> "\\")
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
