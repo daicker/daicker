@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -25,6 +26,7 @@ import GHC.Generics (Generic)
 import Language.Daicker.Parser (syntaxCheck)
 import Language.LSP.Diagnostics
 import Language.LSP.Logging (defaultClientLogger)
+import Language.LSP.Protocol.Lens (HasSemanticTokens (semanticTokens))
 import qualified Language.LSP.Protocol.Lens as LSP
 import Language.LSP.Protocol.Message ()
 import qualified Language.LSP.Protocol.Message as LSP
@@ -70,50 +72,39 @@ sendDiagnostics fileUri version es = do
           es
   publishDiagnostics 100 fileUri version (partitionBySource diags)
 
+sendSyntaxError ::
+  (m ~ LspM Config, LSP.HasUri a1 Uri, LSP.HasTextDocument a2 a1, LSP.HasParams s a2) =>
+  L.LogAction m (WithSeverity T.Text) ->
+  s ->
+  LspT Config IO ()
+sendSyntaxError logger msg = do
+  let doc =
+        msg
+          ^. LSP.params
+            . LSP.textDocument
+            . LSP.uri
+            . to LSP.toNormalizedUri
+  let (NormalizedUri _ path) = doc
+  logger <& ("Processing DidSaveTextDocument  for: " <> T.pack (show doc)) `WithSeverity` Info
+  mdoc <- getVirtualFile doc
+  case mdoc of
+    Just file -> sendDiagnostics doc (Just $ virtualFileVersion file) $ syntaxCheck (T.unpack path) (T.unpack $ virtualFileText file)
+    Nothing -> sendDiagnostics doc Nothing []
+
 handle :: (m ~ LspM Config) => L.LogAction m (WithSeverity T.Text) -> Handlers m
 handle logger =
   mconcat
     [ notificationHandler LSP.SMethod_Initialized $ \_msg -> do
         logger <& "Processing the Initialized notification" `WithSeverity` Info,
-      notificationHandler LSP.SMethod_TextDocumentDidOpen $ \msg -> do
-        let doc =
-              msg
-                ^. LSP.params
-                  . LSP.textDocument
-                  . LSP.uri
-                  . to LSP.toNormalizedUri
-        let (NormalizedUri _ path) = doc
-        logger <& ("Processing DidOpenTextDocument for: " <> T.pack (show doc)) `WithSeverity` Info
-        mdoc <- getVirtualFile doc
-        case mdoc of
-          Just file -> sendDiagnostics doc (Just $ virtualFileVersion file) $ syntaxCheck (T.unpack path) (T.unpack $ virtualFileText file)
-          Nothing -> sendDiagnostics doc Nothing [],
-      notificationHandler LSP.SMethod_TextDocumentDidChange $ \msg -> do
-        let doc =
-              msg
-                ^. LSP.params
-                  . LSP.textDocument
-                  . LSP.uri
-                  . to LSP.toNormalizedUri
-        let (NormalizedUri _ path) = doc
-        mdoc <- getVirtualFile doc
-        logger <& ("Processing TextDocumentDidChange for: " <> T.pack (show doc)) `WithSeverity` Info
-        case mdoc of
-          Just file -> sendDiagnostics doc (Just $ virtualFileVersion file) $ syntaxCheck (T.unpack path) (T.unpack $ virtualFileText file)
-          Nothing -> sendDiagnostics doc Nothing [],
-      notificationHandler LSP.SMethod_TextDocumentDidSave $ \msg -> do
-        let doc =
-              msg
-                ^. LSP.params
-                  . LSP.textDocument
-                  . LSP.uri
-                  . to LSP.toNormalizedUri
-        let (NormalizedUri _ path) = doc
-        logger <& ("Processing DidSaveTextDocument  for: " <> T.pack (show doc)) `WithSeverity` Info
-        mdoc <- getVirtualFile doc
-        case mdoc of
-          Just file -> sendDiagnostics doc (Just $ virtualFileVersion file) $ syntaxCheck (T.unpack path) (T.unpack $ virtualFileText file)
-          Nothing -> sendDiagnostics doc Nothing []
+      notificationHandler LSP.SMethod_TextDocumentDidOpen $ sendSyntaxError logger,
+      notificationHandler LSP.SMethod_TextDocumentDidChange $ sendSyntaxError logger,
+      notificationHandler LSP.SMethod_TextDocumentDidSave $ sendSyntaxError logger,
+      requestHandler LSP.SMethod_TextDocumentSemanticTokensFull $ \req responder -> do
+        let tokens = makeSemanticTokens defaultSemanticTokensLegend [SemanticTokenAbsolute 0 0 6 SemanticTokenTypes_Keyword []]
+        case tokens of
+          Left t -> responder $ Left $ LSP.ResponseError (LSP.InR LSP.ErrorCodes_InternalError) t Nothing
+          Right tokens -> responder $ Right $ LSP.InL tokens,
+      notificationHandler LSP.SMethod_WorkspaceDidChangeConfiguration $ \_ -> pure () -- Nothing to do
     ]
 
 newtype ReactorInput
