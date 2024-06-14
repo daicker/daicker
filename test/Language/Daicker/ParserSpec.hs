@@ -18,7 +18,11 @@ spec = do
         `shouldBe` Right
           ( Define
               (Identifier "a" (mkSpan "test" 1 8 1 9))
-              (VNumber 1 (mkSpan "test" 1 12 1 13))
+              ( VApp
+                  Nothing
+                  [VNumber 1 (mkSpan "test" 1 12 1 13)]
+                  (mkSpan "test" 1 12 1 13)
+              )
               (mkSpan "test" 1 1 1 13)
           )
   describe "value parser" $ do
@@ -89,11 +93,11 @@ spec = do
             `shouldBe` Right
               ( VApp
                   Nothing
-                  ( VRef
+                  [ VRef
                       (Identifier "f" (mkSpan "test" 1 2 1 3))
-                      (mkSpan "test" 1 2 1 3)
-                  )
-                  [VNumber 1 (mkSpan "test" 1 4 1 5)]
+                      (mkSpan "test" 1 2 1 3),
+                    VNumber 1 (mkSpan "test" 1 4 1 5)
+                  ]
                   (mkSpan "test" 1 1 1 6)
               )
       it "(f 1 2)" $ do
@@ -101,14 +105,26 @@ spec = do
           `shouldBe` Right
             ( VApp
                 Nothing
-                ( VRef
+                [ VRef
                     (Identifier "f" (mkSpan "test" 1 2 1 3))
-                    (mkSpan "test" 1 2 1 3)
-                )
-                [ VNumber 1 (mkSpan "test" 1 4 1 5),
+                    (mkSpan "test" 1 2 1 3),
+                  VNumber 1 (mkSpan "test" 1 4 1 5),
                   VNumber 2 (mkSpan "test" 1 6 1 7)
                 ]
                 (mkSpan "test" 1 1 1 8)
+            )
+      it "([alpine] f 1 2)" $ do
+        parse pValue "test" "([alpine] f 1 2)"
+          `shouldBe` Right
+            ( VApp
+                (Just (Identifier "alpine" (mkSpan "test" 1 3 1 9)))
+                [ VRef
+                    (Identifier "f" (mkSpan "test" 1 11 1 12))
+                    (mkSpan "test" 1 11 1 12),
+                  VNumber 1 (mkSpan "test" 1 13 1 14),
+                  VNumber 2 (mkSpan "test" 1 15 1 16)
+                ]
+                (mkSpan "test" 1 1 1 17)
             )
     describe "fun" $ do
       it "\\a -> a" $ do

@@ -54,11 +54,11 @@ pDefine = do
 
 pApp :: Parser Value
 pApp = do
-  v <- pValue
-  args <- spanned $ many pValue
-  case args of
-    ([], _) -> return v
-    _ -> return $ VApp Nothing v (fst args) (S.span v S.<> S.span args)
+  img <- optional $ between tLBracket tRBracket pIdentifier
+  (vs, s) <- spanned $ some pValue
+  case img of
+    Nothing -> return $ VApp Nothing vs s
+    Just img -> return $ VApp (Just img) vs (S.span img S.<> s)
 
 pValue :: Parser Value
 pValue =
@@ -101,8 +101,8 @@ pRef = do
 
 pApp' :: Parser Value
 pApp' = do
-  (VApp c f args _, s) <- spanned $ between tLParenthesis tRParenthesis pApp
-  return $ VApp c f args s
+  (VApp c vs _, s) <- spanned $ between tLParenthesis tRParenthesis pApp
+  return $ VApp c vs s
 
 pFunc :: Parser Value
 pFunc = do

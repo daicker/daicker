@@ -20,7 +20,7 @@ data Value
   | VArray [Value] Span
   | VObject [(VKey, Value)] Span
   | VRef Identifier Span
-  | VApp (Maybe VImage) Value [Value] Span
+  | VApp (Maybe VImage) [Value] Span
   | VFun [VArg] Value Span
   deriving (Show, Eq)
 
@@ -53,7 +53,7 @@ instance Spanned Value where
   span (VArray _ s) = s
   span (VObject _ s) = s
   span (VRef _ s) = s
-  span (VApp _ _ _ s) = s
+  span (VApp _ _ s) = s
   span (VFun _ _ s) = s
 
 instance Spanned Identifier where
