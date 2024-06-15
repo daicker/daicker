@@ -23,7 +23,9 @@ import qualified Data.List.NonEmpty as NEL
 import qualified Data.Text as T
 import Data.Void (Void)
 import GHC.Generics (Generic)
-import Language.Daicker.Parser (syntaxCheck)
+import Language.Daicker.Parser (Parser, lexSemanticTokens, syntaxCheck, tBool, tIdentifier, tNull, tNumber, tString)
+import Language.Daicker.Span (Span)
+import qualified Language.Daicker.Span as S
 import Language.LSP.Diagnostics
 import Language.LSP.Logging (defaultClientLogger)
 import Language.LSP.Protocol.Lens (HasSemanticTokens (semanticTokens))
@@ -34,7 +36,7 @@ import Language.LSP.Protocol.Types
 import qualified Language.LSP.Protocol.Types as LSP
 import Language.LSP.Server
 import Language.LSP.VFS (VirtualFile (VirtualFile), virtualFileText, virtualFileVersion)
-import Text.Megaparsec (ParseErrorBundle (bundlePosState), PosState (PosState), SourcePos (SourcePos), bundlePosState, errorBundlePretty, unPos)
+import Text.Megaparsec (ParseErrorBundle (bundlePosState), PosState (PosState), SourcePos (SourcePos), bundlePosState, choice, errorBundlePretty, parse, unPos)
 import Text.Megaparsec.Error (ParseErrorBundle (bundleErrors), errorOffset)
 import Text.Megaparsec.State (PosState (pstateSourcePos))
 import Text.Megaparsec.Stream (reachOffset)
@@ -100,15 +102,26 @@ handle logger =
       notificationHandler LSP.SMethod_TextDocumentDidChange $ sendSyntaxError logger,
       notificationHandler LSP.SMethod_TextDocumentDidSave $ sendSyntaxError logger,
       requestHandler LSP.SMethod_TextDocumentSemanticTokensFull $ \req responder -> do
-        let tokens = makeSemanticTokens defaultSemanticTokensLegend [SemanticTokenAbsolute 0 0 6 SemanticTokenTypes_Keyword []]
+        let doc =
+              req
+                ^. LSP.params
+                  . LSP.textDocument
+                  . LSP.uri
+                  . to LSP.toNormalizedUri
+        mdoc <- getVirtualFile doc
+        let (NormalizedUri _ path) = doc
+        let tokens = case mdoc of
+              Just file -> case lexSemanticTokens (T.unpack path) (T.unpack $ virtualFileText file) of
+                Right ts -> makeSemanticTokens defaultSemanticTokensLegend ts
+                Left e -> Left e
+              Nothing -> makeSemanticTokens defaultSemanticTokensLegend []
         case tokens of
           Left t -> responder $ Left $ LSP.ResponseError (LSP.InR LSP.ErrorCodes_InternalError) t Nothing
           Right tokens -> responder $ Right $ LSP.InL tokens,
       notificationHandler LSP.SMethod_WorkspaceDidChangeConfiguration $ \_ -> pure () -- Nothing to do
     ]
 
-newtype ReactorInput
-  = ReactorAction (IO ())
+newtype ReactorInput = ReactorAction (IO ())
 
 serve :: IO Int
 serve = do

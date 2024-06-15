@@ -2,12 +2,16 @@ module Language.Daicker.Parser where
 
 import Control.Monad (void)
 import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
+import Data.Functor.Identity (Identity)
 import Data.Scientific (toRealFloat)
+import Data.Text (Text)
+import qualified Data.Text as T
 import Data.Void (Void)
 import GHC.Conc (par)
 import Language.Daicker.AST
 import Language.Daicker.Span as S
 import Language.LSP.Protocol.Lens (HasIdentifier (identifier))
+import Language.LSP.Protocol.Types
 import Text.Megaparsec
 import Text.Megaparsec.Byte.Lexer (float)
 import Text.Megaparsec.Char
@@ -28,6 +32,52 @@ syntaxCheck fileName src = do
   case parse pModule fileName src of
     Right _ -> []
     Left e -> [e]
+
+lexSemanticTokens :: String -> String -> Either Text [SemanticTokenAbsolute]
+lexSemanticTokens fileName src =
+  case parse tSemanticTokenTypes fileName src of
+    Left e -> Left $ T.pack $ errorBundlePretty e
+    Right ts -> Right $ makeSemanticTokenAbsolutes (SourcePos fileName (mkPos 1) (mkPos 1)) ts
+  where
+    makeSemanticTokenAbsolutes :: SourcePos -> [(SemanticTokenTypes, Span)] -> [SemanticTokenAbsolute]
+    makeSemanticTokenAbsolutes _ [] = []
+    makeSemanticTokenAbsolutes p0 (t@(_, Span _ p1) : ts) = makeSemanticTokenAbsolute p0 t : makeSemanticTokenAbsolutes p1 ts
+    makeSemanticTokenAbsolute :: SourcePos -> (SemanticTokenTypes, Span) -> SemanticTokenAbsolute
+    makeSemanticTokenAbsolute
+      (SourcePos _ l0 c0)
+      (t, Span (SourcePos _ l1 c1) (SourcePos _ l2 c2)) =
+        SemanticTokenAbsolute
+          (fromIntegral $ unPos l1 - 1)
+          (fromIntegral $ unPos c1 - 1)
+          (fromIntegral $ unPos c2 - unPos c1)
+          t
+          []
+    tSemanticTokenTypes :: Parser [(SemanticTokenTypes, Span)]
+    tSemanticTokenTypes =
+      many $
+        choice
+          [ (,) SemanticTokenTypes_Keyword <$> fmap S.span tNull,
+            (,) SemanticTokenTypes_Keyword <$> fmap S.span tBool,
+            (,) SemanticTokenTypes_Number <$> fmap S.span tNumber,
+            (,) SemanticTokenTypes_String <$> fmap S.span tString,
+            (,) SemanticTokenTypes_Variable <$> fmap S.span tIdentifier,
+            (,) SemanticTokenTypes_Operator <$> fmap S.span tEqual,
+            (,) SemanticTokenTypes_Keyword <$> fmap S.span tModule,
+            (,) SemanticTokenTypes_Keyword <$> fmap S.span tImport,
+            (,) SemanticTokenTypes_Keyword <$> fmap S.span tExport,
+            (,) SemanticTokenTypes_Keyword <$> fmap S.span tDefine,
+            (,) SemanticTokenTypes_Operator <$> fmap S.span tLParenthesis,
+            (,) SemanticTokenTypes_Operator <$> fmap S.span tRParenthesis,
+            (,) SemanticTokenTypes_Operator <$> fmap S.span tLBracket,
+            (,) SemanticTokenTypes_Operator <$> fmap S.span tRBracket,
+            (,) SemanticTokenTypes_Operator <$> fmap S.span tLBrace,
+            (,) SemanticTokenTypes_Operator <$> fmap S.span tRBrace,
+            (,) SemanticTokenTypes_Operator <$> fmap S.span tArrow,
+            (,) SemanticTokenTypes_Operator <$> fmap S.span tComma,
+            (,) SemanticTokenTypes_Operator <$> fmap S.span tColon,
+            (,) SemanticTokenTypes_Comment <$> fmap S.span (spanned tLineComment),
+            (,) SemanticTokenTypes_Comment <$> fmap S.span (spanned tBlockComment)
+          ]
 
 pModule :: Parser Module
 pModule = Module <$> (tModule *> pIdentifier) <*> many pImport <*> many pExport <*> many pDefine <* eof
@@ -94,6 +144,23 @@ pString = do
   (t, s) <- tString
   return $ VString t s
 
+pArray :: Parser Value
+pArray = do
+  (vs, s) <- spanned $ between tLBracket tRBracket (pValue `sepBy` tComma)
+  return $ VArray vs s
+
+pObject :: Parser Value
+pObject = do
+  (obj, s) <- spanned $ between tLBrace tRBrace (pair `sepBy` tComma)
+  return $ VObject obj s
+  where
+    pair :: Parser (VKey, Value)
+    pair = do
+      (t, s) <- tString
+      tColon
+      v <- pValue
+      return (Identifier t s, v)
+
 pRef :: Parser Value
 pRef = do
   i <- pIdentifier
@@ -136,23 +203,6 @@ tNumber = lexeme $ spanned (L.signed sc (toRealFloat <$> L.scientific) <?> "numb
 
 tString :: Parser (String, Span)
 tString = lexeme $ spanned (char '"' *> manyTill L.charLiteral (char '"') <?> "string")
-
-pArray :: Parser Value
-pArray = do
-  (vs, s) <- spanned $ between tLBracket tRBracket (pValue `sepBy` tComma)
-  return $ VArray vs s
-
-pObject :: Parser Value
-pObject = do
-  (obj, s) <- spanned $ between tLBrace tRBrace (pair `sepBy` tComma)
-  return $ VObject obj s
-  where
-    pair :: Parser (VKey, Value)
-    pair = do
-      (t, s) <- tString
-      tColon
-      v <- pValue
-      return (Identifier t s, v)
 
 tIdentifier :: Parser (String, Span)
 tIdentifier = try $ do
@@ -217,7 +267,13 @@ lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
 
 sc :: Parser ()
-sc = L.space space1 (L.skipLineComment "//") (L.skipBlockComment "/*" "*/")
+sc = L.space space1 tLineComment tBlockComment
+
+tLineComment :: ParsecT Void String Identity ()
+tLineComment = L.skipLineComment "//"
+
+tBlockComment :: ParsecT Void String Identity ()
+tBlockComment = L.skipBlockComment "/*" "*/"
 
 spanned :: Parser a -> Parser (a, Span)
 spanned parser = do
