@@ -24,6 +24,7 @@ library
   exposed-modules:
       Language.Daicker.AST
       Language.Daicker.DLS
+      Language.Daicker.Executor
       Language.Daicker.Parser
       Language.Daicker.Span
       Language.Daicker.StdLib
@@ -43,6 +44,7 @@ library
     , megaparsec >=9.6 && <10
     , optparse-applicative ==0.18.*
     , parser-combinators >=1.0 && <2
+    , process ==1.6.*
     , scientific ==0.3.*
     , stm >=2.0 && <3
     , text >=2.0 && <3
@@ -68,6 +70,7 @@ executable daicker
     , megaparsec >=9.6 && <10
     , optparse-applicative ==0.18.*
     , parser-combinators >=1.0 && <2
+    , process ==1.6.*
     , scientific ==0.3.*
     , stm >=2.0 && <3
     , text >=2.0 && <3
@@ -95,6 +98,7 @@ test-suite daicker-test
     , megaparsec >=9.6 && <10
     , optparse-applicative ==0.18.*
     , parser-combinators >=1.0 && <2
+    , process ==1.6.*
     , scientific ==0.3.*
     , stm >=2.0 && <3
     , text >=2.0 && <3

@@ -206,7 +206,7 @@ tString = lexeme $ spanned (char '"' *> manyTill L.charLiteral (char '"') <?> "s
 
 tIdentifier :: Parser (String, Span)
 tIdentifier = try $ do
-  id <- lexeme $ spanned ((:) <$> (lowerChar <|> upperChar) <*> many alphaNumChar <?> "identifier")
+  id <- lexeme $ spanned ((:) <$> (lowerChar <|> upperChar <|> char '$') <*> many (alphaNumChar <|> char '$') <?> "identifier")
   if fst id `elem` ["module", "import", "export", "define"]
     then fail $ "Keyword " ++ fst id ++ " cannot be an identifier"
     else return id
