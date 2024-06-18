@@ -25,6 +25,7 @@ library
       Language.Daicker.AST
       Language.Daicker.DLS
       Language.Daicker.Executor
+      Language.Daicker.Lexer
       Language.Daicker.Parser
       Language.Daicker.Span
       Language.Daicker.StdLib
@@ -36,6 +37,7 @@ library
       aeson >=2.0 && <3
     , base >=4.7 && <5
     , co-log-core >=0.3.0 && <0.4
+    , containers >=0.6.0 && <0.7
     , hspec >=2.11 && <3
     , hspec-core >=2.11 && <3
     , hspec-megaparsec >=2.2 && <3
@@ -61,6 +63,7 @@ executable daicker
       aeson >=2.0 && <3
     , base >=4.7 && <5
     , co-log-core >=0.3.0 && <0.4
+    , containers >=0.6.0 && <0.7
     , daicker
     , hspec >=2.11 && <3
     , hspec-core >=2.11 && <3
@@ -89,6 +92,7 @@ test-suite daicker-test
       aeson >=2.0 && <3
     , base >=4.7 && <5
     , co-log-core >=0.3.0 && <0.4
+    , containers >=0.6.0 && <0.7
     , daicker
     , hspec >=2.11 && <3
     , hspec-core >=2.11 && <3

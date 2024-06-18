@@ -27,6 +27,7 @@ dependencies:
   - aeson >= 2.0 && < 3
   - stm >= 2.0 && < 3
   - co-log-core >= 0.3.0 && < 0.4
+  - containers >= 0.6.0 && < 0.7
   - process >= 1.6 && < 1.7
   - hspec >= 2.11 && < 3
   - hspec-core >= 2.11 && < 3
