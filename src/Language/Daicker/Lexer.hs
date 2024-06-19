@@ -154,6 +154,9 @@ showTToken = \case
 
 type Lexer = Parsec Void String
 
+mkTStream :: String -> String -> Either (ParseErrorBundle String Void) TStream
+mkTStream fileName src = TStream src <$> parse tTokens fileName src
+
 tTokens :: Lexer [WithPos TToken]
 tTokens = many tToken <* eof
 
@@ -162,18 +165,7 @@ tToken =
   lexeme $
     withPos $
       choice
-        [ TNull <$ string "null" <?> "null",
-          TBool True <$ string "true" <?> "bool",
-          TBool False <$ string "false" <?> "bool",
-          TNumber <$> L.signed sc (toRealFloat <$> L.scientific) <?> "number",
-          TString <$> (char '"' *> manyTill L.charLiteral (char '"') <?> "string"),
-          TEqual <$ char '=' <?> "=",
-          TModule <$ string "module" <?> "module",
-          TImport <$ string "import" <?> "import",
-          TExport <$ string "export" <?> "export",
-          TDefine <$ string "define" <?> "define",
-          TIdentifier <$> ((:) <$> (lowerChar <|> upperChar <|> char '$') <*> many (alphaNumChar <|> char '$') <?> "identifier"),
-          TLParenthesis <$ char '(' <?> "(",
+        [ TLParenthesis <$ char '(' <?> "(",
           TRParenthesis <$ char ')' <?> ")",
           TLBracket <$ char '[' <?> "[",
           TRBracket <$ char ']' <?> "]",
@@ -182,7 +174,18 @@ tToken =
           TArrow <$ string "->" <?> "->",
           TComma <$ char ',' <?> ",",
           TColon <$ char ':' <?> ":",
-          TBackslash <$ char '\\' <?> "\\"
+          TBackslash <$ char '\\' <?> "\\",
+          TNull <$ string "null" <?> "null",
+          TBool True <$ string "true" <?> "bool",
+          TBool False <$ string "false" <?> "bool",
+          TEqual <$ char '=' <?> "=",
+          TModule <$ string "module" <?> "module",
+          TImport <$ string "import" <?> "import",
+          TExport <$ string "export" <?> "export",
+          TDefine <$ string "define" <?> "define",
+          TNumber <$> L.signed sc (toRealFloat <$> L.scientific) <?> "number",
+          TString <$> (char '"' *> manyTill L.charLiteral (char '"') <?> "string"),
+          TIdentifier <$> ((:) <$> (lowerChar <|> upperChar <|> char '$') <*> many (alphaNumChar <|> char '$') <?> "identifier")
         ]
 
 lexeme :: Lexer a -> Lexer a
@@ -197,13 +200,6 @@ withPos lexer = do
   x <- lexer
   end@(SourcePos _ _ c2) <- getSourcePos
   pure $ WithPos start end (unPos c2 - unPos c1) x
-
--- type Parser = Parsec Void TStream
-
--- liftTToken :: TToken -> WithPos TToken
--- liftTToken = WithPos pos pos 0
---   where
---     pos = initialPos ""
 
 -- pToken :: TToken -> Parser TToken
 -- pToken c = token test (Set.singleton . Tokens . nes . liftTToken $ c)

@@ -1,20 +1,20 @@
 module Language.Daicker.ParserSpec (spec) where
 
 import Language.Daicker.AST
-import Language.Daicker.DLS (errorBundleSourcePos)
-import Language.Daicker.Parser (pApp, pDefine, pImport, pValue)
+import Language.Daicker.Lexer (mkTStream)
+import Language.Daicker.Parser (Parser, pApp, pDefine, pImport, pModule, pValue)
 import Language.Daicker.Span (mkSpan)
 import Test.Hspec
-import Text.Megaparsec
+import Text.Megaparsec hiding (parseTest)
 
 spec :: Spec
 spec = do
   describe "import" $ do
     it "import a" $
-      parse pImport "test" "import a" `shouldBe` Right (Import (Identifier "a" (mkSpan "test" 1 8 1 9)) (mkSpan "test" 1 1 1 9))
+      parseTest pImport "test" "import a" `shouldBe` Right (Import (Identifier "a" (mkSpan "test" 1 8 1 9)) (mkSpan "test" 1 1 1 9))
   describe "define" $ do
     it "define a = 1" $
-      parse pDefine "test" "define a = 1"
+      parseTest pDefine "test" "define a = 1"
         `shouldBe` Right
           ( Define
               (Identifier "a" (mkSpan "test" 1 8 1 9))
@@ -28,32 +28,32 @@ spec = do
   describe "value parser" $ do
     describe "null" $ do
       it "null" $
-        parse pValue "test" "null" `shouldBe` Right (VNull (mkSpan "test" 1 1 1 5))
+        parseTest pValue "test" "null" `shouldBe` Right (VNull (mkSpan "test" 1 1 1 5))
     describe "bool" $ do
       it "true" $
-        parse pValue "test" "true" `shouldBe` Right (VBool True (mkSpan "test" 1 1 1 5))
+        parseTest pValue "test" "true" `shouldBe` Right (VBool True (mkSpan "test" 1 1 1 5))
       it "false" $
-        parse pValue "test" "false" `shouldBe` Right (VBool False (mkSpan "test" 1 1 1 6))
+        parseTest pValue "test" "false" `shouldBe` Right (VBool False (mkSpan "test" 1 1 1 6))
     describe "number" $ do
       it "1" $
-        parse pValue "test" "1" `shouldBe` Right (VNumber 1 (mkSpan "test" 1 1 1 2))
+        parseTest pValue "test" "1" `shouldBe` Right (VNumber 1 (mkSpan "test" 1 1 1 2))
       it "1.5" $
-        parse pValue "test" "1.5" `shouldBe` Right (VNumber 1.5 (mkSpan "test" 1 1 1 4))
+        parseTest pValue "test" "1.5" `shouldBe` Right (VNumber 1.5 (mkSpan "test" 1 1 1 4))
     describe "string" $ do
       it "\"\"" $
-        parse pValue "test" "\"\"" `shouldBe` Right (VString "" (mkSpan "test" 1 1 1 3))
+        parseTest pValue "test" "\"\"" `shouldBe` Right (VString "" (mkSpan "test" 1 1 1 3))
       it "\"abc\"" $
-        parse pValue "test" "\"abc\"" `shouldBe` Right (VString "abc" (mkSpan "test" 1 1 1 6))
+        parseTest pValue "test" "\"abc\"" `shouldBe` Right (VString "abc" (mkSpan "test" 1 1 1 6))
     describe "array" $ do
       it "[]" $
-        parse pValue "test" "[]"
+        parseTest pValue "test" "[]"
           `shouldBe` Right
             ( VArray
                 []
                 (mkSpan "test" 1 1 1 3)
             )
       it "[1, 2]" $
-        parse pValue "test" "[1, 2]"
+        parseTest pValue "test" "[1, 2]"
           `shouldBe` Right
             ( VArray
                 [ VNumber 1 (mkSpan "test" 1 2 1 3),
@@ -63,14 +63,14 @@ spec = do
             )
     describe "object" $ do
       it "{}" $
-        parse pValue "test" "{}"
+        parseTest pValue "test" "{}"
           `shouldBe` Right
             ( VObject
                 []
                 (mkSpan "test" 1 1 1 3)
             )
       it "{\"a\": 1, \"b\": 2}" $
-        parse pValue "test" "{\"a\": 1, \"b\": 2}"
+        parseTest pValue "test" "{\"a\": 1, \"b\": 2}"
           `shouldBe` Right
             ( VObject
                 [ ( Identifier "a" (mkSpan "test" 1 2 1 5),
@@ -84,12 +84,12 @@ spec = do
             )
     describe "ref" $ do
       it "a" $
-        parse pValue "test" "a" `shouldBe` Right (VRef (Identifier "a" (mkSpan "test" 1 1 1 2)) (mkSpan "test" 1 1 1 2))
+        parseTest pValue "test" "a" `shouldBe` Right (VRef (Identifier "a" (mkSpan "test" 1 1 1 2)) (mkSpan "test" 1 1 1 2))
       it "abc" $
-        parse pValue "test" "abc" `shouldBe` Right (VRef (Identifier "abc" (mkSpan "test" 1 1 1 4)) (mkSpan "test" 1 1 1 4))
+        parseTest pValue "test" "abc" `shouldBe` Right (VRef (Identifier "abc" (mkSpan "test" 1 1 1 4)) (mkSpan "test" 1 1 1 4))
       describe "app" $ do
         it "(f 1)" $ do
-          parse pValue "test" "(f 1)"
+          parseTest pValue "test" "(f 1)"
             `shouldBe` Right
               ( VApp
                   Nothing
@@ -101,7 +101,7 @@ spec = do
                   (mkSpan "test" 1 1 1 6)
               )
       it "(f 1 2)" $ do
-        parse pValue "test" "(f 1 2)"
+        parseTest pValue "test" "(f 1 2)"
           `shouldBe` Right
             ( VApp
                 Nothing
@@ -114,7 +114,7 @@ spec = do
                 (mkSpan "test" 1 1 1 8)
             )
       it "([alpine] f 1 2)" $ do
-        parse pValue "test" "([alpine] f 1 2)"
+        parseTest pValue "test" "([alpine] f 1 2)"
           `shouldBe` Right
             ( VApp
                 (Just (Identifier "alpine" (mkSpan "test" 1 3 1 9)))
@@ -128,7 +128,7 @@ spec = do
             )
     describe "fun" $ do
       it "\\a -> a" $ do
-        parse pValue "test" "\\a -> a"
+        parseTest pValue "test" "\\a -> a"
           `shouldBe` Right
             ( VFun
                 [Identifier "a" (mkSpan "test" 1 2 1 3)]
@@ -138,3 +138,12 @@ spec = do
                 )
                 (mkSpan "test" 1 1 1 8)
             )
+
+parseTest :: Parser a -> String -> String -> Either String a
+parseTest parser fileName src = do
+  case mkTStream fileName src of
+    Left e -> Left $ errorBundlePretty e
+    Right ts ->
+      case parse parser fileName ts of
+        Right m -> Right m
+        Left e -> Left $ errorBundlePretty e

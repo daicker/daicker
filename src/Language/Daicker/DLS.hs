@@ -20,10 +20,12 @@ import Control.Monad (forever)
 import Control.Monad.IO.Class
 import qualified Data.Aeson as J
 import qualified Data.List.NonEmpty as NEL
+import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Void (Void)
 import GHC.Generics (Generic)
-import Language.Daicker.Parser (Parser, lexSemanticTokens, syntaxCheck, tBool, tIdentifier, tNull, tNumber, tString)
+import Language.Daicker.Lexer
+import Language.Daicker.Parser (Parser, syntaxCheck)
 import Language.Daicker.Span (Span)
 import qualified Language.Daicker.Span as S
 import Language.LSP.Diagnostics
@@ -49,12 +51,11 @@ instance J.ToJSON Config where
 
 instance J.FromJSON Config
 
-sendDiagnostics :: LSP.NormalizedUri -> Maybe Int32 -> [ParseErrorBundle String Void] -> LspM Config ()
+sendDiagnostics :: LSP.NormalizedUri -> Maybe Int32 -> [(SourcePos, String)] -> LspM Config ()
 sendDiagnostics fileUri version es = do
   let diags =
         map
-          ( \e -> do
-              let (SourcePos _ l c) = errorBundleSourcePos e
+          ( \(SourcePos _ l c, e) -> do
               LSP.Diagnostic
                 ( LSP.mkRange
                     (fromIntegral $ unPos l - 1)
@@ -66,7 +67,7 @@ sendDiagnostics fileUri version es = do
                 Nothing -- code
                 Nothing
                 (Just "daicker") -- source
-                (T.pack $ errorBundlePretty e)
+                (T.pack e)
                 Nothing -- tags
                 (Just [])
                 Nothing
@@ -185,9 +186,31 @@ reactor logger inp = do
     ReactorAction act <- atomically $ readTChan inp
     act
 
-errorBundleSourcePos :: ParseErrorBundle String Void -> SourcePos
-errorBundleSourcePos peb = do
-  let pst = bundlePosState peb
-  let e = NEL.head $ bundleErrors peb
-  let (_, pst') = reachOffset (errorOffset e) pst
-  pstateSourcePos pst'
+lexSemanticTokens :: String -> String -> Either Text [SemanticTokenAbsolute]
+lexSemanticTokens fileName src =
+  case parse tTokens fileName src of
+    Left e -> Left $ T.pack $ errorBundlePretty e
+    Right ts -> Right $ makeSemanticTokenAbsolutes ts
+  where
+    makeSemanticTokenAbsolutes :: [WithPos TToken] -> [SemanticTokenAbsolute]
+    makeSemanticTokenAbsolutes [] = []
+    makeSemanticTokenAbsolutes (WithPos (SourcePos _ l1 c1) (SourcePos _ l2 c2) _ x : ts) =
+      SemanticTokenAbsolute
+        (fromIntegral $ unPos l1 - 1)
+        (fromIntegral $ unPos c1 - 1)
+        (fromIntegral $ unPos c2 - unPos c1)
+        (toSemanticTokenTypes x)
+        []
+        : makeSemanticTokenAbsolutes ts
+    toSemanticTokenTypes :: TToken -> SemanticTokenTypes
+    toSemanticTokenTypes t = case t of
+      TNull -> SemanticTokenTypes_Keyword
+      TBool _ -> SemanticTokenTypes_Keyword
+      TNumber _ -> SemanticTokenTypes_Number
+      TString _ -> SemanticTokenTypes_String
+      TModule -> SemanticTokenTypes_Keyword
+      TImport -> SemanticTokenTypes_Keyword
+      TExport -> SemanticTokenTypes_Keyword
+      TDefine -> SemanticTokenTypes_Keyword
+      TIdentifier _ -> SemanticTokenTypes_Variable
+      _ -> SemanticTokenTypes_Operator
