@@ -7,6 +7,7 @@
 module Language.Daicker.Lexer where
 
 import Control.Monad (void)
+import Data.Aeson (Value (Bool))
 import qualified Data.List as DL
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NE
@@ -15,7 +16,7 @@ import Data.Scientific (toRealFloat)
 import qualified Data.Set as Set
 import Data.Void
 import Text.Megaparsec
-import Text.Megaparsec.Char (alphaNumChar, char, lowerChar, space1, string, upperChar)
+import Text.Megaparsec.Char (alphaNumChar, char, lowerChar, newline, space1, string, upperChar)
 import qualified Text.Megaparsec.Char.Lexer as L
 
 data TToken
@@ -39,6 +40,7 @@ data TToken
   | TComma
   | TColon
   | TBackslash
+  | TComment
   deriving (Eq, Ord, Show)
 
 data WithPos a = WithPos
@@ -155,7 +157,10 @@ showTToken = \case
 type Lexer = Parsec Void String
 
 mkTStream :: String -> String -> Either (ParseErrorBundle String Void) TStream
-mkTStream fileName src = TStream src <$> parse tTokens fileName src
+mkTStream fileName src = TStream src . filter notComment <$> parse tTokens fileName src
+  where
+    notComment (WithPos _ _ _ TComment) = False
+    notComment _ = True
 
 tTokens :: Lexer [WithPos TToken]
 tTokens = many tToken <* eof
@@ -165,7 +170,9 @@ tToken =
   lexeme $
     withPos $
       choice
-        [ TLParenthesis <$ char '(' <?> "(",
+        [ TComment <$ (L.skipLineComment "//" <?> "line comment"),
+          TComment <$ (L.skipBlockComment "/*" "*/" <?> "block comment"),
+          TLParenthesis <$ char '(' <?> "(",
           TRParenthesis <$ char ')' <?> ")",
           TLBracket <$ char '[' <?> "[",
           TRBracket <$ char ']' <?> "]",
@@ -192,7 +199,7 @@ lexeme :: Lexer a -> Lexer a
 lexeme = L.lexeme sc
 
 sc :: Lexer ()
-sc = L.space space1 (L.skipLineComment "//") (L.skipBlockComment "/*" "*/")
+sc = L.space space1 empty empty
 
 withPos :: Lexer a -> Lexer (WithPos a)
 withPos lexer = do

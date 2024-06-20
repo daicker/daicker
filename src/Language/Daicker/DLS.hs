@@ -213,4 +213,5 @@ lexSemanticTokens fileName src =
       TExport -> SemanticTokenTypes_Keyword
       TDefine -> SemanticTokenTypes_Keyword
       TIdentifier _ -> SemanticTokenTypes_Variable
+      TComment -> SemanticTokenTypes_Comment
       _ -> SemanticTokenTypes_Operator
