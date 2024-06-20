@@ -200,37 +200,3 @@ withPos lexer = do
   x <- lexer
   end@(SourcePos _ _ c2) <- getSourcePos
   pure $ WithPos start end (unPos c2 - unPos c1) x
-
--- pToken :: TToken -> Parser TToken
--- pToken c = token test (Set.singleton . Tokens . nes . liftTToken $ c)
---   where
---     test (WithPos _ _ _ x) =
---       if x == c
---         then Just x
---         else Nothing
---     nes x = x :| []
-
--- pInt :: Parser Double
--- pInt = token test Set.empty <?> "integer"
---   where
---     test (WithPos _ _ _ (TNumber n)) = Just n
---     test _ = Nothing
-
--- pSum :: Parser (Double, Double)
--- pSum = do
---   a <- pInt
---   _ <- pToken TColon
---   b <- pInt
---   return (a, b)
-
--- exampleStream :: TStream
--- exampleStream =
---   TStream
---     "5 + 6"
---     [ at 1 1 (TNumber 5),
---       at 1 3 TColon, -- (1)
---       at 1 5 (TNumber 6)
---     ]
---   where
---     at l c = WithPos (at' l c) (at' l (c + 1)) 2
---     at' l c = SourcePos "" (mkPos l) (mkPos c)
