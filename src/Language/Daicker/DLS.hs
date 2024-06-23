@@ -20,6 +20,7 @@ import Control.Monad (forever)
 import Control.Monad.IO.Class
 import qualified Data.Aeson as J
 import qualified Data.List.NonEmpty as NEL
+import Data.Maybe (catMaybes, isJust)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Void (Void)
@@ -195,23 +196,26 @@ lexSemanticTokens fileName src =
     makeSemanticTokenAbsolutes :: [WithPos TToken] -> [SemanticTokenAbsolute]
     makeSemanticTokenAbsolutes [] = []
     makeSemanticTokenAbsolutes (WithPos (SourcePos _ l1 c1) (SourcePos _ l2 c2) _ x : ts) =
-      SemanticTokenAbsolute
-        (fromIntegral $ unPos l1 - 1)
-        (fromIntegral $ unPos c1 - 1)
-        (fromIntegral $ unPos c2 - unPos c1)
-        (toSemanticTokenTypes x)
-        []
-        : makeSemanticTokenAbsolutes ts
-    toSemanticTokenTypes :: TToken -> SemanticTokenTypes
+      case toSemanticTokenTypes x of
+        Just t ->
+          SemanticTokenAbsolute
+            (fromIntegral $ unPos l1 - 1)
+            (fromIntegral $ unPos c1 - 1)
+            (fromIntegral $ unPos c2 - unPos c1)
+            t
+            []
+            : makeSemanticTokenAbsolutes ts
+        Nothing -> makeSemanticTokenAbsolutes ts
+    toSemanticTokenTypes :: TToken -> Maybe SemanticTokenTypes
     toSemanticTokenTypes t = case t of
-      TNull -> SemanticTokenTypes_Keyword
-      TBool _ -> SemanticTokenTypes_Keyword
-      TNumber _ -> SemanticTokenTypes_Number
-      TString _ -> SemanticTokenTypes_String
-      TModule -> SemanticTokenTypes_Keyword
-      TImport -> SemanticTokenTypes_Keyword
-      TExport -> SemanticTokenTypes_Keyword
-      TDefine -> SemanticTokenTypes_Keyword
-      TIdentifier _ -> SemanticTokenTypes_Variable
-      TComment -> SemanticTokenTypes_Comment
-      _ -> SemanticTokenTypes_Operator
+      TNull -> Just SemanticTokenTypes_Macro
+      TBool _ -> Just SemanticTokenTypes_Macro
+      TNumber _ -> Just SemanticTokenTypes_Number
+      TString _ -> Just SemanticTokenTypes_String
+      TModule -> Just SemanticTokenTypes_Keyword
+      TImport -> Just SemanticTokenTypes_Keyword
+      TExport -> Just SemanticTokenTypes_Keyword
+      TDefine -> Just SemanticTokenTypes_Keyword
+      TIdentifier _ -> Just SemanticTokenTypes_Variable
+      TComment -> Just SemanticTokenTypes_Comment
+      _ -> Nothing

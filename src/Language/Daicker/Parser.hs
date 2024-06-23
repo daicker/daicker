@@ -59,20 +59,70 @@ pDefine :: Parser Define
 pDefine = do
   (_, s) <- pToken TDefine
   i <- pIdentifier
-  pToken TEqual
+  pToken TAssign
   v <- pApp
   return $ Define i v (s S.<> S.span v)
 
 pApp :: Parser Value
 pApp = do
   img <- optional $ between (pToken TLBracket) (pToken TRBracket) pIdentifier
-  (vs, s) <- spanned $ some pValue
+  (vs, s) <- spanned $ some pExpr
   case img of
     Nothing -> return $ VApp Nothing vs s
     Just img -> return $ VApp (Just img) vs (S.span img S.<> s)
 
-pValue :: Parser Value
-pValue =
+operatorTable :: [[Operator Parser Value]]
+operatorTable =
+  [ [ binary TMul,
+      binary TDiv
+    ],
+    [ binary TAdd,
+      binary TSub
+    ],
+    [ binary TGTE,
+      binary TGT,
+      binary TLTE,
+      binary TLT,
+      binary TEQ,
+      binary TNEQ
+    ],
+    [ prefix TNot
+    ],
+    [ binary TAnd,
+      binary TOr
+    ]
+  ]
+
+binary :: TToken -> Operator Parser Value
+binary token = InfixL (f <$> pToken token)
+  where
+    f :: (TToken, Span) -> Value -> Value -> Value
+    f op a b =
+      VApp
+        Nothing
+        [ VRef (Identifier (showTToken (fst op)) (S.span op)) (S.span op),
+          a,
+          b
+        ]
+        (S.span a S.<> S.span b)
+
+prefix :: TToken -> Operator Parser Value
+prefix token = Prefix (f <$> pToken token)
+  where
+    f :: (TToken, Span) -> Value -> Value
+    f op a =
+      VApp
+        Nothing
+        [ VRef (Identifier (showTToken (fst op)) (S.span op)) (S.span op),
+          a
+        ]
+        (S.span op S.<> S.span a)
+
+pExpr :: Parser Value
+pExpr = makeExprParser pTerm operatorTable <?> "expression"
+
+pTerm :: Parser Value
+pTerm =
   choice
     [ pNull,
       pBool,
@@ -116,7 +166,7 @@ pArray = do
       between
         (pToken TLBracket)
         (pToken TRBracket)
-        (pValue `sepBy` pToken TComma)
+        (pExpr `sepBy` pToken TComma)
   return $ VArray vs s
 
 pObject :: Parser Value
@@ -133,7 +183,7 @@ pObject = do
     pair = do
       (VString t s) <- pString
       pToken TColon
-      v <- pValue
+      v <- pExpr
       return (Identifier t s, v)
 
 pRef :: Parser Value
@@ -156,7 +206,7 @@ pFunc = do
   (_, s) <- pToken TBackslash
   args <- spanned $ many pIdentifier
   pToken TArrow
-  v <- pValue
+  v <- pExpr
   return $ VFun (fst args) v (s S.<> S.span v)
 
 pIdentifier :: Parser Identifier

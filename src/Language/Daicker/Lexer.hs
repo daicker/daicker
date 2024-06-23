@@ -25,7 +25,7 @@ data TToken
   | TNumber Double
   | TString String
   | TIdentifier String
-  | TEqual
+  | TAssign
   | TModule
   | TImport
   | TExport
@@ -39,6 +39,19 @@ data TToken
   | TArrow
   | TComma
   | TColon
+  | TNot
+  | TOr
+  | TLT
+  | TLTE
+  | TGT
+  | TGTE
+  | TEQ
+  | TNEQ
+  | TAnd
+  | TAdd
+  | TSub
+  | TMul
+  | TDiv
   | TBackslash
   | TComment
   deriving (Eq, Ord, Show)
@@ -138,7 +151,7 @@ showTToken = \case
   (TNumber v) -> show v
   (TString v) -> "\"" <> v <> "\""
   (TIdentifier v) -> v
-  TEqual -> "="
+  TAssign -> "="
   TModule -> "module"
   TImport -> "import"
   TExport -> "export"
@@ -152,6 +165,19 @@ showTToken = \case
   TArrow -> "->"
   TComma -> ","
   TColon -> ":"
+  TNot -> "!"
+  TOr -> "||"
+  TAnd -> "&&"
+  TLT -> "<"
+  TLTE -> "<="
+  TGT -> ">"
+  TGTE -> ">="
+  TEQ -> "=="
+  TNEQ -> "!="
+  TAdd -> "+"
+  TSub -> "-"
+  TMul -> "*"
+  TDiv -> "/"
   TBackslash -> "\\"
 
 type Lexer = Parsec Void String
@@ -185,7 +211,20 @@ tToken =
           TNull <$ string "null" <?> "null",
           TBool True <$ string "true" <?> "bool",
           TBool False <$ string "false" <?> "bool",
-          TEqual <$ char '=' <?> "=",
+          TNot <$ char '!' <?> "!",
+          TAnd <$ string "&&" <?> "&&",
+          TOr <$ string "||" <?> "||",
+          TLT <$ char '<' <?> ">",
+          TLTE <$ string "<=" <?> "<=",
+          TGT <$ char '>' <?> ">",
+          TGTE <$ string ">=" <?> ">=",
+          TEQ <$ string "==" <?> "==",
+          TNEQ <$ string "!=" <?> "!=",
+          TAdd <$ char '+' <?> "+",
+          TSub <$ char '-' <?> "-",
+          TMul <$ char '*' <?> "*",
+          TDiv <$ char '/' <?> "/",
+          TAssign <$ char '=' <?> "=",
           TModule <$ string "module" <?> "module",
           TImport <$ string "import" <?> "import",
           TExport <$ string "export" <?> "export",
