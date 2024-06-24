@@ -35,7 +35,7 @@ run fileName funcName = do
     Right ts ->
       case parse pModule fileName ts of
         Right m -> case findDefine funcName m of
-          Just d -> execDefine d
+          Just d -> void $ execDefine d
           Nothing -> putStrLn $ "not define " <> funcName
         Left e -> putStrLn $ errorBundlePretty e
 

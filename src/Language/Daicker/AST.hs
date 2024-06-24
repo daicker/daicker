@@ -10,25 +10,25 @@ data Import = Import Identifier Span deriving (Show, Eq)
 
 data Export = Export Identifier Span deriving (Show, Eq)
 
-data Define = Define Identifier Value Span deriving (Show, Eq)
+data Define = Define Identifier Expr Span deriving (Show, Eq)
 
-data Value
-  = VNull Span
-  | VBool Bool Span
-  | VNumber Double Span
-  | VString String Span
-  | VArray [Value] Span
-  | VObject [(VKey, Value)] Span
-  | VRef Identifier Span
-  | VApp (Maybe VImage) [Value] Span
-  | VFun [VArg] Value Span
+data Expr
+  = ENull Span
+  | EBool Bool Span
+  | ENumber Double Span
+  | EString String Span
+  | EArray [Expr] Span
+  | EObject [(EKey, Expr)] Span
+  | ERef Identifier Span
+  | EApp (Maybe EImage) [Expr] Span
+  | EFun [EArg] Expr Span
   deriving (Show, Eq)
 
-type VKey = Identifier
+type EKey = Identifier
 
-type VArg = Identifier
+type EArg = Identifier
 
-type VImage = Identifier
+type EImage = Identifier
 
 data Identifier = Identifier String Span deriving (Show, Eq)
 
@@ -44,17 +44,17 @@ instance Spanned Define where
   span :: Define -> Span
   span (Define _ _ s) = s
 
-instance Spanned Value where
-  span :: Value -> Span
-  span (VNull s) = s
-  span (VBool _ s) = s
-  span (VNumber _ s) = s
-  span (VString _ s) = s
-  span (VArray _ s) = s
-  span (VObject _ s) = s
-  span (VRef _ s) = s
-  span (VApp _ _ s) = s
-  span (VFun _ _ s) = s
+instance Spanned Expr where
+  span :: Expr -> Span
+  span (ENull s) = s
+  span (EBool _ s) = s
+  span (ENumber _ s) = s
+  span (EString _ s) = s
+  span (EArray _ s) = s
+  span (EObject _ s) = s
+  span (ERef _ s) = s
+  span (EApp _ _ s) = s
+  span (EFun _ _ s) = s
 
 instance Spanned Identifier where
   span :: Identifier -> Span

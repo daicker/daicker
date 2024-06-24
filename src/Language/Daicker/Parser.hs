@@ -63,15 +63,15 @@ pDefine = do
   v <- pApp
   return $ Define i v (s S.<> S.span v)
 
-pApp :: Parser Value
+pApp :: Parser Expr
 pApp = do
   img <- optional $ between (pToken TLBracket) (pToken TRBracket) pIdentifier
   (vs, s) <- spanned $ some pExpr
   case img of
-    Nothing -> return $ VApp Nothing vs s
-    Just img -> return $ VApp (Just img) vs (S.span img S.<> s)
+    Nothing -> return $ EApp Nothing vs s
+    Just img -> return $ EApp (Just img) vs (S.span img S.<> s)
 
-operatorTable :: [[Operator Parser Value]]
+operatorTable :: [[Operator Parser Expr]]
 operatorTable =
   [ [ binary TMul,
       binary TDiv
@@ -93,35 +93,35 @@ operatorTable =
     ]
   ]
 
-binary :: TToken -> Operator Parser Value
+binary :: TToken -> Operator Parser Expr
 binary token = InfixL (f <$> pToken token)
   where
-    f :: (TToken, Span) -> Value -> Value -> Value
+    f :: (TToken, Span) -> Expr -> Expr -> Expr
     f op a b =
-      VApp
+      EApp
         Nothing
-        [ VRef (Identifier (showTToken (fst op)) (S.span op)) (S.span op),
+        [ ERef (Identifier (showTToken (fst op)) (S.span op)) (S.span op),
           a,
           b
         ]
         (S.span a S.<> S.span b)
 
-prefix :: TToken -> Operator Parser Value
+prefix :: TToken -> Operator Parser Expr
 prefix token = Prefix (f <$> pToken token)
   where
-    f :: (TToken, Span) -> Value -> Value
+    f :: (TToken, Span) -> Expr -> Expr
     f op a =
-      VApp
+      EApp
         Nothing
-        [ VRef (Identifier (showTToken (fst op)) (S.span op)) (S.span op),
+        [ ERef (Identifier (showTToken (fst op)) (S.span op)) (S.span op),
           a
         ]
         (S.span op S.<> S.span a)
 
-pExpr :: Parser Value
+pExpr :: Parser Expr
 pExpr = makeExprParser pTerm operatorTable <?> "expression"
 
-pTerm :: Parser Value
+pTerm :: Parser Expr
 pTerm =
   choice
     [ pNull,
@@ -135,31 +135,31 @@ pTerm =
       pApp'
     ]
 
-pNull :: Parser Value
+pNull :: Parser Expr
 pNull = token test Set.empty <?> "null"
   where
-    test (WithPos s e _ TNull) = Just $ VNull (Span s e)
+    test (WithPos s e _ TNull) = Just $ ENull (Span s e)
     test _ = Nothing
 
-pBool :: Parser Value
+pBool :: Parser Expr
 pBool = token test Set.empty <?> "bool"
   where
-    test (WithPos s e _ (TBool t)) = Just $ VBool t (Span s e)
+    test (WithPos s e _ (TBool t)) = Just $ EBool t (Span s e)
     test _ = Nothing
 
-pNumber :: Parser Value
+pNumber :: Parser Expr
 pNumber = token test Set.empty <?> "number"
   where
-    test (WithPos s e _ (TNumber t)) = Just $ VNumber t (Span s e)
+    test (WithPos s e _ (TNumber t)) = Just $ ENumber t (Span s e)
     test _ = Nothing
 
-pString :: Parser Value
+pString :: Parser Expr
 pString = token test Set.empty <?> "string"
   where
-    test (WithPos s e _ (TString t)) = Just $ VString t (Span s e)
+    test (WithPos s e _ (TString t)) = Just $ EString t (Span s e)
     test _ = Nothing
 
-pArray :: Parser Value
+pArray :: Parser Expr
 pArray = do
   (vs, s) <-
     spanned $
@@ -167,9 +167,9 @@ pArray = do
         (pToken TLBracket)
         (pToken TRBracket)
         (pExpr `sepBy` pToken TComma)
-  return $ VArray vs s
+  return $ EArray vs s
 
-pObject :: Parser Value
+pObject :: Parser Expr
 pObject = do
   (obj, s) <-
     spanned $
@@ -177,37 +177,37 @@ pObject = do
         (pToken TLBrace)
         (pToken TRBrace)
         (pair `sepBy` pToken TComma)
-  return $ VObject obj s
+  return $ EObject obj s
   where
-    pair :: Parser (VKey, Value)
+    pair :: Parser (EKey, Expr)
     pair = do
-      (VString t s) <- pString
+      (EString t s) <- pString
       pToken TColon
       v <- pExpr
       return (Identifier t s, v)
 
-pRef :: Parser Value
+pRef :: Parser Expr
 pRef = do
   i <- pIdentifier
-  return $ VRef i (S.span i)
+  return $ ERef i (S.span i)
 
-pApp' :: Parser Value
+pApp' :: Parser Expr
 pApp' = do
-  (VApp c vs _, s) <-
+  (EApp c vs _, s) <-
     spanned $
       between
         (pToken TLParenthesis)
         (pToken TRParenthesis)
         pApp
-  return $ VApp c vs s
+  return $ EApp c vs s
 
-pFunc :: Parser Value
+pFunc :: Parser Expr
 pFunc = do
   (_, s) <- pToken TBackslash
   args <- spanned $ many pIdentifier
   pToken TArrow
   v <- pExpr
-  return $ VFun (fst args) v (s S.<> S.span v)
+  return $ EFun (fst args) v (s S.<> S.span v)
 
 pIdentifier :: Parser Identifier
 pIdentifier = token test Set.empty <?> "identifier"
