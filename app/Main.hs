@@ -32,12 +32,13 @@ run fileName funcName = do
   src <- readFile fileName
   case mkTStream fileName src of
     Left e -> putStrLn $ errorBundlePretty e
-    Right ts ->
-      case parse pModule fileName ts of
-        Right m -> case findDefine funcName m of
-          Just d -> void $ execDefine d
-          Nothing -> putStrLn $ "not define " <> funcName
-        Left e -> putStrLn $ errorBundlePretty e
+    Right ts -> case parse pModule fileName ts of
+      Left e -> putStrLn $ errorBundlePretty e
+      Right m -> case findDefine funcName m of
+        Nothing -> putStrLn $ "not defined: " <> funcName
+        Just d -> case execDefine d of
+          Left e -> print e
+          Right e -> print e
 
 main :: IO ()
 main = join $ execParser (info (opts <**> helper) idm)
