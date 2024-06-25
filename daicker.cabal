@@ -22,6 +22,7 @@ source-repository head
 
 library
   exposed-modules:
+      Docker.Client
       Language.Daicker.AST
       Language.Daicker.DLS
       Language.Daicker.Executor
@@ -36,20 +37,28 @@ library
   build-depends:
       aeson >=2.0 && <3
     , base >=4.7 && <5
+    , bytestring >=0.11.0 && <0.12
     , co-log-core >=0.3.0 && <0.4
     , containers >=0.6.0 && <0.7
+    , exceptions >=0.10.0 && <0.11
     , hspec >=2.11 && <3
     , hspec-core >=2.11 && <3
     , hspec-megaparsec >=2.2 && <3
+    , http-client >=0.7.0 && <0.8
+    , http-types >=0.12.0 && <0.13
     , lens >=5.0 && <6
     , lsp >=2.6 && <3
     , megaparsec >=9.6 && <10
+    , mtl >=2.0 && <3
+    , network >=3.0 && <4
     , optparse-applicative ==0.18.*
     , parser-combinators >=1.0 && <2
     , process ==1.6.*
     , scientific ==0.3.*
     , stm >=2.0 && <3
     , text >=2.0 && <3
+    , unliftio-core >=0.2.0 && <0.3
+    , vector >=0.13.0 && <0.14
   default-language: Haskell2010
 
 executable daicker
@@ -62,21 +71,29 @@ executable daicker
   build-depends:
       aeson >=2.0 && <3
     , base >=4.7 && <5
+    , bytestring >=0.11.0 && <0.12
     , co-log-core >=0.3.0 && <0.4
     , containers >=0.6.0 && <0.7
     , daicker
+    , exceptions >=0.10.0 && <0.11
     , hspec >=2.11 && <3
     , hspec-core >=2.11 && <3
     , hspec-megaparsec >=2.2 && <3
+    , http-client >=0.7.0 && <0.8
+    , http-types >=0.12.0 && <0.13
     , lens >=5.0 && <6
     , lsp >=2.6 && <3
     , megaparsec >=9.6 && <10
+    , mtl >=2.0 && <3
+    , network >=3.0 && <4
     , optparse-applicative ==0.18.*
     , parser-combinators >=1.0 && <2
     , process ==1.6.*
     , scientific ==0.3.*
     , stm >=2.0 && <3
     , text >=2.0 && <3
+    , unliftio-core >=0.2.0 && <0.3
+    , vector >=0.13.0 && <0.14
   default-language: Haskell2010
 
 test-suite daicker-test
@@ -91,19 +108,27 @@ test-suite daicker-test
   build-depends:
       aeson >=2.0 && <3
     , base >=4.7 && <5
+    , bytestring >=0.11.0 && <0.12
     , co-log-core >=0.3.0 && <0.4
     , containers >=0.6.0 && <0.7
     , daicker
+    , exceptions >=0.10.0 && <0.11
     , hspec >=2.11 && <3
     , hspec-core >=2.11 && <3
     , hspec-megaparsec >=2.2 && <3
+    , http-client >=0.7.0 && <0.8
+    , http-types >=0.12.0 && <0.13
     , lens >=5.0 && <6
     , lsp >=2.6 && <3
     , megaparsec >=9.6 && <10
+    , mtl >=2.0 && <3
+    , network >=3.0 && <4
     , optparse-applicative ==0.18.*
     , parser-combinators >=1.0 && <2
     , process ==1.6.*
     , scientific ==0.3.*
     , stm >=2.0 && <3
     , text >=2.0 && <3
+    , unliftio-core >=0.2.0 && <0.3
+    , vector >=0.13.0 && <0.14
   default-language: Haskell2010

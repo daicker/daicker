@@ -28,6 +28,14 @@ dependencies:
   - stm >= 2.0 && < 3
   - co-log-core >= 0.3.0 && < 0.4
   - containers >= 0.6.0 && < 0.7
+  - unliftio-core >= 0.2.0 && < 0.3
+  - mtl >= 2.0 && < 3
+  - exceptions >= 0.10.0 && < 0.11
+  - network >= 3.0 && < 4
+  - http-client >= 0.7.0 && < 0.8
+  - http-types >= 0.12.0 && < 0.13
+  - vector >= 0.13.0 && < 0.14
+  - bytestring >= 0.11.0 && < 0.12
   - process >= 1.6 && < 1.7
   - hspec >= 2.11 && < 3
   - hspec-core >= 2.11 && < 3

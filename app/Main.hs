@@ -1,6 +1,8 @@
 module Main where
 
 import Control.Monad (join, void)
+import Data.Aeson (encode)
+import Data.ByteString.Lazy.Char8 (unpack)
 import Language.Daicker.DLS (serve)
 import Language.Daicker.Executor (execDefine, findDefine)
 import Language.Daicker.Lexer (mkTStream)
@@ -38,7 +40,7 @@ run fileName funcName = do
         Nothing -> putStrLn $ "not defined: " <> funcName
         Just d -> case execDefine d of
           Left e -> print e
-          Right e -> print e
+          Right e -> putStrLn (unpack $ encode e)
 
 main :: IO ()
 main = join $ execParser (info (opts <**> helper) idm)

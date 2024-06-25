@@ -2,6 +2,13 @@
 
 module Language.Daicker.AST where
 
+import Data.Aeson (FromJSONKey (), ToJSON (toJSON), Value (Array, Bool, Null, Object, String))
+import Data.Aeson.Key (fromText)
+import qualified Data.Aeson.KeyMap as KM
+import Data.Aeson.Types (Value (Number))
+import Data.Scientific (Scientific)
+import Data.Text (pack)
+import qualified Data.Vector as V
 import Language.Daicker.Span (Span, Spanned, span)
 
 data Module = Module Identifier [Import] [Export] [Define]
@@ -59,3 +66,13 @@ instance Spanned Expr where
 instance Spanned Identifier where
   span :: Identifier -> Span
   span (Identifier _ s) = s
+
+instance ToJSON Expr where
+  toJSON :: Expr -> Value
+  toJSON expr = case expr of
+    ENull _ -> Null
+    EBool v _ -> Bool v
+    ENumber v _ -> Number (read (show v) :: Scientific)
+    EString v _ -> String (pack v)
+    EArray vs _ -> Array $ V.fromList $ map toJSON vs
+    EObject vs _ -> Object $ KM.fromList $ map (\(Identifier i _, v) -> (fromText (pack i), toJSON v)) vs
