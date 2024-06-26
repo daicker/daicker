@@ -38,7 +38,7 @@ run fileName funcName = do
       Left e -> putStrLn $ errorBundlePretty e
       Right m -> case findDefine funcName m of
         Nothing -> putStrLn $ "not defined: " <> funcName
-        Just d -> case execDefine d of
+        Just d -> case execDefine m d of
           Left e -> print e
           Right e -> putStrLn (unpack $ encode e)
 
