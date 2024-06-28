@@ -59,9 +59,12 @@ pDefine :: Parser Define
 pDefine = do
   (_, s) <- pToken TDefine
   i <- pIdentifier
+  params <- many pIdentifier
   pToken TAssign
   v <- pApp
-  return $ Define i v (s S.<> S.span v)
+  case params of
+    [] -> return $ Define i v (s S.<> S.span v)
+    _ -> return $ Define i (EFun params v (S.span (head params) S.<> S.span v)) (s S.<> S.span v)
 
 pApp :: Parser Expr
 pApp = do

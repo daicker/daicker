@@ -1,8 +1,12 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Main where
 
 import Control.Monad (join, void)
-import Data.Aeson (encode)
-import Data.ByteString.Lazy.Char8 (unpack)
+import Data.Aeson (decode, encode)
+import Data.Aeson.Types (Value)
+import Data.ByteString.Lazy.Char8 (pack, unpack)
+import Language.Daicker.AST (Expr)
 import Language.Daicker.DLS (serve)
 import Language.Daicker.Executor (execDefine, findDefine)
 import Language.Daicker.Lexer (mkTStream)
@@ -31,6 +35,8 @@ valid fileName = do
 
 run :: String -> String -> IO ()
 run fileName funcName = do
+  input <- getContents
+  let arg = decode (pack input) :: Maybe Expr
   src <- readFile fileName
   case mkTStream fileName src of
     Left e -> putStrLn $ errorBundlePretty e
@@ -38,7 +44,7 @@ run fileName funcName = do
       Left e -> putStrLn $ errorBundlePretty e
       Right m -> case findDefine funcName m of
         Nothing -> putStrLn $ "not defined: " <> funcName
-        Just d -> case execDefine m d of
+        Just d -> case execDefine m d arg of
           Left e -> print e
           Right e -> putStrLn (unpack $ encode e)
 

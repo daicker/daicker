@@ -2,14 +2,15 @@
 
 module Language.Daicker.AST where
 
-import Data.Aeson (FromJSONKey (), ToJSON (toJSON), Value (Array, Bool, Null, Object, String))
-import Data.Aeson.Key (fromText)
+import Data.Aeson (FromJSON (parseJSON), FromJSONKey (), ToJSON (toJSON), Value (Array, Bool, Null, Object, String), (.:))
+import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as KM
-import Data.Aeson.Types (Value (Number))
-import Data.Scientific (Scientific)
+import Data.Aeson.Types (Parser, Value (Number))
+import Data.Scientific (Scientific, toRealFloat)
 import Data.Text (pack)
+import qualified Data.Text as T
 import qualified Data.Vector as V
-import Language.Daicker.Span (Span, Spanned, span)
+import Language.Daicker.Span (Span, Spanned, mkSpan, span)
 
 data Module = Module Identifier [Import] [Export] [Define]
 
@@ -75,4 +76,20 @@ instance ToJSON Expr where
     ENumber v _ -> Number (read (show v) :: Scientific)
     EString v _ -> String (pack v)
     EArray vs _ -> Array $ V.fromList $ map toJSON vs
-    EObject vs _ -> Object $ KM.fromList $ map (\(Identifier i _, v) -> (fromText (pack i), toJSON v)) vs
+    EObject vs _ -> Object $ KM.fromList $ map (\(Identifier i _, v) -> (K.fromText (pack i), toJSON v)) vs
+    v -> String (pack $ show v)
+
+instance FromJSON Expr where
+  parseJSON :: Value -> Parser Expr
+  parseJSON v = case v of
+    Null -> pure $ ENull $ mkSpan "stdin" 1 1 1 2
+    Bool v -> pure $ EBool v $ mkSpan "stdin" 1 1 1 2
+    Number v -> pure $ ENumber (toRealFloat v) $ mkSpan "stdin" 1 1 1 2
+    String v -> pure $ EString (T.unpack v) $ mkSpan "stdin" 1 1 1 2
+    Array vs -> EArray <$> mapM parseJSON (V.toList vs) <*> pure (mkSpan "stdin" 1 1 1 2)
+    Object vs ->
+      EObject
+        <$> mapM
+          (\(k, v) -> (,) (Identifier (K.toString k) (mkSpan "stdin" 1 1 1 2)) <$> parseJSON v)
+          (KM.toList vs)
+        <*> pure (mkSpan "stdin" 1 1 1 2)

@@ -18,10 +18,9 @@ class Evaluatable a where
 findDefine :: String -> Module -> Maybe Define
 findDefine name (Module _ _ _ ds) = find (\(Define (Identifier n _) _ _) -> name == n) ds
 
-execDefine :: Module -> Define -> Either (String, Span) Expr
-execDefine (Module _ _ _ ds) (Define _ e _) = eval vars e
-  where
-    vars = map (\(Define (Identifier name _) e _) -> (name, e)) ds
+execDefine :: Module -> Define -> Maybe Expr -> Either (String, Span) Expr
+execDefine (Module _ _ _ ds) (Define _ e _) Nothing = eval [] e
+execDefine (Module _ _ _ ds) (Define (Identifier name _) e _) (Just arg) = eval [(name, arg)] e
 
 instance Evaluatable Expr where
   eval :: [(String, Expr)] -> Expr -> Either (String, Span) Expr
