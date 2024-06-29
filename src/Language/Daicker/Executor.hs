@@ -30,18 +30,22 @@ instance Evaluatable Expr where
     ERef (Identifier i _) s -> case lookup i vars of
       Just a -> eval vars a
       Nothing -> Left ("not defined: " <> i, s)
-    EApp _ (a0@(ERef (Identifier i _) _) : args) s -> case lookup i stdLib of
-      Just f -> Right $ f args
-      Nothing -> case eval vars a0 of
+    EApp _ (a0@(ERef (Identifier i _) _) : args) s -> do
+      args <- mapM (eval vars) args
+      case lookup i stdLib of
+        Just f -> Right $ f args
+        Nothing -> case eval vars a0 of
+          Right (EFun params e s) -> do
+            let args' = zip (map (\(Identifier s _) -> s) params) args
+            eval (vars <> args') e
+          err -> err
+    EApp _ (a0 : args) s -> do
+      args <- mapM (eval vars) args
+      case eval vars a0 of
         Right (EFun params e s) -> do
           let args' = zip (map (\(Identifier s _) -> s) params) args
           eval (vars <> args') e
         err -> err
-    EApp _ (a0 : args) s -> case eval vars a0 of
-      Right (EFun params e s) -> do
-        let args' = zip (map (\(Identifier s _) -> s) params) args
-        eval (vars <> args') e
-      err -> err
     v -> Right v
 
 stdLib :: [(String, [Expr] -> Expr)]
