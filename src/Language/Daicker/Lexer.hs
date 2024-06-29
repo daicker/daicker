@@ -53,6 +53,7 @@ data TToken
   | TMul
   | TDiv
   | TBackslash
+  | THash
   | TComment
   deriving (Eq, Ord, Show)
 
@@ -179,6 +180,7 @@ showTToken = \case
   TMul -> "*"
   TDiv -> "/"
   TBackslash -> "\\"
+  THash -> "#"
 
 type Lexer = Parsec Void String
 
@@ -225,6 +227,7 @@ tToken =
           TMul <$ char '*' <?> "*",
           TDiv <$ char '/' <?> "/",
           TAssign <$ char '=' <?> "=",
+          THash <$ char '#' <?> "#",
           TModule <$ string "module" <?> "module",
           TImport <$ string "import" <?> "import",
           TExport <$ string "export" <?> "export",

@@ -2,7 +2,7 @@ module Language.Daicker.ParserSpec (spec) where
 
 import Language.Daicker.AST
 import Language.Daicker.Lexer (mkTStream)
-import Language.Daicker.Parser (Parser, pApp, pDefine, pExpr, pImport, pModule)
+import Language.Daicker.Parser (Parser, pDefine, pExpr, pImport, pModule)
 import Language.Daicker.Span (mkSpan)
 import Test.Hspec
 import Text.Megaparsec hiding (parseTest)
@@ -18,12 +18,23 @@ spec = do
         `shouldBe` Right
           ( Define
               (Identifier "a" (mkSpan "test" 1 8 1 9))
-              ( EApp
-                  Nothing
-                  [ENumber 1 (mkSpan "test" 1 12 1 13)]
-                  (mkSpan "test" 1 12 1 13)
-              )
+              (ENumber 1 (mkSpan "test" 1 12 1 13))
               (mkSpan "test" 1 1 1 13)
+          )
+    it "define f a = a" $
+      parseTest pDefine "test" "define f a = a"
+        `shouldBe` Right
+          ( Define
+              (Identifier "f" (mkSpan "test" 1 8 1 9))
+              ( EFun
+                  [ Identifier
+                      "a"
+                      (mkSpan "test" 1 10 1 11)
+                  ]
+                  (ERef (Identifier "a" (mkSpan "test" 1 14 1 15)) (mkSpan "test" 1 14 1 15))
+                  (mkSpan "test" 1 10 1 15)
+              )
+              (mkSpan "test" 1 1 1 15)
           )
   describe "value parser" $ do
     describe "null" $ do
@@ -98,7 +109,7 @@ spec = do
                       (mkSpan "test" 1 2 1 3),
                     ENumber 1 (mkSpan "test" 1 4 1 5)
                   ]
-                  (mkSpan "test" 1 1 1 6)
+                  (mkSpan "test" 1 2 1 5)
               )
       it "1 + 2" $ do
         parseTest pExpr "test" "1 + 2"
@@ -113,18 +124,18 @@ spec = do
                 ]
                 (mkSpan "test" 1 1 1 6)
             )
-      it "([alpine] f 1 2)" $ do
-        parseTest pExpr "test" "([alpine] f 1 2)"
+      it "(#alpine f 1 2)" $ do
+        parseTest pExpr "test" "(#alpine f 1 2)"
           `shouldBe` Right
             ( EApp
-                (Just (Identifier "alpine" (mkSpan "test" 1 3 1 9)))
+                (Just (Identifier "alpine" (mkSpan "test" 1 2 1 9)))
                 [ ERef
-                    (Identifier "f" (mkSpan "test" 1 11 1 12))
-                    (mkSpan "test" 1 11 1 12),
-                  ENumber 1 (mkSpan "test" 1 13 1 14),
-                  ENumber 2 (mkSpan "test" 1 15 1 16)
+                    (Identifier "f" (mkSpan "test" 1 10 1 11))
+                    (mkSpan "test" 1 10 1 11),
+                  ENumber 1 (mkSpan "test" 1 12 1 13),
+                  ENumber 2 (mkSpan "test" 1 14 1 15)
                 ]
-                (mkSpan "test" 1 1 1 17)
+                (mkSpan "test" 1 2 1 15)
             )
     describe "fun" $ do
       it "\\a -> a" $ do

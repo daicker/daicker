@@ -61,18 +61,10 @@ pDefine = do
   i <- pIdentifier
   params <- many pIdentifier
   pToken TAssign
-  v <- pApp
+  v <- pExpr
   case params of
     [] -> return $ Define i v (s S.<> S.span v)
     _ -> return $ Define i (EFun params v (S.span (head params) S.<> S.span v)) (s S.<> S.span v)
-
-pApp :: Parser Expr
-pApp = do
-  img <- optional $ between (pToken TLBracket) (pToken TRBracket) pIdentifier
-  (vs, s) <- spanned $ some pExpr
-  case img of
-    Nothing -> return $ EApp Nothing vs s
-    Just img -> return $ EApp (Just img) vs (S.span img S.<> s)
 
 operatorTable :: [[Operator Parser Expr]]
 operatorTable =
@@ -122,10 +114,23 @@ prefix token = Prefix (f <$> pToken token)
         (S.span op S.<> S.span a)
 
 pExpr :: Parser Expr
-pExpr = makeExprParser pTerm operatorTable <?> "expression"
+pExpr = do
+  img <- optional $ spanned $ pToken THash *> pIdentifier
+  case img of
+    Nothing -> do
+      terms <- some pTerm <?> "expr"
+      case terms of
+        [e] -> pure e
+        es -> pure $ EApp Nothing es (foldl1 (S.<>) $ map S.span es)
+    Just (Identifier i _, s) -> do
+      terms <- some pTerm <?> "expr"
+      pure $ EApp (Just (Identifier i s)) terms (s S.<> foldl1 (S.<>) (map S.span terms))
 
 pTerm :: Parser Expr
-pTerm =
+pTerm = makeExprParser pValue operatorTable <?> "term"
+
+pValue :: Parser Expr
+pValue =
   choice
     [ pNull,
       pBool,
@@ -135,7 +140,7 @@ pTerm =
       pObject,
       pRef,
       pFunc,
-      pApp'
+      pExpr'
     ]
 
 pNull :: Parser Expr
@@ -194,15 +199,15 @@ pRef = do
   i <- pIdentifier
   return $ ERef i (S.span i)
 
-pApp' :: Parser Expr
-pApp' = do
-  (EApp c vs _, s) <-
+pExpr' :: Parser Expr
+pExpr' = do
+  (e, _) <-
     spanned $
       between
         (pToken TLParenthesis)
         (pToken TRParenthesis)
-        pApp
-  return $ EApp c vs s
+        pExpr
+  return e
 
 pFunc :: Parser Expr
 pFunc = do

@@ -20,7 +20,7 @@ findDefine name (Module _ _ _ ds) = find (\(Define (Identifier n _) _ _) -> name
 
 execDefine :: Module -> Define -> Maybe Expr -> Either (String, Span) Expr
 execDefine (Module _ _ _ ds) (Define _ e _) Nothing = eval [] e
-execDefine (Module _ _ _ ds) (Define (Identifier name _) e _) (Just arg) = eval [(name, arg)] e
+execDefine (Module _ _ _ ds) (Define _ e _) (Just arg) = eval [] (EApp Nothing [e, arg] (S.span e))
 
 instance Evaluatable Expr where
   eval :: [(String, Expr)] -> Expr -> Either (String, Span) Expr
