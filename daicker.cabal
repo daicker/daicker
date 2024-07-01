@@ -41,6 +41,7 @@ library
     , co-log-core >=0.3.0 && <0.4
     , containers >=0.6.0 && <0.7
     , exceptions >=0.10.0 && <0.11
+    , free >=5.0 && <6
     , hspec >=2.11 && <3
     , hspec-core >=2.11 && <3
     , hspec-megaparsec >=2.2 && <3
@@ -76,6 +77,7 @@ executable daicker
     , containers >=0.6.0 && <0.7
     , daicker
     , exceptions >=0.10.0 && <0.11
+    , free >=5.0 && <6
     , hspec >=2.11 && <3
     , hspec-core >=2.11 && <3
     , hspec-megaparsec >=2.2 && <3
@@ -113,6 +115,7 @@ test-suite daicker-test
     , containers >=0.6.0 && <0.7
     , daicker
     , exceptions >=0.10.0 && <0.11
+    , free >=5.0 && <6
     , hspec >=2.11 && <3
     , hspec-core >=2.11 && <3
     , hspec-megaparsec >=2.2 && <3

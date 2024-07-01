@@ -1,7 +1,10 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE InstanceSigs #-}
 
 module Language.Daicker.AST where
 
+import Control.Comonad.Cofree
+import Control.Monad (void)
 import Data.Aeson (FromJSON (parseJSON), FromJSONKey (), ToJSON (toJSON), Value (Array, Bool, Null, Object, String), (.:))
 import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as KM
@@ -12,24 +15,26 @@ import qualified Data.Text as T
 import qualified Data.Vector as V
 import Language.Daicker.Span (Span, Spanned, mkSpan, span)
 
-data Module = Module Identifier [Import] [Export] [Define]
+data Module ann = Module (Identifier ann) [Import ann] [Export ann] [Define ann]
 
-data Import = Import Identifier Span deriving (Show, Eq)
+data Import ann = Import (Identifier ann) ann deriving (Show, Eq)
 
-data Export = Export Identifier Span deriving (Show, Eq)
+data Export ann = Export (Identifier ann) ann deriving (Show, Eq)
 
-data Define = Define Identifier Expr Span deriving (Show, Eq)
+data Define ann = Define (Identifier ann) (Expr ann) ann
 
-data Expr
-  = ENull Span
-  | EBool Bool Span
-  | ENumber Double Span
-  | EString String Span
-  | EArray [Expr] Span
-  | EObject [(EKey, Expr)] Span
-  | ERef Identifier Span
-  | EApp (Maybe EImage) [Expr] Span
-  | EFun [EArg] Expr Span
+type Expr ann = Cofree (Expr' ann) ann
+
+data Expr' ann a
+  = ENull
+  | EBool Bool
+  | ENumber Double
+  | EString String
+  | EArray [a]
+  | EObject [(EKey ann, a)]
+  | ERef (Identifier ann)
+  | EApp (Maybe (EImage ann)) [a]
+  | EFun [EArg ann] a
   deriving (Show, Eq)
 
 type EKey = Identifier
@@ -38,58 +43,37 @@ type EArg = Identifier
 
 type EImage = Identifier
 
-data Identifier = Identifier String Span deriving (Show, Eq)
+data Identifier ann = Identifier String ann deriving (Show, Eq)
 
-instance Spanned Import where
-  span :: Import -> Span
-  span (Import _ s) = s
+instance Spanned (Expr Span) where
+  span :: Expr Span -> Span
+  span (s :< _) = s
 
-instance Spanned Export where
-  span :: Export -> Span
-  span (Export _ s) = s
-
-instance Spanned Define where
-  span :: Define -> Span
-  span (Define _ _ s) = s
-
-instance Spanned Expr where
-  span :: Expr -> Span
-  span (ENull s) = s
-  span (EBool _ s) = s
-  span (ENumber _ s) = s
-  span (EString _ s) = s
-  span (EArray _ s) = s
-  span (EObject _ s) = s
-  span (ERef _ s) = s
-  span (EApp _ _ s) = s
-  span (EFun _ _ s) = s
-
-instance Spanned Identifier where
-  span :: Identifier -> Span
+instance Spanned (Identifier Span) where
+  span :: Identifier Span -> Span
   span (Identifier _ s) = s
 
-instance ToJSON Expr where
-  toJSON :: Expr -> Value
+instance ToJSON (Expr a) where
+  toJSON :: Expr a -> Value
   toJSON expr = case expr of
-    ENull _ -> Null
-    EBool v _ -> Bool v
-    ENumber v _ -> Number (read (show v) :: Scientific)
-    EString v _ -> String (pack v)
-    EArray vs _ -> Array $ V.fromList $ map toJSON vs
-    EObject vs _ -> Object $ KM.fromList $ map (\(Identifier i _, v) -> (K.fromText (pack i), toJSON v)) vs
-    v -> String (pack $ show v)
+    (_ :< ENull) -> Null
+    (_ :< EBool v) -> Bool v
+    (_ :< ENumber v) -> Number (read (show v) :: Scientific)
+    (_ :< EString v) -> String (pack v)
+    (_ :< EArray vs) -> Array $ V.fromList $ map toJSON vs
+    (_ :< EObject vs) -> Object $ KM.fromList $ map (\(Identifier i _, v) -> (K.fromText (pack i), toJSON v)) vs
+    (_ :< v) -> String (pack "not value")
 
-instance FromJSON Expr where
-  parseJSON :: Value -> Parser Expr
+instance FromJSON (Expr ()) where
+  parseJSON :: Value -> Parser (Expr ())
   parseJSON v = case v of
-    Null -> pure $ ENull $ mkSpan "stdin" 1 1 1 2
-    Bool v -> pure $ EBool v $ mkSpan "stdin" 1 1 1 2
-    Number v -> pure $ ENumber (toRealFloat v) $ mkSpan "stdin" 1 1 1 2
-    String v -> pure $ EString (T.unpack v) $ mkSpan "stdin" 1 1 1 2
-    Array vs -> EArray <$> mapM parseJSON (V.toList vs) <*> pure (mkSpan "stdin" 1 1 1 2)
+    Null -> pure $ () :< ENull
+    Bool v -> pure $ () :< EBool v
+    Number v -> pure $ () :< ENumber (toRealFloat v)
+    String v -> pure $ () :< EString (T.unpack v)
+    Array vs -> (() :<) . EArray <$> mapM parseJSON (V.toList vs)
     Object vs ->
-      EObject
+      (() :<) . EObject
         <$> mapM
-          (\(k, v) -> (,) (Identifier (K.toString k) (mkSpan "stdin" 1 1 1 2)) <$> parseJSON v)
+          (\(k, v) -> (,) (Identifier (K.toString k) ()) <$> parseJSON v)
           (KM.toList vs)
-        <*> pure (mkSpan "stdin" 1 1 1 2)

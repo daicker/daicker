@@ -30,6 +30,7 @@ dependencies:
   - containers >= 0.6.0 && < 0.7
   - unliftio-core >= 0.2.0 && < 0.3
   - mtl >= 2.0 && < 3
+  - free >= 5.0 && < 6
   - exceptions >= 0.10.0 && < 0.11
   - network >= 3.0 && < 4
   - http-client >= 0.7.0 && < 0.8

@@ -1,5 +1,6 @@
 module Language.Daicker.Parser where
 
+import Control.Comonad.Cofree
 import Control.Monad (void)
 import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
 import Data.Functor.Identity (Identity)
@@ -40,22 +41,22 @@ syntaxCheck fileName src =
         Right m -> []
         Left e -> [(errorBundleSourcePos e, errorBundlePretty e)]
 
-pModule :: Parser Module
+pModule :: Parser (Module Span)
 pModule = Module <$> (pToken TModule *> pIdentifier) <*> many pImport <*> many pExport <*> many pDefine <* eof
 
-pImport :: Parser Import
+pImport :: Parser (Import Span)
 pImport = do
   s <- pToken TImport
   i <- pIdentifier
   return $ Import i (S.span s S.<> S.span i)
 
-pExport :: Parser Export
+pExport :: Parser (Export Span)
 pExport = do
   s <- pToken TExport
   i <- pIdentifier
   return $ Export i (S.span s S.<> S.span i)
 
-pDefine :: Parser Define
+pDefine :: Parser (Define Span)
 pDefine = do
   (_, s) <- pToken TDefine
   i <- pIdentifier
@@ -64,9 +65,9 @@ pDefine = do
   v <- pExpr
   case params of
     [] -> return $ Define i v (s S.<> S.span v)
-    _ -> return $ Define i (EFun params v (S.span (head params) S.<> S.span v)) (s S.<> S.span v)
+    _ -> return $ Define i ((S.span (head params) S.<> S.span v) :< EFun params v) (s S.<> S.span v)
 
-operatorTable :: [[Operator Parser Expr]]
+operatorTable :: [[Operator Parser (Expr Span)]]
 operatorTable =
   [ [ binary TMul,
       binary TDiv
@@ -88,32 +89,32 @@ operatorTable =
     ]
   ]
 
-binary :: TToken -> Operator Parser Expr
+binary :: TToken -> Operator Parser (Expr Span)
 binary token = InfixL (f <$> pToken token)
   where
-    f :: (TToken, Span) -> Expr -> Expr -> Expr
+    f :: (TToken, Span) -> Expr Span -> Expr Span -> Expr Span
     f op a b =
-      EApp
-        Nothing
-        [ ERef (Identifier (showTToken (fst op)) (S.span op)) (S.span op),
-          a,
-          b
-        ]
-        (S.span a S.<> S.span b)
+      (S.span a S.<> S.span b)
+        :< EApp
+          Nothing
+          [ S.span op :< ERef (Identifier (showTToken (fst op)) (S.span op)),
+            a,
+            b
+          ]
 
-prefix :: TToken -> Operator Parser Expr
+prefix :: TToken -> Operator Parser (Expr Span)
 prefix token = Prefix (f <$> pToken token)
   where
-    f :: (TToken, Span) -> Expr -> Expr
+    f :: (TToken, Span) -> Expr Span -> Expr Span
     f op a =
-      EApp
-        Nothing
-        [ ERef (Identifier (showTToken (fst op)) (S.span op)) (S.span op),
-          a
-        ]
-        (S.span op S.<> S.span a)
+      (S.span op S.<> S.span a)
+        :< EApp
+          Nothing
+          [ S.span op :< ERef (Identifier (showTToken (fst op)) (S.span op)),
+            a
+          ]
 
-pExpr :: Parser Expr
+pExpr :: Parser (Expr Span)
 pExpr = do
   img <- optional $ spanned $ pToken THash *> pIdentifier
   case img of
@@ -121,15 +122,15 @@ pExpr = do
       terms <- some pTerm <?> "expr"
       case terms of
         [e] -> pure e
-        es -> pure $ EApp Nothing es (foldl1 (S.<>) $ map S.span es)
+        es -> pure $ foldl1 (S.<>) (map S.span es) :< EApp Nothing es
     Just (Identifier i _, s) -> do
       terms <- some pTerm <?> "expr"
-      pure $ EApp (Just (Identifier i s)) terms (s S.<> foldl1 (S.<>) (map S.span terms))
+      pure $ (s S.<> foldl1 (S.<>) (map S.span terms)) :< EApp (Just (Identifier i s)) terms
 
-pTerm :: Parser Expr
+pTerm :: Parser (Expr Span)
 pTerm = makeExprParser pValue operatorTable <?> "term"
 
-pValue :: Parser Expr
+pValue :: Parser (Expr Span)
 pValue =
   choice
     [ pNull,
@@ -143,31 +144,31 @@ pValue =
       pExpr'
     ]
 
-pNull :: Parser Expr
+pNull :: Parser (Expr Span)
 pNull = token test Set.empty <?> "null"
   where
-    test (WithPos s e _ TNull) = Just $ ENull (Span s e)
+    test (WithPos s e _ TNull) = Just $ Span s e :< ENull
     test _ = Nothing
 
-pBool :: Parser Expr
+pBool :: Parser (Expr Span)
 pBool = token test Set.empty <?> "bool"
   where
-    test (WithPos s e _ (TBool t)) = Just $ EBool t (Span s e)
+    test (WithPos s e _ (TBool t)) = Just $ Span s e :< EBool t
     test _ = Nothing
 
-pNumber :: Parser Expr
+pNumber :: Parser (Expr Span)
 pNumber = token test Set.empty <?> "number"
   where
-    test (WithPos s e _ (TNumber t)) = Just $ ENumber t (Span s e)
+    test (WithPos s e _ (TNumber t)) = Just $ Span s e :< ENumber t
     test _ = Nothing
 
-pString :: Parser Expr
+pString :: Parser (Expr Span)
 pString = token test Set.empty <?> "string"
   where
-    test (WithPos s e _ (TString t)) = Just $ EString t (Span s e)
+    test (WithPos s e _ (TString t)) = Just $ Span s e :< EString t
     test _ = Nothing
 
-pArray :: Parser Expr
+pArray :: Parser (Expr Span)
 pArray = do
   (vs, s) <-
     spanned $
@@ -175,9 +176,9 @@ pArray = do
         (pToken TLBracket)
         (pToken TRBracket)
         (pExpr `sepBy` pToken TComma)
-  return $ EArray vs s
+  return $ s :< EArray vs
 
-pObject :: Parser Expr
+pObject :: Parser (Expr Span)
 pObject = do
   (obj, s) <-
     spanned $
@@ -185,21 +186,21 @@ pObject = do
         (pToken TLBrace)
         (pToken TRBrace)
         (pair `sepBy` pToken TComma)
-  return $ EObject obj s
+  return $ s :< EObject obj
   where
-    pair :: Parser (EKey, Expr)
+    pair :: Parser (EKey Span, Expr Span)
     pair = do
-      (EString t s) <- pString
+      s :< (EString t) <- pString
       pToken TColon
       v <- pExpr
       return (Identifier t s, v)
 
-pRef :: Parser Expr
+pRef :: Parser (Expr Span)
 pRef = do
   i <- pIdentifier
-  return $ ERef i (S.span i)
+  return $ S.span i :< ERef i
 
-pExpr' :: Parser Expr
+pExpr' :: Parser (Expr Span)
 pExpr' = do
   (e, _) <-
     spanned $
@@ -209,15 +210,15 @@ pExpr' = do
         pExpr
   return e
 
-pFunc :: Parser Expr
+pFunc :: Parser (Expr Span)
 pFunc = do
   (_, s) <- pToken TBackslash
   args <- spanned $ many pIdentifier
   pToken TArrow
   v <- pExpr
-  return $ EFun (fst args) v (s S.<> S.span v)
+  return $ (s S.<> S.span v) :< EFun (fst args) v
 
-pIdentifier :: Parser Identifier
+pIdentifier :: Parser (Identifier Span)
 pIdentifier = token test Set.empty <?> "identifier"
   where
     test (WithPos s e _ (TIdentifier t)) = Just $ Identifier t (Span s e)
