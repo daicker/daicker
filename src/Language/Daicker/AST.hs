@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE InstanceSigs #-}
 
@@ -9,19 +10,20 @@ import Data.Aeson (FromJSON (parseJSON), FromJSONKey (), ToJSON (toJSON), Value 
 import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as KM
 import Data.Aeson.Types (Parser, Value (Number))
+import Data.Functor.Classes (Eq1 (liftEq), Show1 (liftShowsPrec), Show2 (liftShowsPrec2))
 import Data.Scientific (Scientific, toRealFloat)
 import Data.Text (pack)
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import Language.Daicker.Span (Span, Spanned, mkSpan, span)
 
-data Module ann = Module (Identifier ann) [Import ann] [Export ann] [Define ann]
+data Module ann = Module (Identifier ann) [Import ann] [Export ann] [Define ann] deriving (Show, Eq)
 
 data Import ann = Import (Identifier ann) ann deriving (Show, Eq)
 
 data Export ann = Export (Identifier ann) ann deriving (Show, Eq)
 
-data Define ann = Define (Identifier ann) (Expr ann) ann
+data Define ann = Define (Identifier ann) (Expr ann) ann deriving (Show, Eq)
 
 type Expr ann = Cofree (Expr' ann) ann
 
@@ -36,6 +38,28 @@ data Expr' ann a
   | EApp (Maybe (EImage ann)) [a]
   | EFun [EArg ann] a
   deriving (Show, Eq)
+
+instance (Eq ann) => Eq1 (Expr' ann) where
+  liftEq _ ENull ENull = True
+  liftEq _ (EBool a) (EBool b) = a == b
+  liftEq _ (ENumber a) (ENumber b) = a == b
+  liftEq _ (EString a) (EString b) = a == b
+  liftEq f (EArray a) (EArray b) = length a == length b && all (uncurry f) (zip a b)
+  liftEq f (EObject a) (EObject b) = length a == length b && all (\((ka, va), (kb, vb)) -> ka == kb && f va vb) (zip a b)
+  liftEq _ (ERef a) (ERef b) = a == b
+  liftEq f (EApp c1 a) (EApp c2 b) = c1 == c2 && length a == length b && all (uncurry f) (zip a b)
+  liftEq f (EFun arg1 e1) (EFun arg2 e2) = length arg1 == length arg2 && all (uncurry (==)) (zip arg1 arg2) && f e1 e2
+  liftEq _ _ _ = False
+
+instance (Show ann) => Show1 (Expr' ann) where
+  liftShowsPrec _ _ _ ENull = showString "ENull"
+  liftShowsPrec _ _ _ (EBool v) = showString $ "EBool " <> show v
+  liftShowsPrec _ _ _ (ENumber v) = showString $ "ENumber " <> show v
+  liftShowsPrec _ _ _ (EString v) = showString $ "EString " <> show v
+  liftShowsPrec _ f _ (EArray vs) = showString "EArray " <> f vs
+  liftShowsPrec _ _ _ (EObject vs) = showString "EObject..."
+  liftShowsPrec _ _ _ (EApp _ _) = showString "EApp..."
+  liftShowsPrec _ _ _ (EFun _ _) = showString "EFun..."
 
 type EKey = Identifier
 
