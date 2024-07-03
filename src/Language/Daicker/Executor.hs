@@ -14,12 +14,12 @@ import qualified Language.Daicker.Span as S
 import System.Exit (ExitCode (ExitFailure, ExitSuccess))
 import System.Process
 
-findDefine :: String -> Module Span -> Maybe (Define Span)
+findDefine :: String -> Module a -> Maybe (Define a)
 findDefine name (Module _ _ _ ds) = find (\(Define (Identifier n _) _ _) -> name == n) ds
 
 execDefine :: Module Span -> Define Span -> Maybe (Expr ()) -> Either (String, Span) (Expr Span)
 execDefine (Module _ _ _ ds) (Define _ e _) Nothing = eval [] e
-execDefine (Module _ _ _ ds) (Define _ e _) (Just arg) = eval [] (S.span e :< EApp Nothing [e, switchAnn (\_ -> mkSpan "stdin" 1 1 1 2) arg])
+execDefine (Module _ _ _ ds) (Define _ e _) (Just arg) = eval [] (S.span e :< EApp Nothing e (switchAnn (\_ -> mkSpan "stdin" 1 1 1 2) arg))
 
 switchAnn :: (a -> b) -> Expr a -> Expr b
 switchAnn f e = case e of
@@ -30,9 +30,10 @@ switchAnn f e = case e of
   (ann :< EArray es) -> f ann :< EArray (map (switchAnn f) es)
   (ann :< EObject es) -> f ann :< EObject (map (\(Identifier i ann1, e) -> (Identifier i (f ann1), switchAnn f e)) es)
   (ann :< ERef (Identifier i ann1)) -> f ann :< ERef (Identifier i (f ann1))
-  (ann :< EApp (Just (Identifier i ann1)) es) -> f ann :< EApp (Just $ Identifier i (f ann1)) (map (switchAnn f) es)
-  (ann :< EApp Nothing es) -> f ann :< EApp Nothing (map (switchAnn f) es)
-  (ann :< EFun is e) -> f ann :< EFun (map (\(Identifier i ann) -> Identifier i (f ann)) is) (switchAnn f e)
+  (ann :< EApp (Just (Identifier i ann1)) a b) -> f ann :< EApp (Just $ Identifier i (f ann1)) (switchAnn f a) (switchAnn f b)
+  (ann :< EApp Nothing a b) -> f ann :< EApp Nothing (switchAnn f a) (switchAnn f b)
+  (ann :< EFun (Just (Identifier i a)) e) -> f ann :< EFun (Just (Identifier i (f a))) (switchAnn f e)
+  (ann :< EFun Nothing e) -> f ann :< EFun Nothing (switchAnn f e)
 
 eval :: [(String, Expr Span)] -> Expr Span -> Either (String, Span) (Expr Span)
 eval vars v = case v of
@@ -41,28 +42,24 @@ eval vars v = case v of
   s :< ERef (Identifier i _) -> case lookup i vars of
     Just a -> eval vars a
     Nothing -> Left ("not defined: " <> i, s)
-  s :< EApp _ (a0@(_ :< ERef (Identifier i _)) : args) -> do
-    args <- mapM (eval vars) args
+  s :< EApp _ a0@(_ :< ERef (Identifier i _)) arg -> do
+    arg <- eval vars arg
     case lookup i stdLib of
-      Just f -> Right $ f args
+      Just f -> Right $ f arg
       Nothing -> case eval vars a0 of
-        Right (s :< EFun params e) -> do
-          let args' = zip (map (\(Identifier s _) -> s) params) args
-          eval (vars <> args') e
+        Right (s :< EFun (Just (Identifier p _)) e) -> eval (vars <> [(p, arg)]) e
         err -> err
-  s :< EApp _ (a0 : args) -> do
-    args <- mapM (eval vars) args
-    case eval vars a0 of
-      Right (s :< EFun params e) -> do
-        let args' = zip (map (\(Identifier s _) -> s) params) args
-        eval (vars <> args') e
+  s :< EApp _ f arg -> do
+    arg <- eval vars arg
+    case eval vars f of
+      Right (s :< EFun (Just (Identifier p _)) e) -> eval (vars <> [(p, arg)]) e
       err -> err
   v -> Right v
 
-stdLib :: [(String, [Expr Span] -> Expr Span)]
+stdLib :: [(String, Expr Span -> Expr Span)]
 stdLib =
   [ ( "$",
-      \strings -> do
+      \(_ :< EArray strings) -> do
         let cmds = map (\(_ :< EString s) -> s) strings
         let sp = foldl (\a b -> a S.<> S.span b) (S.span $ head strings) strings
         let (CommandResult i out err) = unsafePerformIO $ runSubprocess cmds
@@ -74,23 +71,23 @@ stdLib =
             ]
     ),
     ( "$1",
-      \strings -> do
+      \(_ :< EArray strings) -> do
         let cmds = map (\(_ :< EString s) -> s) strings
         let sp = foldl (\a b -> a S.<> S.span b) (S.span $ head strings) strings
         let (CommandResult _ out _) = unsafePerformIO $ runSubprocess cmds
         sp :< EString out
     ),
     ( "$2",
-      \strings -> do
+      \(_ :< EArray strings) -> do
         let cmds = map (\(_ :< EString s) -> s) strings
         let sp = foldl (\a b -> a S.<> S.span b) (S.span $ head strings) strings
         let (CommandResult _ _ err) = unsafePerformIO $ runSubprocess cmds
         sp :< EString err
     ),
-    ("+", \[s1 :< ENumber a, s2 :< ENumber b] -> (s1 S.<> s2) :< ENumber (a + b)),
-    ("-", \[s1 :< ENumber a, s2 :< ENumber b] -> (s1 S.<> s2) :< ENumber (a - b)),
-    ("*", \[s1 :< ENumber a, s2 :< ENumber b] -> (s1 S.<> s2) :< ENumber (a * b)),
-    ("/", \[s1 :< ENumber a, s2 :< ENumber b] -> (s1 S.<> s2) :< ENumber (a / b))
+    ("+", \(_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 S.<> s2) :< ENumber (a + b)),
+    ("-", \(_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 S.<> s2) :< ENumber (a - b)),
+    ("*", \(_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 S.<> s2) :< ENumber (a * b)),
+    ("/", \(_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 S.<> s2) :< ENumber (a / b))
   ]
   where
     exitCodeToInt :: ExitCode -> Int

@@ -60,12 +60,12 @@ pDefine :: Parser (Define Span)
 pDefine = do
   (_, s) <- pToken TDefine
   i <- pIdentifier
-  params <- many pIdentifier
+  param <- optional pIdentifier
   pToken TAssign
   v <- pExpr
-  case params of
-    [] -> return $ Define i v (s S.<> S.span v)
-    _ -> return $ Define i ((S.span (head params) S.<> S.span v) :< EFun params v) (s S.<> S.span v)
+  case param of
+    Nothing -> return $ Define i v (s S.<> S.span v)
+    Just param -> return $ Define i ((S.span param S.<> S.span v) :< EFun (Just param) v) (s S.<> S.span v)
 
 operatorTable :: [[Operator Parser (Expr Span)]]
 operatorTable =
@@ -97,10 +97,8 @@ binary token = InfixL (f <$> pToken token)
       (S.span a S.<> S.span b)
         :< EApp
           Nothing
-          [ S.span op :< ERef (Identifier (showTToken (fst op)) (S.span op)),
-            a,
-            b
-          ]
+          (S.span op :< ERef (Identifier (showTToken (fst op)) (S.span op)))
+          ((S.span a S.<> S.span b) :< EArray [a, b])
 
 prefix :: TToken -> Operator Parser (Expr Span)
 prefix token = Prefix (f <$> pToken token)
@@ -110,9 +108,8 @@ prefix token = Prefix (f <$> pToken token)
       (S.span op S.<> S.span a)
         :< EApp
           Nothing
-          [ S.span op :< ERef (Identifier (showTToken (fst op)) (S.span op)),
-            a
-          ]
+          (S.span op :< ERef (Identifier (showTToken (fst op)) (S.span op)))
+          a
 
 pExpr :: Parser (Expr Span)
 pExpr = do
@@ -122,10 +119,14 @@ pExpr = do
       terms <- some pTerm <?> "expr"
       case terms of
         [e] -> pure e
-        es -> pure $ foldl1 (S.<>) (map S.span es) :< EApp Nothing es
+        [f, a] -> pure $ S.span f S.<> S.span a :< EApp Nothing f a
+        f : es -> pure $ foldl1 (S.<>) (map S.span (f : es)) :< EApp Nothing f (foldl1 (S.<>) (map S.span es) :< EArray es)
     Just (Identifier i _, s) -> do
       terms <- some pTerm <?> "expr"
-      pure $ (s S.<> foldl1 (S.<>) (map S.span terms)) :< EApp (Just (Identifier i s)) terms
+      case terms of
+        [e] -> pure e
+        [f, a] -> pure $ s S.<> S.span a :< EApp (Just (Identifier i s)) f a
+        f : es -> pure $ s S.<> foldl1 (S.<>) (map S.span (f : es)) :< EApp (Just (Identifier i s)) f (foldl1 (S.<>) (map S.span es) :< EArray es)
 
 pTerm :: Parser (Expr Span)
 pTerm = makeExprParser pValue operatorTable <?> "term"
@@ -213,10 +214,10 @@ pExpr' = do
 pFunc :: Parser (Expr Span)
 pFunc = do
   (_, s) <- pToken TBackslash
-  args <- spanned $ many pIdentifier
+  arg <- optional pIdentifier
   pToken TArrow
   v <- pExpr
-  return $ (s S.<> S.span v) :< EFun (fst args) v
+  return $ (s S.<> S.span v) :< EFun arg v
 
 pIdentifier :: Parser (Identifier Span)
 pIdentifier = token test Set.empty <?> "identifier"
