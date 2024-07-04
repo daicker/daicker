@@ -1,0 +1,18 @@
+module main
+
+// stdin から stdout, stderrが出力される。stderrはメタ扱いする。
+// stdoutが通常の出力として与えられる。
+// stderrはメタな操作に使われる。リトライなどのロジックに使う。
+// メタは[]でやりとりする。
+
+main() =
+  $[retry(3)]("npm", "test")
+
+type retryMeta = {
+  count: int = 0
+}
+
+retry<F, A, R>: int => (F, A, R, retryMeta) => retryMeta
+retry(maxCount) = (f, a, r, m) =>
+  m.count = m.count + 1
+  m.count < maxCount ? r[m] : f(a)

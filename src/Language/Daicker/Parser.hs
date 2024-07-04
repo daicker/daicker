@@ -60,12 +60,45 @@ pDefine :: Parser (Define Span)
 pDefine = do
   (_, s) <- pToken TDefine
   i <- pIdentifier
-  param <- optional pIdentifier
+  param <- optional pPatternMatchAssign
   pToken TAssign
   v <- pExpr
   case param of
     Nothing -> return $ Define i v (s S.<> S.span v)
     Just param -> return $ Define i ((S.span param S.<> S.span v) :< EFun (Just param) v) (s S.<> S.span v)
+
+pPatternMatchAssign :: Parser (PatternMatchAssign Span)
+pPatternMatchAssign =
+  choice
+    [ anyValuePattern,
+      arrayPattern,
+      objectPattern
+    ]
+  where
+    anyValuePattern = do
+      i <- pIdentifier
+      return $ S.span i :< PMAAnyValue i
+    arrayPattern = do
+      (pmas, s) <-
+        spanned $
+          between
+            (pToken TLBracket)
+            (pToken TRBracket)
+            (pPatternMatchAssign `sepBy` pToken TComma)
+      return $ s :< PMAArray pmas
+    objectPattern = do
+      (pmas, s) <-
+        spanned $
+          between
+            (pToken TLBrace)
+            (pToken TRBrace)
+            (pair `sepBy` pToken TComma)
+      return $ s :< PMAObject pmas
+    pair = do
+      s :< (EString t) <- pString
+      pToken TColon
+      v <- pPatternMatchAssign
+      return (Identifier t s, v)
 
 operatorTable :: [[Operator Parser (Expr Span)]]
 operatorTable =
@@ -214,7 +247,7 @@ pExpr' = do
 pFunc :: Parser (Expr Span)
 pFunc = do
   (_, s) <- pToken TBackslash
-  arg <- optional pIdentifier
+  arg <- optional pPatternMatchAssign
   pToken TArrow
   v <- pExpr
   return $ (s S.<> S.span v) :< EFun arg v

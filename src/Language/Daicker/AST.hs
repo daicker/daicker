@@ -36,7 +36,7 @@ data Expr' ann a
   | EObject [(EKey ann, a)]
   | ERef (Identifier ann)
   | EApp (Maybe (EImage ann)) a a
-  | EFun (Maybe (EArg ann)) a
+  | EFun (Maybe (PatternMatchAssign ann)) a
   deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Expr' ann) where
@@ -61,6 +61,23 @@ instance (Show ann) => Show1 (Expr' ann) where
   liftShowsPrec _ _ _ (EApp {}) = showString "EApp..."
   liftShowsPrec _ _ _ (EFun {}) = showString "EFun..."
 
+type PatternMatchAssign ann = Cofree (PatternMatchAssign' ann) ann
+
+data PatternMatchAssign' ann a
+  = PMAAnyValue (Identifier ann)
+  | PMAArray [a]
+  | PMAObject [(EKey ann, a)]
+  deriving (Show, Eq)
+
+instance (Eq ann) => Eq1 (PatternMatchAssign' ann) where
+  liftEq _ (PMAAnyValue a) (PMAAnyValue b) = a == b
+  liftEq f (PMAArray as) (PMAArray bs) = length as == length bs && all (uncurry f) (zip as bs)
+  liftEq f (PMAObject as) (PMAObject bs) = length as == length bs && all (\((k1, v1), (k2, v2)) -> k1 == k2 && f v1 v2) (zip as bs)
+  liftEq _ _ _ = False
+
+instance (Show ann) => Show1 (PatternMatchAssign' ann) where
+  liftShowsPrec _ _ _ _ = showString "PatternMatchAssign"
+
 type EKey = Identifier
 
 type EArg = Identifier
@@ -71,6 +88,10 @@ data Identifier ann = Identifier String ann deriving (Show, Eq)
 
 instance Spanned (Expr Span) where
   span :: Expr Span -> Span
+  span (s :< _) = s
+
+instance Spanned (PatternMatchAssign Span) where
+  span :: PatternMatchAssign Span -> Span
   span (s :< _) = s
 
 instance Spanned (Identifier Span) where

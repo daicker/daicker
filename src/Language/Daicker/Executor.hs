@@ -5,7 +5,9 @@
 module Language.Daicker.Executor where
 
 import Control.Comonad.Cofree
+import Control.Monad (zipWithM)
 import Data.Foldable (find)
+import Data.Tree (flatten)
 import GHC.IO (unsafePerformIO)
 import GHC.IO.Handle (hGetContents)
 import Language.Daicker.AST
@@ -29,11 +31,12 @@ switchAnn f e = case e of
   (ann :< EString v) -> f ann :< EString v
   (ann :< EArray es) -> f ann :< EArray (map (switchAnn f) es)
   (ann :< EObject es) -> f ann :< EObject (map (\(Identifier i ann1, e) -> (Identifier i (f ann1), switchAnn f e)) es)
-  (ann :< ERef (Identifier i ann1)) -> f ann :< ERef (Identifier i (f ann1))
-  (ann :< EApp (Just (Identifier i ann1)) a b) -> f ann :< EApp (Just $ Identifier i (f ann1)) (switchAnn f a) (switchAnn f b)
-  (ann :< EApp Nothing a b) -> f ann :< EApp Nothing (switchAnn f a) (switchAnn f b)
-  (ann :< EFun (Just (Identifier i a)) e) -> f ann :< EFun (Just (Identifier i (f a))) (switchAnn f e)
-  (ann :< EFun Nothing e) -> f ann :< EFun Nothing (switchAnn f e)
+
+-- (ann :< ERef (Identifier i ann1)) -> f ann :< ERef (Identifier i (f ann1))
+-- (ann :< EApp (Just (Identifier i ann1)) a b) -> f ann :< EApp (Just $ Identifier i (f ann1)) (switchAnn f a) (switchAnn f b)
+-- (ann :< EApp Nothing a b) -> f ann :< EApp Nothing (switchAnn f a) (switchAnn f b)
+-- (ann :< EFun (Just (Identifier i a)) e) -> f ann :< EFun (Just (Identifier i (f a))) (switchAnn f e)
+-- (ann :< EFun Nothing e) -> f ann :< EFun Nothing (switchAnn f e)
 
 eval :: [(String, Expr Span)] -> Expr Span -> Either (String, Span) (Expr Span)
 eval vars v = case v of
@@ -47,14 +50,28 @@ eval vars v = case v of
     case lookup i stdLib of
       Just f -> Right $ f arg
       Nothing -> case eval vars a0 of
-        Right (s :< EFun (Just (Identifier p _)) e) -> eval (vars <> [(p, arg)]) e
+        Right (s :< EFun (Just pm) e) -> do
+          args <- patternMatch pm arg
+          eval (vars <> args) e
         err -> err
   s :< EApp _ f arg -> do
     arg <- eval vars arg
     case eval vars f of
-      Right (s :< EFun (Just (Identifier p _)) e) -> eval (vars <> [(p, arg)]) e
+      Right (s :< EFun (Just pm) e) -> do
+        args <- patternMatch pm arg
+        eval (vars <> args) e
       err -> err
   v -> Right v
+
+patternMatch :: PatternMatchAssign Span -> Expr Span -> Either (String, Span) [(String, Expr Span)]
+patternMatch pma e = case pma of
+  _ :< PMAAnyValue (Identifier i _) -> pure [(i, e)]
+  _ :< PMAArray as -> case e of
+    (_ :< EArray vs) -> concat <$> zipWithM patternMatch as vs
+    (s :< _) -> Left ("pattern match: unexpected type", s)
+  _ :< PMAObject as -> case e of
+    (s :< EObject vs) -> Left ("object pattern match is not implemented yet", s)
+    (s :< _) -> Left ("pattern match: unexpected type", s)
 
 stdLib :: [(String, Expr Span -> Expr Span)]
 stdLib =

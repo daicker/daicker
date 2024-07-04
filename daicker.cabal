@@ -30,6 +30,7 @@ library
       Language.Daicker.Parser
       Language.Daicker.Span
       Language.Daicker.StdLib
+      Language.Daicker.TypeChecker
   other-modules:
       Paths_daicker
   hs-source-dirs:

@@ -1,0 +1,15 @@
+module main
+
+import apply
+export stdlib
+
+// comment
+define apply = #terraform $ {
+  "a": 1,
+  "b": {}
+}
+
+/* 日本語のコメント */
+define test = $1 "terraform" "--help"
+define echo [a, b] = $1 "echo" a b
+define add [a, b] = a + b
