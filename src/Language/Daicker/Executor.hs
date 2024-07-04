@@ -70,8 +70,12 @@ patternMatch pma e = case pma of
     (_ :< EArray vs) -> concat <$> zipWithM patternMatch as vs
     (s :< _) -> Left ("pattern match: unexpected type", s)
   _ :< PMAObject as -> case e of
-    (s :< EObject vs) -> Left ("object pattern match is not implemented yet", s)
+    (s :< EObject es) -> concat <$> mapM (uncurry $ objectMatch es) as
     (s :< _) -> Left ("pattern match: unexpected type", s)
+    where
+      objectMatch es (Identifier i1 s) a = case find (\(Identifier i2 s, _) -> i1 == i2) es of
+        Nothing -> Left ("not found key: " <> i1, s)
+        Just (_, e) -> patternMatch a e
 
 stdLib :: [(String, Expr Span -> Expr Span)]
 stdLib =

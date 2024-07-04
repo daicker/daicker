@@ -76,8 +76,10 @@ pPatternMatchAssign =
     ]
   where
     anyValuePattern = do
-      i <- pIdentifier
-      return $ S.span i :< PMAAnyValue i
+      (is, s) <- spanned $ some pIdentifier
+      case is of
+        [i] -> return $ S.span i :< PMAAnyValue i
+        is -> return $ s :< PMAArray (map (\i@(Identifier _ s) -> s :< PMAAnyValue i) is)
     arrayPattern = do
       (pmas, s) <-
         spanned $
@@ -92,13 +94,16 @@ pPatternMatchAssign =
           between
             (pToken TLBrace)
             (pToken TRBrace)
-            (pair `sepBy` pToken TComma)
+            (choice [pair, pair'] `sepBy` pToken TComma)
       return $ s :< PMAObject pmas
     pair = do
       s :< (EString t) <- pString
       pToken TColon
       v <- pPatternMatchAssign
       return (Identifier t s, v)
+    pair' = do
+      i <- pIdentifier
+      return (i, S.span i :< PMAAnyValue i)
 
 operatorTable :: [[Operator Parser (Expr Span)]]
 operatorTable =
