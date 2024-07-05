@@ -178,6 +178,7 @@ pValue =
       pString,
       pArray,
       pObject,
+      pAccess,
       pRef,
       pFunc,
       pExpr'
@@ -238,6 +239,13 @@ pRef :: Parser (Expr Span)
 pRef = do
   i <- pIdentifier
   return $ S.span i :< ERef i
+
+pAccess :: Parser (Expr Span)
+pAccess = try $ do
+  e <- pIdentifier
+  pToken TDot
+  i <- pIdentifier
+  return $ S.span e S.<> S.span i :< EAccess (S.span e :< ERef e) i
 
 pExpr' :: Parser (Expr Span)
 pExpr' = do

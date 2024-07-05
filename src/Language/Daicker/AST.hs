@@ -35,6 +35,7 @@ data Expr' ann a
   | EArray [a]
   | EObject [(EKey ann, a)]
   | ERef (Identifier ann)
+  | EAccess a (Identifier ann)
   | EApp (Maybe (EImage ann)) a a
   | EFun (Maybe (PatternMatchAssign ann)) a
   deriving (Show, Eq)
@@ -47,6 +48,7 @@ instance (Eq ann) => Eq1 (Expr' ann) where
   liftEq f (EArray a) (EArray b) = length a == length b && all (uncurry f) (zip a b)
   liftEq f (EObject a) (EObject b) = length a == length b && all (\((ka, va), (kb, vb)) -> ka == kb && f va vb) (zip a b)
   liftEq _ (ERef a) (ERef b) = a == b
+  liftEq f (EAccess a1 i1) (EAccess a2 i2) = f a1 a2 && i1 == i2
   liftEq f (EApp c1 f1 a1) (EApp c2 f2 a2) = c1 == c2 && f f1 f2 && f a1 a2
   liftEq f (EFun arg1 e1) (EFun arg2 e2) = arg1 == arg2 && f e1 e2
   liftEq _ _ _ = False
@@ -59,6 +61,7 @@ instance (Show ann) => Show1 (Expr' ann) where
   liftShowsPrec _ f _ (EArray vs) = showString "EArray " <> f vs
   liftShowsPrec _ _ _ (EObject vs) = showString "EObject..."
   liftShowsPrec _ _ _ (EApp {}) = showString "EApp..."
+  liftShowsPrec _ _ _ (EAccess {}) = showString "EAccess..."
   liftShowsPrec _ _ _ (EFun {}) = showString "EFun..."
 
 type PatternMatchAssign ann = Cofree (PatternMatchAssign' ann) ann

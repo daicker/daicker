@@ -30,9 +30,12 @@ spec = do
               ( mkSpan "test" 1 10 1 15
                   :< EFun
                     ( Just $
-                        Identifier
-                          "a"
-                          (mkSpan "test" 1 10 1 11)
+                        mkSpan "test" 1 10 1 11
+                          :< PMAAnyValue
+                            ( Identifier
+                                "a"
+                                (mkSpan "test" 1 10 1 11)
+                            )
                     )
                     (mkSpan "test" 1 14 1 15 :< ERef (Identifier "a" (mkSpan "test" 1 14 1 15)))
               )
@@ -149,7 +152,7 @@ spec = do
           `shouldBe` Right
             ( mkSpan "test" 1 1 1 8
                 :< EFun
-                  (Just $ Identifier "a" (mkSpan "test" 1 2 1 3))
+                  (Just $ mkSpan "test" 1 2 1 3 :< PMAAnyValue (Identifier "a" (mkSpan "test" 1 2 1 3)))
                   ( mkSpan "test" 1 7 1 8
                       :< ERef
                         (Identifier "a" (mkSpan "test" 1 7 1 8))

@@ -38,6 +38,7 @@ data TToken
   | TRBrace
   | TArrow
   | TComma
+  | TDot
   | TColon
   | TNot
   | TOr
@@ -165,6 +166,7 @@ showTToken = \case
   TRBrace -> "}"
   TArrow -> "->"
   TComma -> ","
+  TDot -> "."
   TColon -> ":"
   TNot -> "!"
   TOr -> "||"
@@ -208,6 +210,7 @@ tToken =
           TRBrace <$ char '}' <?> "}",
           TArrow <$ string "->" <?> "->",
           TComma <$ char ',' <?> ",",
+          TDot <$ char '.' <?> ".",
           TColon <$ char ':' <?> ":",
           TBackslash <$ char '\\' <?> "\\",
           TNull <$ string "null" <?> "null",

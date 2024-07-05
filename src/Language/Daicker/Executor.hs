@@ -61,6 +61,12 @@ eval vars v = case v of
         args <- patternMatch pm arg
         eval (vars <> args) e
       err -> err
+  s :< EAccess e (Identifier i1 _) -> do
+    case eval vars e of
+      Right (_ :< EObject vs) -> case find (\(Identifier i2 s, _) -> i1 == i2) vs of
+        Just (_, v) -> pure v
+        Nothing -> pure $ s :< ENull
+      Right (s :< _) -> Left ("Accessors can only be used on objects", s)
   v -> Right v
 
 patternMatch :: PatternMatchAssign Span -> Expr Span -> Either (String, Span) [(String, Expr Span)]
