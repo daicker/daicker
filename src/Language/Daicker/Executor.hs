@@ -11,7 +11,7 @@ import Data.Tree (flatten)
 import GHC.IO (unsafePerformIO)
 import GHC.IO.Handle (hGetContents)
 import Language.Daicker.AST
-import Language.Daicker.Span (Span, mkSpan)
+import Language.Daicker.Span (Span, mkSpan, union)
 import qualified Language.Daicker.Span as S
 import System.Exit (ExitCode (ExitFailure, ExitSuccess))
 import System.Process
@@ -88,7 +88,7 @@ stdLib =
   [ ( "$",
       \(_ :< EArray strings) -> do
         let cmds = map (\(_ :< EString s) -> s) strings
-        let sp = foldl (\a b -> a S.<> S.span b) (S.span $ head strings) strings
+        let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
         let (CommandResult i out err) = unsafePerformIO $ runSubprocess cmds
         sp
           :< EObject
@@ -100,21 +100,21 @@ stdLib =
     ( "$1",
       \(_ :< EArray strings) -> do
         let cmds = map (\(_ :< EString s) -> s) strings
-        let sp = foldl (\a b -> a S.<> S.span b) (S.span $ head strings) strings
+        let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
         let (CommandResult _ out _) = unsafePerformIO $ runSubprocess cmds
         sp :< EString out
     ),
     ( "$2",
       \(_ :< EArray strings) -> do
         let cmds = map (\(_ :< EString s) -> s) strings
-        let sp = foldl (\a b -> a S.<> S.span b) (S.span $ head strings) strings
+        let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
         let (CommandResult _ _ err) = unsafePerformIO $ runSubprocess cmds
         sp :< EString err
     ),
-    ("+", \(_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 S.<> s2) :< ENumber (a + b)),
-    ("-", \(_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 S.<> s2) :< ENumber (a - b)),
-    ("*", \(_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 S.<> s2) :< ENumber (a * b)),
-    ("/", \(_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 S.<> s2) :< ENumber (a / b))
+    ("+", \(_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 `union` s2) :< ENumber (a + b)),
+    ("-", \(_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 `union` s2) :< ENumber (a - b)),
+    ("*", \(_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 `union` s2) :< ENumber (a * b)),
+    ("/", \(_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 `union` s2) :< ENumber (a / b))
   ]
   where
     exitCodeToInt :: ExitCode -> Int

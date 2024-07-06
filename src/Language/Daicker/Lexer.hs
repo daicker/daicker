@@ -15,6 +15,13 @@ import Data.Proxy
 import Data.Scientific (toRealFloat)
 import qualified Data.Set as Set
 import Data.Void
+import Language.Daicker.Span
+  ( Span (Span, endPos, startPos),
+    WithSpan (WithSpan, _value),
+    fromSourcePos,
+    toSourcePos,
+  )
+import qualified Language.Daicker.Span as S
 import Text.Megaparsec
 import Text.Megaparsec.Char (alphaNumChar, char, lowerChar, newline, space1, string, upperChar)
 import qualified Text.Megaparsec.Char.Lexer as L
@@ -58,22 +65,22 @@ data TToken
   | TComment
   deriving (Eq, Ord, Show)
 
-data WithPos a = WithPos
-  { startPos :: SourcePos,
-    endPos :: SourcePos,
-    tokenLength :: Int,
-    tokenVal :: a
-  }
-  deriving (Eq, Ord, Show)
+-- data WithPos a = WithPos
+--   { startPos :: SourcePos,
+--     endPos :: SourcePos,
+--     tokenLength :: Int,
+--     tokenVal :: a
+--   }
+--   deriving (Eq, Ord, Show)
 
 data TStream = TStream
   { tStreamInput :: String, -- for showing offending lines
-    unTStream :: [WithPos TToken]
+    unTStream :: [WithSpan TToken]
   }
 
 instance Stream TStream where
-  type Token TStream = WithPos TToken
-  type Tokens TStream = [WithPos TToken]
+  type Token TStream = WithSpan TToken
+  type Tokens TStream = [WithSpan TToken]
 
   tokenToChunk Proxy x = [x]
   tokensToChunk Proxy xs = xs
@@ -104,8 +111,8 @@ instance VisualStream TStream where
   showTokens Proxy =
     DL.intercalate " "
       . NE.toList
-      . fmap (showTToken . tokenVal)
-  tokensLength Proxy xs = sum (tokenLength <$> xs)
+      . fmap (showTToken . _value)
+  tokensLength Proxy xs = sum (S.length . S.span <$> xs)
 
 instance TraversableStream TStream where
   reachOffset o PosState {..} =
@@ -132,8 +139,8 @@ instance TraversableStream TStream where
         case post of
           [] -> case unTStream pstateInput of
             [] -> pstateSourcePos
-            xs -> endPos (last xs)
-          (x : _) -> startPos x
+            xs -> toSourcePos (endPos (S.span (last xs)))
+          (x : _) -> toSourcePos (startPos (S.span x))
       (pre, post) = splitAt (o - pstateOffset) (unTStream pstateInput)
       (preStr, postStr) = splitAt tokensConsumed (tStreamInput pstateInput)
       preLine = reverse . takeWhile (/= '\n') . reverse $ preStr
@@ -189,16 +196,16 @@ type Lexer = Parsec Void String
 mkTStream :: String -> String -> Either (ParseErrorBundle String Void) TStream
 mkTStream fileName src = TStream src . filter notComment <$> parse tTokens fileName src
   where
-    notComment (WithPos _ _ _ TComment) = False
+    notComment (WithSpan TComment _) = False
     notComment _ = True
 
-tTokens :: Lexer [WithPos TToken]
+tTokens :: Lexer [WithSpan TToken]
 tTokens = many tToken <* eof
 
-tToken :: Lexer (WithPos TToken)
+tToken :: Lexer (WithSpan TToken)
 tToken =
   lexeme $
-    withPos $
+    withSpan $
       choice
         [ TComment <$ (L.skipLineComment "//" <?> "line comment"),
           TComment <$ (L.skipBlockComment "/*" "*/" <?> "block comment"),
@@ -246,9 +253,9 @@ lexeme = L.lexeme sc
 sc :: Lexer ()
 sc = L.space space1 empty empty
 
-withPos :: Lexer a -> Lexer (WithPos a)
-withPos lexer = do
+withSpan :: Lexer a -> Lexer (WithSpan a)
+withSpan lexer = do
   start@(SourcePos _ _ c1) <- getSourcePos
   x <- lexer
   end@(SourcePos _ _ c2) <- getSourcePos
-  pure $ WithPos start end (unPos c2 - unPos c1) x
+  pure $ WithSpan x $ Span (fromSourcePos start) (fromSourcePos end)

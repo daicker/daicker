@@ -14,6 +14,7 @@ import Data.Void (Void)
 import GHC.Conc (par)
 import Language.Daicker.AST
 import Language.Daicker.Lexer
+import Language.Daicker.Span (union)
 import Language.Daicker.Span as S
 import Language.LSP.Protocol.Lens (HasIdentifier (identifier))
 import Language.LSP.Protocol.Types
@@ -48,24 +49,24 @@ pImport :: Parser (Import Span)
 pImport = do
   s <- pToken TImport
   i <- pIdentifier
-  return $ Import i (S.span s S.<> S.span i)
+  return $ Import i (S.span s `union` S.span i)
 
 pExport :: Parser (Export Span)
 pExport = do
   s <- pToken TExport
   i <- pIdentifier
-  return $ Export i (S.span s S.<> S.span i)
+  return $ Export i (S.span s `union` S.span i)
 
 pDefine :: Parser (Define Span)
 pDefine = do
-  (_, s) <- pToken TDefine
+  (WithSpan _ s) <- pToken TDefine
   i <- pIdentifier
   param <- optional pPatternMatchAssign
   pToken TAssign
   v <- pExpr
   case param of
-    Nothing -> return $ Define i v (s S.<> S.span v)
-    Just param -> return $ Define i ((S.span param S.<> S.span v) :< EFun (Just param) v) (s S.<> S.span v)
+    Nothing -> return $ Define i v (s `union` S.span v)
+    Just param -> return $ Define i ((S.span param `union` S.span v) :< EFun (Just param) v) (s `union` S.span v)
 
 pPatternMatchAssign :: Parser (PatternMatchAssign Span)
 pPatternMatchAssign =
@@ -130,23 +131,23 @@ operatorTable =
 binary :: TToken -> Operator Parser (Expr Span)
 binary token = InfixL (f <$> pToken token)
   where
-    f :: (TToken, Span) -> Expr Span -> Expr Span -> Expr Span
-    f op a b =
-      (S.span a S.<> S.span b)
+    f :: WithSpan TToken -> Expr Span -> Expr Span -> Expr Span
+    f (WithSpan op s) a b =
+      (S.span a `union` S.span b)
         :< EApp
           Nothing
-          (S.span op :< ERef (Identifier (showTToken (fst op)) (S.span op)))
-          ((S.span a S.<> S.span b) :< EArray [a, b])
+          (s :< ERef (Identifier (showTToken op) s))
+          ((S.span a `union` S.span b) :< EArray [a, b])
 
 prefix :: TToken -> Operator Parser (Expr Span)
 prefix token = Prefix (f <$> pToken token)
   where
-    f :: (TToken, Span) -> Expr Span -> Expr Span
-    f op a =
-      (S.span op S.<> S.span a)
+    f :: WithSpan TToken -> Expr Span -> Expr Span
+    f (WithSpan op s) a =
+      (s `union` S.span a)
         :< EApp
           Nothing
-          (S.span op :< ERef (Identifier (showTToken (fst op)) (S.span op)))
+          (s :< ERef (Identifier (showTToken op) s))
           a
 
 pExpr :: Parser (Expr Span)
@@ -157,14 +158,14 @@ pExpr = do
       terms <- some pTerm <?> "expr"
       case terms of
         [e] -> pure e
-        [f, a] -> pure $ S.span f S.<> S.span a :< EApp Nothing f a
-        f : es -> pure $ foldl1 (S.<>) (map S.span (f : es)) :< EApp Nothing f (foldl1 (S.<>) (map S.span es) :< EArray es)
+        [f, a] -> pure $ S.span f `union` S.span a :< EApp Nothing f a
+        f : es -> pure $ foldl1 union (map S.span (f : es)) :< EApp Nothing f (foldl1 union (map S.span es) :< EArray es)
     Just (Identifier i _, s) -> do
       terms <- some pTerm <?> "expr"
       case terms of
         [e] -> pure e
-        [f, a] -> pure $ s S.<> S.span a :< EApp (Just (Identifier i s)) f a
-        f : es -> pure $ s S.<> foldl1 (S.<>) (map S.span (f : es)) :< EApp (Just (Identifier i s)) f (foldl1 (S.<>) (map S.span es) :< EArray es)
+        [f, a] -> pure $ s `union` S.span a :< EApp (Just (Identifier i s)) f a
+        f : es -> pure $ s `union` foldl1 union (map S.span (f : es)) :< EApp (Just (Identifier i s)) f (foldl1 union (map S.span es) :< EArray es)
 
 pTerm :: Parser (Expr Span)
 pTerm = makeExprParser pValue operatorTable <?> "term"
@@ -187,25 +188,25 @@ pValue =
 pNull :: Parser (Expr Span)
 pNull = token test Set.empty <?> "null"
   where
-    test (WithPos s e _ TNull) = Just $ Span s e :< ENull
+    test (WithSpan TNull s) = Just $ s :< ENull
     test _ = Nothing
 
 pBool :: Parser (Expr Span)
 pBool = token test Set.empty <?> "bool"
   where
-    test (WithPos s e _ (TBool t)) = Just $ Span s e :< EBool t
+    test (WithSpan (TBool t) s) = Just $ s :< EBool t
     test _ = Nothing
 
 pNumber :: Parser (Expr Span)
 pNumber = token test Set.empty <?> "number"
   where
-    test (WithPos s e _ (TNumber t)) = Just $ Span s e :< ENumber t
+    test (WithSpan (TNumber t) s) = Just $ s :< ENumber t
     test _ = Nothing
 
 pString :: Parser (Expr Span)
 pString = token test Set.empty <?> "string"
   where
-    test (WithPos s e _ (TString t)) = Just $ Span s e :< EString t
+    test (WithSpan (TString t) s) = Just $ s :< EString t
     test _ = Nothing
 
 pArray :: Parser (Expr Span)
@@ -245,7 +246,7 @@ pAccess = try $ do
   e <- pIdentifier
   pToken TDot
   i <- pIdentifier
-  return $ S.span e S.<> S.span i :< EAccess (S.span e :< ERef e) i
+  return $ S.span e `union` S.span i :< EAccess (S.span e :< ERef e) i
 
 pExpr' :: Parser (Expr Span)
 pExpr' = do
@@ -259,29 +260,29 @@ pExpr' = do
 
 pFunc :: Parser (Expr Span)
 pFunc = do
-  (_, s) <- pToken TBackslash
+  (WithSpan _ s) <- pToken TBackslash
   arg <- optional pPatternMatchAssign
   pToken TArrow
   v <- pExpr
-  return $ (s S.<> S.span v) :< EFun arg v
+  return $ (s `union` S.span v) :< EFun arg v
 
 pIdentifier :: Parser (Identifier Span)
 pIdentifier = token test Set.empty <?> "identifier"
   where
-    test (WithPos s e _ (TIdentifier t)) = Just $ Identifier t (Span s e)
+    test (WithSpan (TIdentifier t) s) = Just $ Identifier t s
     test _ = Nothing
 
-liftTToken :: TToken -> WithPos TToken
-liftTToken = WithPos pos pos 0
+liftTToken :: TToken -> WithSpan TToken
+liftTToken x = WithSpan x (Span pos pos)
   where
-    pos = initialPos ""
+    pos = S.initialPos ""
 
-pToken :: TToken -> Parser (TToken, Span)
+pToken :: TToken -> Parser (WithSpan TToken)
 pToken c = token test (Set.singleton . Tokens . nes . liftTToken $ c)
   where
-    test (WithPos s e _ x) =
+    test (WithSpan x s) =
       if x == c
-        then Just (x, Span s e)
+        then Just (WithSpan x s)
         else Nothing
     nes x = x :| []
 
@@ -290,7 +291,7 @@ spanned parser = do
   start <- getSourcePos
   x <- parser
   end <- getSourcePos
-  pure (x, Span start end)
+  pure (x, Span (S.fromSourcePos start) (S.fromSourcePos end))
 
 errorBundleSourcePos :: (TraversableStream a) => ParseErrorBundle a Void -> SourcePos
 errorBundleSourcePos peb = do

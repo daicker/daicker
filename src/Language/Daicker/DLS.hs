@@ -27,7 +27,7 @@ import Data.Void (Void)
 import GHC.Generics (Generic)
 import Language.Daicker.Lexer
 import Language.Daicker.Parser (Parser, syntaxCheck)
-import Language.Daicker.Span (Span)
+import Language.Daicker.Span (Span (Span), WithSpan (WithSpan))
 import qualified Language.Daicker.Span as S
 import Language.LSP.Diagnostics
 import Language.LSP.Logging (defaultClientLogger)
@@ -193,15 +193,15 @@ lexSemanticTokens fileName src =
     Left e -> Left $ T.pack $ errorBundlePretty e
     Right ts -> Right $ makeSemanticTokenAbsolutes ts
   where
-    makeSemanticTokenAbsolutes :: [WithPos TToken] -> [SemanticTokenAbsolute]
+    makeSemanticTokenAbsolutes :: [WithSpan TToken] -> [SemanticTokenAbsolute]
     makeSemanticTokenAbsolutes [] = []
-    makeSemanticTokenAbsolutes (WithPos (SourcePos _ l1 c1) (SourcePos _ l2 c2) _ x : ts) =
+    makeSemanticTokenAbsolutes (WithSpan x (Span (S.Position _ l1 c1) (S.Position _ l2 c2)) : ts) =
       case toSemanticTokenTypes x of
         Just t ->
           SemanticTokenAbsolute
-            (fromIntegral $ unPos l1 - 1)
-            (fromIntegral $ unPos c1 - 1)
-            (fromIntegral $ unPos c2 - unPos c1)
+            (fromIntegral $ l1 - 1)
+            (fromIntegral $ c1 - 1)
+            (fromIntegral $ c2 - c1)
             t
             []
             : makeSemanticTokenAbsolutes ts
