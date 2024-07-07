@@ -65,14 +65,6 @@ data TToken
   | TComment
   deriving (Eq, Ord, Show)
 
--- data WithPos a = WithPos
---   { startPos :: SourcePos,
---     endPos :: SourcePos,
---     tokenLength :: Int,
---     tokenVal :: a
---   }
---   deriving (Eq, Ord, Show)
-
 data TStream = TStream
   { tStreamInput :: String, -- for showing offending lines
     unTStream :: [WithSpan TToken]

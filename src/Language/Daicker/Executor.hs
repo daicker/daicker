@@ -1,19 +1,23 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE Strict #-}
 
 module Language.Daicker.Executor where
 
 import Control.Comonad.Cofree
+import Control.Concurrent (forkIO)
 import Control.Monad (zipWithM)
 import Data.Foldable (find)
+import qualified Data.Text as T
+import Data.Text.IO (hGetLine)
 import Data.Tree (flatten)
 import GHC.IO (unsafePerformIO)
-import GHC.IO.Handle (hGetContents)
+import GHC.IO.Handle (BufferMode (NoBuffering), Handle, hClose, hFlush, hGetChar, hGetContents, hIsEOF)
 import Language.Daicker.AST
 import Language.Daicker.Span (Span, mkSpan, union)
 import qualified Language.Daicker.Span as S
 import System.Exit (ExitCode (ExitFailure, ExitSuccess))
+import System.IO (hPutStrLn, hSetBuffering)
+import qualified System.IO as IO
 import System.Process
 
 findDefine :: String -> Module a -> Maybe (Define a)
@@ -127,6 +131,28 @@ data CommandResult = CommandResult {exitCode :: ExitCode, stdout :: String, stde
 runSubprocess :: [String] -> IO CommandResult
 runSubprocess (cmd : args) = do
   (_, Just stdout, Just stderr, ps) <-
-    createProcess (proc cmd args) {std_out = CreatePipe, std_err = CreatePipe}
+    createProcess (proc cmd args) {std_out = CreatePipe, std_err = CreatePipe, delegate_ctlc = True}
+  stderr' <- hPutAndGetContents "[local(stderr)]" stderr
+  stdout' <- hPutAndGetContents "[local(stdout)]" stdout
   exitCode <- waitForProcess ps
-  CommandResult exitCode <$> hGetContents stdout <*> hGetContents stderr
+  hClose stderr
+  hClose stdout
+  pure $ CommandResult exitCode stdout' stderr'
+
+hPutAndGetContents :: String -> Handle -> IO String
+hPutAndGetContents = hPutAndGetContents' ""
+  where
+    hPutAndGetContents' :: String -> String -> Handle -> IO String
+    hPutAndGetContents' str console handle =
+      do
+        isEof <- hIsEOF handle
+        if isEof
+          then pure str
+          else do
+            l <- hPutAndGetLine console handle
+            hPutAndGetContents' (str <> l) console handle
+    hPutAndGetLine :: String -> Handle -> IO String
+    hPutAndGetLine console handle = do
+      l <- hGetLine handle
+      hPutStrLn IO.stderr $ console <> " " <> T.unpack l
+      pure $ T.unpack l

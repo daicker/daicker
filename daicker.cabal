@@ -25,6 +25,7 @@ library
       Docker.Client
       Language.Daicker.AST
       Language.Daicker.DLS
+      Language.Daicker.Error
       Language.Daicker.Executor
       Language.Daicker.Lexer
       Language.Daicker.Parser

@@ -1,0 +1,10 @@
+module main
+
+define test =
+  $ "stack" "test"
+
+define install =
+  $ "stack" "--local-bin-path" "/usr/local/bin/" "install"
+
+define uninstall =
+  $ "rm" "/usr/local/bin/daicker"
