@@ -43,19 +43,25 @@ syntaxCheck fileName src =
         Left e -> [(errorBundleSourcePos e, errorBundlePretty e)]
 
 pModule :: Parser (Module Span)
-pModule = Module <$> (pToken TModule *> pIdentifier) <*> many pImport <*> many pExport <*> many pDefine <* eof
+pModule = do
+  (WithSpan i s1) <- spanned (pToken TModule *> pIdentifier)
+  imports <- many pImport
+  exports <- many pExport
+  defines <- many pDefine
+  (WithSpan _ s2) <- spanned eof
+  return $ (s1 `union` s2) :< Module i imports exports defines
 
 pImport :: Parser (Import Span)
 pImport = do
   s <- pToken TImport
   i <- pIdentifier
-  return $ Import i (S.span s `union` S.span i)
+  return $ (S.span s `union` S.span i) :< Import i
 
 pExport :: Parser (Export Span)
 pExport = do
   s <- pToken TExport
   i <- pIdentifier
-  return $ Export i (S.span s `union` S.span i)
+  return $ (S.span s `union` S.span i) :< Export i
 
 pDefine :: Parser (Define Span)
 pDefine = do
@@ -65,8 +71,8 @@ pDefine = do
   pToken TAssign
   v <- pExpr
   case param of
-    Nothing -> return $ Define i v (s `union` S.span v)
-    Just param -> return $ Define i ((S.span param `union` S.span v) :< EFun (Just param) v) (s `union` S.span v)
+    Nothing -> return $ (s `union` S.span v) :< Define i v
+    Just param -> return $ (s `union` S.span v) :< Define i ((S.span param `union` S.span v) :< EFun (Just param) v)
 
 pPatternMatchAssign :: Parser (PatternMatchAssign Span)
 pPatternMatchAssign =
@@ -77,12 +83,12 @@ pPatternMatchAssign =
     ]
   where
     anyValuePattern = do
-      (is, s) <- spanned $ some pIdentifier
+      (WithSpan is s) <- spanned $ some pIdentifier
       case is of
         [i] -> return $ S.span i :< PMAAnyValue i
-        is -> return $ s :< PMAArray (map (\i@(Identifier _ s) -> s :< PMAAnyValue i) is)
+        is -> return $ s :< PMAArray (map (\i@(s :< Identifier _) -> s :< PMAAnyValue i) is)
     arrayPattern = do
-      (pmas, s) <-
+      (WithSpan pmas s) <-
         spanned $
           between
             (pToken TLBracket)
@@ -90,7 +96,7 @@ pPatternMatchAssign =
             (pPatternMatchAssign `sepBy` pToken TComma)
       return $ s :< PMAArray pmas
     objectPattern = do
-      (pmas, s) <-
+      (WithSpan pmas s) <-
         spanned $
           between
             (pToken TLBrace)
@@ -101,7 +107,7 @@ pPatternMatchAssign =
       s :< (EString t) <- pString
       pToken TColon
       v <- pPatternMatchAssign
-      return (Identifier t s, v)
+      return (s :< Identifier t, v)
     pair' = do
       i <- pIdentifier
       return (i, S.span i :< PMAAnyValue i)
@@ -136,7 +142,7 @@ binary token = InfixL (f <$> pToken token)
       (S.span a `union` S.span b)
         :< EApp
           Nothing
-          (s :< ERef (Identifier (showTToken op) s))
+          (s :< ERef (s :< Identifier (showTToken op)))
           ((S.span a `union` S.span b) :< EArray [a, b])
 
 prefix :: TToken -> Operator Parser (Expr Span)
@@ -147,7 +153,7 @@ prefix token = Prefix (f <$> pToken token)
       (s `union` S.span a)
         :< EApp
           Nothing
-          (s :< ERef (Identifier (showTToken op) s))
+          (s :< ERef (s :< Identifier (showTToken op)))
           a
 
 pExpr :: Parser (Expr Span)
@@ -160,12 +166,12 @@ pExpr = do
         [e] -> pure e
         [f, a] -> pure $ S.span f `union` S.span a :< EApp Nothing f a
         f : es -> pure $ foldl1 union (map S.span (f : es)) :< EApp Nothing f (foldl1 union (map S.span es) :< EArray es)
-    Just (Identifier i _, s) -> do
+    Just (WithSpan (_ :< Identifier i) s) -> do
       terms <- some pTerm <?> "expr"
       case terms of
         [e] -> pure e
-        [f, a] -> pure $ s `union` S.span a :< EApp (Just (Identifier i s)) f a
-        f : es -> pure $ s `union` foldl1 union (map S.span (f : es)) :< EApp (Just (Identifier i s)) f (foldl1 union (map S.span es) :< EArray es)
+        [f, a] -> pure $ s `union` S.span a :< EApp (Just (s :< Identifier i)) f a
+        f : es -> pure $ s `union` foldl1 union (map S.span (f : es)) :< EApp (Just (s :< Identifier i)) f (foldl1 union (map S.span es) :< EArray es)
 
 pTerm :: Parser (Expr Span)
 pTerm = makeExprParser pValue operatorTable <?> "term"
@@ -211,7 +217,7 @@ pString = token test Set.empty <?> "string"
 
 pArray :: Parser (Expr Span)
 pArray = do
-  (vs, s) <-
+  (WithSpan vs s) <-
     spanned $
       between
         (pToken TLBracket)
@@ -221,7 +227,7 @@ pArray = do
 
 pObject :: Parser (Expr Span)
 pObject = do
-  (obj, s) <-
+  (WithSpan obj s) <-
     spanned $
       between
         (pToken TLBrace)
@@ -234,7 +240,7 @@ pObject = do
       s :< (EString t) <- pString
       pToken TColon
       v <- pExpr
-      return (Identifier t s, v)
+      return (s :< Identifier t, v)
 
 pRef :: Parser (Expr Span)
 pRef = do
@@ -250,13 +256,13 @@ pAccess = try $ do
 
 pExpr' :: Parser (Expr Span)
 pExpr' = do
-  (e, _) <-
+  (WithSpan (_ :< e) s) <-
     spanned $
       between
         (pToken TLParenthesis)
         (pToken TRParenthesis)
         pExpr
-  return e
+  pure (s :< e)
 
 pFunc :: Parser (Expr Span)
 pFunc = do
@@ -269,7 +275,7 @@ pFunc = do
 pIdentifier :: Parser (Identifier Span)
 pIdentifier = token test Set.empty <?> "identifier"
   where
-    test (WithSpan (TIdentifier t) s) = Just $ Identifier t s
+    test (WithSpan (TIdentifier t) s) = Just $ s :< Identifier t
     test _ = Nothing
 
 liftTToken :: TToken -> WithSpan TToken
@@ -286,12 +292,12 @@ pToken c = token test (Set.singleton . Tokens . nes . liftTToken $ c)
         else Nothing
     nes x = x :| []
 
-spanned :: Parser a -> Parser (a, Span)
+spanned :: Parser a -> Parser (WithSpan a)
 spanned parser = do
   start <- getSourcePos
   x <- parser
   end <- getSourcePos
-  pure (x, Span (S.fromSourcePos start) (S.fromSourcePos end))
+  pure $ WithSpan x (Span (S.fromSourcePos start) (S.fromSourcePos end))
 
 errorBundleSourcePos :: (TraversableStream a) => ParseErrorBundle a Void -> SourcePos
 errorBundleSourcePos peb = do

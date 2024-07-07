@@ -17,11 +17,11 @@ import System.Exit (ExitCode (ExitFailure, ExitSuccess))
 import System.Process
 
 findDefine :: String -> Module a -> Maybe (Define a)
-findDefine name (Module _ _ _ ds) = find (\(Define (Identifier n _) _ _) -> name == n) ds
+findDefine name (_ :< Module _ _ _ ds) = find (\(_ :< Define (_ :< Identifier n) _) -> name == n) ds
 
 execDefine :: Module Span -> Define Span -> Maybe (Expr ()) -> Either (String, Span) (Expr Span)
-execDefine (Module _ _ _ ds) (Define _ e _) Nothing = eval [] e
-execDefine (Module _ _ _ ds) (Define _ e _) (Just arg) = eval [] (S.span e :< EApp Nothing e (switchAnn (\_ -> mkSpan "stdin" 1 1 1 2) arg))
+execDefine (_ :< Module _ _ _ ds) (_ :< Define _ e) Nothing = eval [] e
+execDefine (_ :< Module _ _ _ ds) (_ :< Define _ e) (Just arg) = eval [] (S.span e :< EApp Nothing e (switchAnn (\_ -> mkSpan "stdin" 1 1 1 2) arg))
 
 switchAnn :: (a -> b) -> Expr a -> Expr b
 switchAnn f e = case e of
@@ -30,7 +30,7 @@ switchAnn f e = case e of
   (ann :< ENumber v) -> f ann :< ENumber v
   (ann :< EString v) -> f ann :< EString v
   (ann :< EArray es) -> f ann :< EArray (map (switchAnn f) es)
-  (ann :< EObject es) -> f ann :< EObject (map (\(Identifier i ann1, e) -> (Identifier i (f ann1), switchAnn f e)) es)
+  (ann :< EObject es) -> f ann :< EObject (map (\(ann1 :< Identifier i, e) -> (f ann1 :< Identifier i, switchAnn f e)) es)
 
 -- (ann :< ERef (Identifier i ann1)) -> f ann :< ERef (Identifier i (f ann1))
 -- (ann :< EApp (Just (Identifier i ann1)) a b) -> f ann :< EApp (Just $ Identifier i (f ann1)) (switchAnn f a) (switchAnn f b)
@@ -42,10 +42,10 @@ eval :: [(String, Expr Span)] -> Expr Span -> Either (String, Span) (Expr Span)
 eval vars v = case v of
   s :< EArray vs -> (:<) s . EArray <$> mapM (eval vars) vs
   s :< EObject vs -> (:<) s . EObject <$> mapM (\(k, e) -> (,) k <$> eval vars e) vs
-  s :< ERef (Identifier i _) -> case lookup i vars of
+  s :< ERef (_ :< Identifier i) -> case lookup i vars of
     Just a -> eval vars a
     Nothing -> Left ("not defined: " <> i, s)
-  s :< EApp _ a0@(_ :< ERef (Identifier i _)) arg -> do
+  s :< EApp _ a0@(_ :< ERef (_ :< Identifier i)) arg -> do
     arg <- eval vars arg
     case lookup i stdLib of
       Just f -> Right $ f arg
@@ -61,9 +61,9 @@ eval vars v = case v of
         args <- patternMatch pm arg
         eval (vars <> args) e
       err -> err
-  s :< EAccess e (Identifier i1 _) -> do
+  s :< EAccess e (_ :< Identifier i1) -> do
     case eval vars e of
-      Right (_ :< EObject vs) -> case find (\(Identifier i2 s, _) -> i1 == i2) vs of
+      Right (_ :< EObject vs) -> case find (\(s :< Identifier i2, _) -> i1 == i2) vs of
         Just (_, v) -> pure v
         Nothing -> pure $ s :< ENull
       Right (s :< _) -> Left ("Accessors can only be used on objects", s)
@@ -71,7 +71,7 @@ eval vars v = case v of
 
 patternMatch :: PatternMatchAssign Span -> Expr Span -> Either (String, Span) [(String, Expr Span)]
 patternMatch pma e = case pma of
-  _ :< PMAAnyValue (Identifier i _) -> pure [(i, e)]
+  _ :< PMAAnyValue (_ :< Identifier i) -> pure [(i, e)]
   _ :< PMAArray as -> case e of
     (_ :< EArray vs) -> concat <$> zipWithM patternMatch as vs
     (s :< _) -> Left ("pattern match: unexpected type", s)
@@ -79,7 +79,7 @@ patternMatch pma e = case pma of
     (s :< EObject es) -> concat <$> mapM (uncurry $ objectMatch es) as
     (s :< _) -> Left ("pattern match: unexpected type", s)
     where
-      objectMatch es (Identifier i1 s) a = case find (\(Identifier i2 s, _) -> i1 == i2) es of
+      objectMatch es (s :< Identifier i1) a = case find (\(s :< Identifier i2, _) -> i1 == i2) es of
         Nothing -> Left ("not found key: " <> i1, s)
         Just (_, e) -> patternMatch a e
 
@@ -92,9 +92,9 @@ stdLib =
         let (CommandResult i out err) = unsafePerformIO $ runSubprocess cmds
         sp
           :< EObject
-            [ (Identifier "exitCode" sp, sp :< ENumber (fromIntegral $ exitCodeToInt i)),
-              (Identifier "stdout" sp, sp :< EString out),
-              (Identifier "stderr" sp, sp :< EString err)
+            [ (sp :< Identifier "exitCode", sp :< ENumber (fromIntegral $ exitCodeToInt i)),
+              (sp :< Identifier "stdout", sp :< EString out),
+              (sp :< Identifier "stderr", sp :< EString err)
             ]
     ),
     ( "$1",

@@ -17,13 +17,46 @@ import qualified Data.Text as T
 import qualified Data.Vector as V
 import Language.Daicker.Span (Span, Spanned, mkSpan, span)
 
-data Module ann = Module (Identifier ann) [Import ann] [Export ann] [Define ann] deriving (Show, Eq)
+type Module ann = Cofree (Module' ann) ann
 
-data Import ann = Import (Identifier ann) ann deriving (Show, Eq)
+data Module' ann a = Module (Identifier ann) [Import ann] [Export ann] [Define ann] deriving (Show, Eq)
 
-data Export ann = Export (Identifier ann) ann deriving (Show, Eq)
+instance (Eq ann) => Eq1 (Module' ann) where
+  liftEq _ (Module i1 imports1 exports1 define1) (Module i2 imports2 exports2 define2) =
+    i1 == i2 && imports1 == imports2 && exports1 == exports2 && define1 == define2
 
-data Define ann = Define (Identifier ann) (Expr ann) ann deriving (Show, Eq)
+instance (Show ann) => Show1 (Module' ann) where
+  liftShowsPrec = undefined
+
+type Import ann = Cofree (Import' ann) ann
+
+newtype Import' ann a = Import (Identifier ann) deriving (Show, Eq)
+
+instance (Eq ann) => Eq1 (Import' ann) where
+  liftEq _ (Import i1) (Import i2) = i1 == i2
+
+instance (Show ann) => Show1 (Import' ann) where
+  liftShowsPrec = undefined
+
+type Export ann = Cofree (Export' ann) ann
+
+newtype Export' ann a = Export (Identifier ann) deriving (Show, Eq)
+
+instance (Eq ann) => Eq1 (Export' ann) where
+  liftEq _ (Export i1) (Export i2) = i1 == i2
+
+instance (Show ann) => Show1 (Export' ann) where
+  liftShowsPrec = undefined
+
+type Define ann = Cofree (Define' ann) ann
+
+data Define' ann a = Define (Identifier ann) (Expr ann) deriving (Show, Eq)
+
+instance (Eq ann) => Eq1 (Define' ann) where
+  liftEq _ (Define i1 e1) (Define i2 e2) = i1 == i2 && e1 == e2
+
+instance (Show ann) => Show1 (Define' ann) where
+  liftShowsPrec = undefined
 
 type Expr ann = Cofree (Expr' ann) ann
 
@@ -81,13 +114,21 @@ instance (Eq ann) => Eq1 (PatternMatchAssign' ann) where
 instance (Show ann) => Show1 (PatternMatchAssign' ann) where
   liftShowsPrec _ _ _ _ = showString "PatternMatchAssign"
 
-type EKey = Identifier
+type EKey ann = Identifier ann
 
-type EArg = Identifier
+type EArg ann = Identifier ann
 
-type EImage = Identifier
+type EImage ann = Identifier ann
 
-data Identifier ann = Identifier String ann deriving (Show, Eq)
+type Identifier ann = Cofree (Identifier' ann) ann
+
+newtype Identifier' ann a = Identifier String deriving (Show, Eq)
+
+instance (Eq ann) => Eq1 (Identifier' ann) where
+  liftEq _ (Identifier i1) (Identifier i2) = i1 == i2
+
+instance (Show ann) => Show1 (Identifier' ann) where
+  liftShowsPrec = undefined
 
 instance Spanned (Expr Span) where
   span :: Expr Span -> Span
@@ -99,7 +140,7 @@ instance Spanned (PatternMatchAssign Span) where
 
 instance Spanned (Identifier Span) where
   span :: Identifier Span -> Span
-  span (Identifier _ s) = s
+  span (s :< Identifier _) = s
 
 instance ToJSON (Expr a) where
   toJSON :: Expr a -> Value
@@ -109,7 +150,7 @@ instance ToJSON (Expr a) where
     (_ :< ENumber v) -> Number (read (show v) :: Scientific)
     (_ :< EString v) -> String (pack v)
     (_ :< EArray vs) -> Array $ V.fromList $ map toJSON vs
-    (_ :< EObject vs) -> Object $ KM.fromList $ map (\(Identifier i _, v) -> (K.fromText (pack i), toJSON v)) vs
+    (_ :< EObject vs) -> Object $ KM.fromList $ map (\(s :< Identifier i, v) -> (K.fromText (pack i), toJSON v)) vs
     (_ :< v) -> String (pack "not value")
 
 instance FromJSON (Expr ()) where
@@ -123,5 +164,5 @@ instance FromJSON (Expr ()) where
     Object vs ->
       (() :<) . EObject
         <$> mapM
-          (\(k, v) -> (,) (Identifier (K.toString k) ()) <$> parseJSON v)
+          (\(k, v) -> (,) (() :< Identifier (K.toString k)) <$> parseJSON v)
           (KM.toList vs)

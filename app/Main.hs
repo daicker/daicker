@@ -7,7 +7,7 @@ import Control.Monad (join, void)
 import Data.Aeson (decode, encode)
 import Data.Aeson.Types (Value)
 import Data.ByteString.Lazy.Char8 (pack, unpack)
-import Language.Daicker.AST (Define (Define), Expr, Expr' (EFun))
+import Language.Daicker.AST (Define' (Define), Expr, Expr' (EFun))
 import Language.Daicker.DLS (serve)
 import Language.Daicker.Executor (execDefine, findDefine)
 import Language.Daicker.Lexer (mkTStream)
@@ -46,7 +46,7 @@ run fileName funcName = do
       Right m -> case findDefine funcName m of
         Nothing -> putStrLn $ "not defined: " <> funcName
         -- Requires an argument
-        Just d@(Define _ (_ :< EFun {}) _) -> case execDefine m d arg of
+        Just d@(_ :< Define _ (_ :< EFun {})) -> case execDefine m d arg of
           Left e -> print e
           Right e -> putStrLn (unpack $ encode e)
         -- No argument

@@ -12,34 +12,34 @@ spec :: Spec
 spec = do
   describe "import" $ do
     it "import a" $
-      parseTest pImport "test" "import a" `shouldBe` Right (Import (Identifier "a" (mkSpan "test" 1 8 1 9)) (mkSpan "test" 1 1 1 9))
+      parseTest pImport "test" "import a" `shouldBe` Right (mkSpan "test" 1 1 1 9 :< Import (mkSpan "test" 1 8 1 9 :< Identifier "a"))
   describe "define" $ do
     it "define a = 1" $
       parseTest pDefine "test" "define a = 1"
         `shouldBe` Right
-          ( Define
-              (Identifier "a" (mkSpan "test" 1 8 1 9))
-              (mkSpan "test" 1 12 1 13 :< ENumber 1)
-              (mkSpan "test" 1 1 1 13)
+          ( mkSpan "test" 1 1 1 13
+              :< Define
+                (mkSpan "test" 1 8 1 9 :< Identifier "a")
+                (mkSpan "test" 1 12 1 13 :< ENumber 1)
           )
     it "define f a = a" $
       parseTest pDefine "test" "define f a = a"
         `shouldBe` Right
-          ( Define
-              (Identifier "f" (mkSpan "test" 1 8 1 9))
-              ( mkSpan "test" 1 10 1 15
-                  :< EFun
-                    ( Just $
-                        mkSpan "test" 1 10 1 11
-                          :< PMAAnyValue
-                            ( Identifier
-                                "a"
-                                (mkSpan "test" 1 10 1 11)
-                            )
-                    )
-                    (mkSpan "test" 1 14 1 15 :< ERef (Identifier "a" (mkSpan "test" 1 14 1 15)))
-              )
-              (mkSpan "test" 1 1 1 15)
+          ( mkSpan "test" 1 1 1 15
+              :< Define
+                (mkSpan "test" 1 8 1 9 :< Identifier "f")
+                ( mkSpan "test" 1 10 1 15
+                    :< EFun
+                      ( Just $
+                          mkSpan "test" 1 10 1 11
+                            :< PMAAnyValue
+                              ( mkSpan "test" 1 10 1 11
+                                  :< Identifier
+                                    "a"
+                              )
+                      )
+                      (mkSpan "test" 1 14 1 15 :< ERef (mkSpan "test" 1 14 1 15 :< Identifier "a"))
+                )
           )
   describe "value parser" $ do
     describe "null" $ do
@@ -86,29 +86,29 @@ spec = do
           `shouldBe` Right
             ( mkSpan "test" 1 1 1 17
                 :< EObject
-                  [ ( Identifier "a" (mkSpan "test" 1 2 1 5),
+                  [ ( mkSpan "test" 1 2 1 5 :< Identifier "a",
                       mkSpan "test" 1 7 1 8 :< ENumber 1
                     ),
-                    ( Identifier "b" (mkSpan "test" 1 10 1 13),
+                    ( mkSpan "test" 1 10 1 13 :< Identifier "b",
                       mkSpan "test" 1 15 1 16 :< ENumber 2
                     )
                   ]
             )
     describe "ref" $ do
       it "a" $
-        parseTest pExpr "test" "a" `shouldBe` Right (mkSpan "test" 1 1 1 2 :< ERef (Identifier "a" (mkSpan "test" 1 1 1 2)))
+        parseTest pExpr "test" "a" `shouldBe` Right (mkSpan "test" 1 1 1 2 :< ERef (mkSpan "test" 1 1 1 2 :< Identifier "a"))
       it "abc" $
-        parseTest pExpr "test" "abc" `shouldBe` Right (mkSpan "test" 1 1 1 4 :< ERef (Identifier "abc" (mkSpan "test" 1 1 1 4)))
+        parseTest pExpr "test" "abc" `shouldBe` Right (mkSpan "test" 1 1 1 4 :< ERef (mkSpan "test" 1 1 1 4 :< Identifier "abc"))
       describe "app" $ do
         it "(f 1)" $ do
           parseTest pExpr "test" "(f 1)"
             `shouldBe` Right
-              ( mkSpan "test" 1 2 1 5
+              ( mkSpan "test" 1 1 1 6
                   :< EApp
                     Nothing
                     ( mkSpan "test" 1 2 1 3
                         :< ERef
-                          (Identifier "f" (mkSpan "test" 1 2 1 3))
+                          (mkSpan "test" 1 2 1 3 :< Identifier "f")
                     )
                     (mkSpan "test" 1 4 1 5 :< ENumber 1)
               )
@@ -120,7 +120,7 @@ spec = do
                   Nothing
                   ( mkSpan "test" 1 3 1 4
                       :< ERef
-                        (Identifier "+" (mkSpan "test" 1 3 1 4))
+                        (mkSpan "test" 1 3 1 4 :< Identifier "+")
                   )
                   ( mkSpan "test" 1 1 1 6
                       :< EArray
@@ -134,10 +134,10 @@ spec = do
           `shouldBe` Right
             ( mkSpan "test" 1 2 1 15
                 :< EApp
-                  (Just (Identifier "alpine" (mkSpan "test" 1 2 1 9)))
+                  (Just (mkSpan "test" 1 2 1 9 :< Identifier "alpine"))
                   ( mkSpan "test" 1 10 1 11
                       :< ERef
-                        (Identifier "f" (mkSpan "test" 1 10 1 11))
+                        (mkSpan "test" 1 10 1 11 :< Identifier "f")
                   )
                   ( mkSpan "test" 1 12 1 15
                       :< EArray
@@ -152,10 +152,10 @@ spec = do
           `shouldBe` Right
             ( mkSpan "test" 1 1 1 8
                 :< EFun
-                  (Just $ mkSpan "test" 1 2 1 3 :< PMAAnyValue (Identifier "a" (mkSpan "test" 1 2 1 3)))
+                  (Just $ mkSpan "test" 1 2 1 3 :< PMAAnyValue (mkSpan "test" 1 2 1 3 :< Identifier "a"))
                   ( mkSpan "test" 1 7 1 8
                       :< ERef
-                        (Identifier "a" (mkSpan "test" 1 7 1 8))
+                        (mkSpan "test" 1 7 1 8 :< Identifier "a")
                   )
             )
 
