@@ -5,7 +5,7 @@
 module Language.Daicker.AST where
 
 import Control.Comonad.Cofree
-import Control.Monad (void)
+import Control.Monad (join, void)
 import Data.Aeson (FromJSON (parseJSON), FromJSONKey (), ToJSON (toJSON), Value (Array, Bool, Null, Object, String), (.:))
 import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as KM
@@ -92,10 +92,16 @@ instance (Show ann) => Show1 (Expr' ann) where
   liftShowsPrec _ _ _ (ENumber v) = showString $ "ENumber " <> show v
   liftShowsPrec _ _ _ (EString v) = showString $ "EString " <> show v
   liftShowsPrec _ f _ (EArray vs) = showString "EArray " <> f vs
-  liftShowsPrec _ _ _ (EObject vs) = showString "EObject..."
-  liftShowsPrec _ _ _ (EApp {}) = showString "EApp..."
-  liftShowsPrec _ _ _ (EAccess {}) = showString "EAccess..."
-  liftShowsPrec _ _ _ (EFun {}) = showString "EFun..."
+  liftShowsPrec f _ n (EObject vs) =
+    showString "EObject ["
+      <> foldl1
+        (\a b -> a <> showString ", " <> b)
+        (map (\(i, a) -> showString "(" <> showString (show i) <> showString ", " <> f n a <> showString ")") vs)
+      <> showString "]"
+  liftShowsPrec _ _ _ (ERef i) = showString "ERef " <> showString (show i)
+  liftShowsPrec f _ n (EApp img a b) = showString "EApp " <> showString (show img) <> f n a <> f n b
+  liftShowsPrec f _ n (EAccess a i) = showString "EAccess " <> f n a <> showString (show i)
+  liftShowsPrec f _ n (EFun pma e) = showString "EFun " <> showString (show pma) <> f n e
 
 type PatternMatchAssign ann = Cofree (PatternMatchAssign' ann) ann
 
@@ -112,7 +118,14 @@ instance (Eq ann) => Eq1 (PatternMatchAssign' ann) where
   liftEq _ _ _ = False
 
 instance (Show ann) => Show1 (PatternMatchAssign' ann) where
-  liftShowsPrec _ _ _ _ = showString "PatternMatchAssign"
+  liftShowsPrec _ _ _ (PMAAnyValue i) = showString $ "PMAAnyValue " <> show i
+  liftShowsPrec _ f _ (PMAArray vs) = showString "PMAArray " <> f vs
+  liftShowsPrec f _ n (PMAObject vs) =
+    showString "PMAObject ["
+      <> foldl1
+        (\a b -> a <> showString ", " <> b)
+        (map (\(i, a) -> showString "(" <> showString (show i) <> showString ", " <> f n a <> showString ")") vs)
+      <> showString "]"
 
 type EKey ann = Identifier ann
 
@@ -128,7 +141,7 @@ instance (Eq ann) => Eq1 (Identifier' ann) where
   liftEq _ (Identifier i1) (Identifier i2) = i1 == i2
 
 instance (Show ann) => Show1 (Identifier' ann) where
-  liftShowsPrec = undefined
+  liftShowsPrec _ _ _ (Identifier i) = showString $ "Identifier " <> i
 
 instance Spanned (Expr Span) where
   span :: Expr Span -> Span
