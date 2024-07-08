@@ -158,7 +158,7 @@ prefix token = Prefix (f <$> pToken token)
 
 pExpr :: Parser (Expr Span)
 pExpr = do
-  img <- optional $ spanned $ pToken THash *> pIdentifier
+  img <- optional pImage
   case img of
     Nothing -> do
       terms <- some pTerm <?> "expr"
@@ -166,7 +166,7 @@ pExpr = do
         [e] -> pure e
         [f, a] -> pure $ S.span f `union` S.span a :< EApp Nothing f a
         f : es -> pure $ foldl1 union (map S.span (f : es)) :< EApp Nothing f (foldl1 union (map S.span es) :< EArray es)
-    Just (WithSpan (_ :< Identifier i) s) -> do
+    Just (s :< Identifier i) -> do
       terms <- some pTerm <?> "expr"
       case terms of
         [e] -> pure e
@@ -276,6 +276,12 @@ pIdentifier :: Parser (Identifier Span)
 pIdentifier = token test Set.empty <?> "identifier"
   where
     test (WithSpan (TIdentifier t) s) = Just $ s :< Identifier t
+    test _ = Nothing
+
+pImage :: Parser (EImage Span)
+pImage = token test Set.empty <?> "image"
+  where
+    test (WithSpan (TImage t) s) = Just $ s :< Identifier t
     test _ = Nothing
 
 liftTToken :: TToken -> WithSpan TToken

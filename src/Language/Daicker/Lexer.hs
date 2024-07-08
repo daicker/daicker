@@ -32,6 +32,7 @@ data TToken
   | TNumber Double
   | TString String
   | TIdentifier String
+  | TImage String
   | TAssign
   | TModule
   | TImport
@@ -152,6 +153,7 @@ showTToken = \case
   (TNumber v) -> show v
   (TString v) -> "\"" <> v <> "\""
   (TIdentifier v) -> v
+  (TImage v) -> "#" <> v
   TAssign -> "="
   TModule -> "module"
   TImport -> "import"
@@ -229,6 +231,7 @@ tToken =
           TMul <$ char '*' <?> "*",
           TDiv <$ char '/' <?> "/",
           TAssign <$ char '=' <?> "=",
+          TImage <$> ((:) <$> char '#' *> many (alphaNumChar <|> char ':' <|> char '.') <?> "image"),
           THash <$ char '#' <?> "#",
           TModule <$ string "module" <?> "module",
           TImport <$ string "import" <?> "import",

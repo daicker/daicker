@@ -132,7 +132,7 @@ spec = do
       it "(#alpine f 1 2)" $ do
         parseTest pExpr "test" "(#alpine f 1 2)"
           `shouldBe` Right
-            ( mkSpan "test" 1 2 1 15
+            ( mkSpan "test" 1 1 1 16
                 :< EApp
                   (Just (mkSpan "test" 1 2 1 9 :< Identifier "alpine"))
                   ( mkSpan "test" 1 10 1 11
