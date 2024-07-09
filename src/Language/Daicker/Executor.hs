@@ -5,11 +5,13 @@ module Language.Daicker.Executor where
 
 import Control.Comonad.Cofree
 import Control.Concurrent (forkIO)
+import Control.Concurrent.MVar (newEmptyMVar, putMVar, readMVar)
 import Control.Monad (zipWithM)
 import Data.Foldable (find)
 import qualified Data.Text as T
 import Data.Text.IO (hGetLine)
 import Data.Tree (flatten)
+import GHC.Base (join)
 import GHC.IO (unsafePerformIO)
 import GHC.IO.Handle (BufferMode (NoBuffering), Handle, hClose, hFlush, hGetChar, hGetContents, hIsEOF)
 import Language.Daicker.AST
@@ -132,12 +134,18 @@ runSubprocess :: [String] -> IO CommandResult
 runSubprocess (cmd : args) = do
   (_, Just stdout, Just stderr, ps) <-
     createProcess (proc cmd args) {std_out = CreatePipe, std_err = CreatePipe, delegate_ctlc = True}
-  stderr' <- hPutAndGetContents "[local(stderr)]" stderr
-  stdout' <- hPutAndGetContents "[local(stdout)]" stdout
+  stdout' <- newEmptyMVar
+  forkIO $ do
+    stdout'' <- hPutAndGetContents "[local(stdout)]" stdout
+    putMVar stdout' stdout''
+  stderr' <- newEmptyMVar
+  forkIO $ do
+    stderr'' <- hPutAndGetContents "[local(stderr)]" stderr
+    putMVar stderr' stderr''
   exitCode <- waitForProcess ps
   hClose stderr
   hClose stdout
-  pure $ CommandResult exitCode stdout' stderr'
+  CommandResult exitCode <$> readMVar stdout' <*> readMVar stderr'
 
 hPutAndGetContents :: String -> Handle -> IO String
 hPutAndGetContents = hPutAndGetContents' ""
