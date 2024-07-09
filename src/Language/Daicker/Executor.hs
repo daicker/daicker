@@ -9,7 +9,7 @@ import Control.Concurrent.MVar (newEmptyMVar, putMVar, readMVar)
 import Control.Monad (zipWithM)
 import Data.Foldable (find)
 import qualified Data.Text as T
-import Data.Text.IO (hGetLine)
+import Data.Text.IO (hGetLine, hPutStrLn)
 import Data.Tree (flatten)
 import GHC.Base (join)
 import GHC.IO (unsafePerformIO)
@@ -18,7 +18,7 @@ import Language.Daicker.AST
 import Language.Daicker.Span (Span, mkSpan, union)
 import qualified Language.Daicker.Span as S
 import System.Exit (ExitCode (ExitFailure, ExitSuccess))
-import System.IO (hPutStrLn, hSetBuffering)
+import System.IO (hSetBuffering)
 import qualified System.IO as IO
 import System.Process
 
@@ -162,5 +162,5 @@ hPutAndGetContents = hPutAndGetContents' ""
     hPutAndGetLine :: String -> Handle -> IO String
     hPutAndGetLine console handle = do
       l <- hGetLine handle
-      hPutStrLn IO.stderr $ console <> " " <> T.unpack l
+      hPutStrLn IO.stderr $ T.pack console <> T.pack " " <> l
       pure $ T.unpack l
