@@ -12,7 +12,7 @@ import qualified Data.List as DL
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NE
 import Data.Proxy
-import Data.Scientific (toRealFloat)
+import Data.Scientific (Scientific, toRealFloat)
 import qualified Data.Set as Set
 import Data.Void
 import Language.Daicker.Span
@@ -29,7 +29,7 @@ import qualified Text.Megaparsec.Char.Lexer as L
 data TToken
   = TNull
   | TBool Bool
-  | TNumber Double
+  | TNumber Scientific
   | TString String
   | TIdentifier String
   | TImage String
@@ -237,7 +237,7 @@ tToken =
           TImport <$ string "import" <?> "import",
           TExport <$ string "export" <?> "export",
           TDefine <$ string "define" <?> "define",
-          TNumber <$> L.signed sc (toRealFloat <$> L.scientific) <?> "number",
+          TNumber <$> L.signed sc L.scientific <?> "number",
           TString <$> (char '"' *> manyTill L.charLiteral (char '"') <?> "string"),
           TIdentifier <$> ((:) <$> (lowerChar <|> upperChar <|> char '$') <*> many (alphaNumChar <|> char '$') <?> "identifier")
         ]

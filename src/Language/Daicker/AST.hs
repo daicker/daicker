@@ -63,7 +63,7 @@ type Expr ann = Cofree (Expr' ann) ann
 data Expr' ann a
   = ENull
   | EBool Bool
-  | ENumber Double
+  | ENumber Scientific
   | EString String
   | EArray [a]
   | EObject [(EKey ann, a)]
@@ -160,7 +160,7 @@ instance ToJSON (Expr a) where
   toJSON expr = case expr of
     (_ :< ENull) -> Null
     (_ :< EBool v) -> Bool v
-    (_ :< ENumber v) -> Number (read (show v) :: Scientific)
+    (_ :< ENumber v) -> Number v
     (_ :< EString v) -> String (pack v)
     (_ :< EArray vs) -> Array $ V.fromList $ map toJSON vs
     (_ :< EObject vs) -> Object $ KM.fromList $ map (\(s :< Identifier i, v) -> (K.fromText (pack i), toJSON v)) vs
@@ -171,7 +171,7 @@ instance FromJSON (Expr ()) where
   parseJSON v = case v of
     Null -> pure $ () :< ENull
     Bool v -> pure $ () :< EBool v
-    Number v -> pure $ () :< ENumber (toRealFloat v)
+    Number v -> pure $ () :< ENumber v
     String v -> pure $ () :< EString (T.unpack v)
     Array vs -> (() :<) . EArray <$> mapM parseJSON (V.toList vs)
     Object vs ->
