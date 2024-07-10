@@ -26,7 +26,7 @@ instance (Eq ann) => Eq1 (Module' ann) where
     i1 == i2 && imports1 == imports2 && exports1 == exports2 && define1 == define2
 
 instance (Show ann) => Show1 (Module' ann) where
-  liftShowsPrec = undefined
+  liftShowsPrec _ _ _ (Module name i e d) = showString $ "Module " <> show name <> show i <> show e <> show d
 
 type Import ann = Cofree (Import' ann) ann
 
@@ -36,7 +36,7 @@ instance (Eq ann) => Eq1 (Import' ann) where
   liftEq _ (Import i1) (Import i2) = i1 == i2
 
 instance (Show ann) => Show1 (Import' ann) where
-  liftShowsPrec = undefined
+  liftShowsPrec _ _ _ (Import i) = showString $ "Import " <> show i
 
 type Export ann = Cofree (Export' ann) ann
 
@@ -46,7 +46,7 @@ instance (Eq ann) => Eq1 (Export' ann) where
   liftEq _ (Export i1) (Export i2) = i1 == i2
 
 instance (Show ann) => Show1 (Export' ann) where
-  liftShowsPrec = undefined
+  liftShowsPrec _ _ _ (Export i) = showString $ "Export " <> show i
 
 type Define ann = Cofree (Define' ann) ann
 
@@ -56,7 +56,7 @@ instance (Eq ann) => Eq1 (Define' ann) where
   liftEq _ (Define i1 e1) (Define i2 e2) = i1 == i2 && e1 == e2
 
 instance (Show ann) => Show1 (Define' ann) where
-  liftShowsPrec = undefined
+  liftShowsPrec _ _ _ (Define i e) = showString $ show i <> show e
 
 type Expr ann = Cofree (Expr' ann) ann
 
