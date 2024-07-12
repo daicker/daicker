@@ -6,7 +6,7 @@
 
 module Language.Daicker.Lexer where
 
-import Control.Monad (void)
+import Control.Monad (void, when)
 import Data.Aeson (Value (Bool))
 import qualified Data.List as DL
 import Data.List.NonEmpty (NonEmpty (..))
@@ -62,7 +62,7 @@ data TToken
   | TMul
   | TDiv
   | TBackslash
-  | THash
+  | TSemicolon
   | TComment
   deriving (Eq, Ord, Show)
 
@@ -182,8 +182,8 @@ showTToken = \case
   TSub -> "-"
   TMul -> "*"
   TDiv -> "/"
+  TSemicolon -> ";"
   TBackslash -> "\\"
-  THash -> "#"
 
 type Lexer = Parsec Void String
 
@@ -231,15 +231,15 @@ tToken =
           TMul <$ char '*' <?> "*",
           TDiv <$ char '/' <?> "/",
           TAssign <$ char '=' <?> "=",
+          TSemicolon <$ char ';',
           TImage <$> ((:) <$> char '#' *> many (alphaNumChar <|> char ':' <|> char '.') <?> "image"),
-          THash <$ char '#' <?> "#",
           TModule <$ string "module" <?> "module",
           TImport <$ string "import" <?> "import",
           TExport <$ string "export" <?> "export",
           TDefine <$ string "define" <?> "define",
           TNumber <$> L.signed sc L.scientific <?> "number",
           TString <$> (char '"' *> manyTill L.charLiteral (char '"') <?> "string"),
-          TIdentifier <$> ((:) <$> (lowerChar <|> upperChar <|> char '$') <*> many (alphaNumChar <|> char '$') <?> "identifier")
+          TIdentifier <$> ((:) <$> (lowerChar <|> upperChar <|> char '$' <|> char '_') <*> many (alphaNumChar <|> char '$' <|> char '_') <?> "identifier")
         ]
 
 lexeme :: Lexer a -> Lexer a

@@ -13,7 +13,7 @@ import Data.Text.IO (hGetLine, hPutStrLn)
 import Data.Tree (flatten)
 import GHC.Base (join)
 import GHC.IO (unsafePerformIO)
-import GHC.IO.Handle (BufferMode (NoBuffering), Handle, hClose, hFlush, hGetChar, hGetContents, hIsEOF)
+import GHC.IO.Handle (BufferMode (NoBuffering), Handle, hClose, hFlush, hGetChar, hGetContents, hIsClosed, hIsEOF)
 import Language.Daicker.AST
 import Language.Daicker.Span (Span, mkSpan, union)
 import qualified Language.Daicker.Span as S
@@ -67,7 +67,7 @@ eval vars v = case v of
         args <- patternMatch pm arg
         eval (vars <> args) e
       err -> err
-  s :< EAccess e (_ :< Identifier i1) -> do
+  s :< EProperty e (_ :< Identifier i1) -> do
     case eval vars e of
       Right (_ :< EObject vs) -> case find (\(s :< Identifier i2, _) -> i1 == i2) vs of
         Just (_, v) -> pure v
@@ -117,6 +117,13 @@ stdLib =
         let (CommandResult _ _ err) = unsafePerformIO $ runSubprocess cmds
         sp :< EString err
     ),
+    ( ";",
+      \e -> case e of
+        s :< EArray [e1, e2] -> unsafePerformIO $ do
+          _ <- pure e1 -- execute forcibly
+          pure e2
+        _ -> e
+    ),
     ("+", \(_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 `union` s2) :< ENumber (a + b)),
     ("-", \(_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 `union` s2) :< ENumber (a - b)),
     ("*", \(_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 `union` s2) :< ENumber (a * b)),
@@ -153,12 +160,16 @@ hPutAndGetContents = hPutAndGetContents' ""
     hPutAndGetContents' :: String -> String -> Handle -> IO String
     hPutAndGetContents' str console handle =
       do
-        isEof <- hIsEOF handle
-        if isEof
+        isClosed <- hIsClosed handle
+        if isClosed
           then pure str
           else do
-            l <- hPutAndGetLine console handle
-            hPutAndGetContents' (str <> l) console handle
+            isEof <- hIsEOF handle
+            if isEof
+              then pure str
+              else do
+                l <- hPutAndGetLine console handle
+                hPutAndGetContents' (str <> l) console handle
     hPutAndGetLine :: String -> Handle -> IO String
     hPutAndGetLine console handle = do
       l <- hGetLine handle

@@ -131,6 +131,8 @@ operatorTable =
     ],
     [ binary TAnd,
       binary TOr
+    ],
+    [ binary TSemicolon
     ]
   ]
 
@@ -147,6 +149,17 @@ binary token = InfixL (f <$> pToken token)
 
 prefix :: TToken -> Operator Parser (Expr Span)
 prefix token = Prefix (f <$> pToken token)
+  where
+    f :: WithSpan TToken -> Expr Span -> Expr Span
+    f (WithSpan op s) a =
+      (s `union` S.span a)
+        :< EApp
+          Nothing
+          (s :< ERef (s :< Identifier (showTToken op)))
+          a
+
+postfix :: TToken -> Operator Parser (Expr Span)
+postfix token = Postfix (f <$> pToken token)
   where
     f :: WithSpan TToken -> Expr Span -> Expr Span
     f (WithSpan op s) a =
@@ -252,7 +265,7 @@ pAccess = try $ do
   e <- pIdentifier
   pToken TDot
   i <- pIdentifier
-  return $ S.span e `union` S.span i :< EAccess (S.span e :< ERef e) i
+  return $ S.span e `union` S.span i :< EProperty (S.span e :< ERef e) i
 
 pExpr' :: Parser (Expr Span)
 pExpr' = do
