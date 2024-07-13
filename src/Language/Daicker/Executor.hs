@@ -52,10 +52,10 @@ eval vars v = case v of
   s :< ERef (_ :< Identifier i) -> case lookup i vars of
     Just a -> eval vars a
     Nothing -> Left [CodeError ("not defined: " <> i) s]
-  s :< EApp _ a0@(_ :< ERef (_ :< Identifier i)) arg -> do
+  s :< EApp image a0@(_ :< ERef (_ :< Identifier i)) arg -> do
     arg <- eval vars arg
     case lookup i stdLib of
-      Just f -> Right $ f arg
+      Just f -> Right $ f image arg
       Nothing -> case eval vars a0 of
         Right (s :< EFun (Just pm) e) -> do
           args <- patternMatch pm arg
@@ -90,13 +90,15 @@ patternMatch pma e = case pma of
         Nothing -> Left [CodeError ("not found key: " <> i1) s]
         Just (_, e) -> patternMatch a e
 
-stdLib :: [(String, Expr Span -> Expr Span)]
+stdLib :: [(String, Maybe (EImage Span) -> Expr Span -> Expr Span)]
 stdLib =
   [ ( "$",
-      \(_ :< EArray strings) -> do
+      \image (_ :< EArray strings) -> do
         let cmds = map (\(_ :< EString s) -> s) strings
         let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
-        let (CommandResult i out err) = unsafePerformIO $ runSubprocess cmds
+        let (CommandResult i out err) = case image of
+              Nothing -> unsafePerformIO $ runSubprocess "local" cmds
+              Just (_ :< Identifier image) -> unsafePerformIO $ runContainer image cmds
         sp
           :< EObject
             [ (sp :< Identifier "exitCode", sp :< ENumber (fromIntegral $ exitCodeToInt i)),
@@ -105,31 +107,35 @@ stdLib =
             ]
     ),
     ( "$1",
-      \(_ :< EArray strings) -> do
+      \image (_ :< EArray strings) -> do
         let cmds = map (\(_ :< EString s) -> s) strings
         let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
-        let (CommandResult _ out _) = unsafePerformIO $ runSubprocess cmds
+        let (CommandResult _ out _) = case image of
+              Nothing -> unsafePerformIO $ runSubprocess "local" cmds
+              Just (_ :< Identifier image) -> unsafePerformIO $ runContainer image cmds
         sp :< EString out
     ),
     ( "$2",
-      \(_ :< EArray strings) -> do
+      \image (_ :< EArray strings) -> do
         let cmds = map (\(_ :< EString s) -> s) strings
         let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
-        let (CommandResult _ _ err) = unsafePerformIO $ runSubprocess cmds
+        let (CommandResult _ _ err) = case image of
+              Nothing -> unsafePerformIO $ runSubprocess "local" cmds
+              Just (_ :< Identifier image) -> unsafePerformIO $ runContainer image cmds
         sp :< EString err
     ),
     ( ";",
-      \(s :< EArray [e1, e2]) -> unsafePerformIO $ do
+      \_ (s :< EArray [e1, e2]) -> unsafePerformIO $ do
         _ <- pure e1 -- execute forcibly
         pure e2
     ),
     ( "|>",
-      \(s :< EArray [e1, e2]) -> s :< EApp Nothing e1 e2
+      \_ (s :< EArray [e1, e2]) -> s :< EApp Nothing e1 e2
     ),
-    ("+", \(_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 `union` s2) :< ENumber (a + b)),
-    ("-", \(_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 `union` s2) :< ENumber (a - b)),
-    ("*", \(_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 `union` s2) :< ENumber (a * b)),
-    ("/", \(_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 `union` s2) :< ENumber (a / b))
+    ("+", \_ (_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 `union` s2) :< ENumber (a + b)),
+    ("-", \_ (_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 `union` s2) :< ENumber (a - b)),
+    ("*", \_ (_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 `union` s2) :< ENumber (a * b)),
+    ("/", \_ (_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 `union` s2) :< ENumber (a / b))
   ]
   where
     exitCodeToInt :: ExitCode -> Int
@@ -139,17 +145,17 @@ stdLib =
 
 data CommandResult = CommandResult {exitCode :: ExitCode, stdout :: String, stderr :: String}
 
-runSubprocess :: [String] -> IO CommandResult
-runSubprocess (cmd : args) = do
+runSubprocess :: String -> [String] -> IO CommandResult
+runSubprocess image (cmd : args) = do
   (_, Just stdout, Just stderr, ps) <-
     createProcess (proc cmd args) {std_out = CreatePipe, std_err = CreatePipe, delegate_ctlc = True}
   stdout' <- newEmptyMVar
   forkIO $ do
-    stdout'' <- hPutAndGetContents "[local(stdout)]" stdout
+    stdout'' <- hPutAndGetContents ("[" <> image <> "(stdout)]") stdout
     putMVar stdout' stdout''
   stderr' <- newEmptyMVar
   forkIO $ do
-    stderr'' <- hPutAndGetContents "[local(stderr)]" stderr
+    stderr'' <- hPutAndGetContents ("[" <> image <> "(stderr)]") stderr
     putMVar stderr' stderr''
   exitCode <- waitForProcess ps
   hClose stderr
@@ -177,3 +183,13 @@ hPutAndGetContents = hPutAndGetContents' ""
       l <- hGetLine handle
       hPutStrLn IO.stderr $ T.pack console <> T.pack " " <> l
       pure $ T.unpack l
+
+-- TODO: Implement by calling the Docker Engine API via Unix Socket.
+-- This module should normally be implemented by making a request to the Docker Engine API via a Unix Socket.
+-- However, it is not easy to implement HTTP communication over Unix Socket in Haskell.
+-- The existing [docker-hs](https://hackage.haskell.org/package/docker) package is described
+-- to configure Docker to communicate over TCP to avoid this problem.
+-- The [http-client](https://hackage.haskell.org/package/http-client-0.7.17) package provides
+-- a low-level API for HTTP but does not appear to support Unix Sockets.
+runContainer :: String -> [String] -> IO CommandResult
+runContainer image args = runSubprocess image $ ["docker", "run", "--rm", image] <> args

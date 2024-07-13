@@ -241,7 +241,7 @@ tToken =
           TAssign <$ char '=' <?> "=",
           TSemicolon <$ char ';',
           TRight <$ string "|>" <?> "|>",
-          TImage <$> ((:) <$> char '#' *> many (alphaNumChar <|> char ':' <|> char '.') <?> "image"),
+          TImage <$> ((:) <$> char '#' *> many (alphaNumChar <|> char '/' <|> char ':' <|> char '.') <?> "image"),
           TModule <$ string "module" <?> "module",
           TImport <$ string "import" <?> "import",
           TExport <$ string "export" <?> "export",

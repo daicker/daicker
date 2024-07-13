@@ -22,7 +22,6 @@ source-repository head
 
 library
   exposed-modules:
-      Docker.Client
       Language.Daicker.AST
       Language.Daicker.DLS
       Language.Daicker.Error
