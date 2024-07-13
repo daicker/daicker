@@ -15,6 +15,7 @@ import Data.Proxy
 import Data.Scientific (Scientific, toRealFloat)
 import qualified Data.Set as Set
 import Data.Void
+import Language.Daicker.Error (CodeError, fromParseErrorBundle)
 import Language.Daicker.Span
   ( Span (Span, endPos, startPos),
     WithSpan (WithSpan, _value),
@@ -63,6 +64,7 @@ data TToken
   | TDiv
   | TBackslash
   | TSemicolon
+  | TRight
   | TComment
   deriving (Eq, Ord, Show)
 
@@ -183,15 +185,21 @@ showTToken = \case
   TMul -> "*"
   TDiv -> "/"
   TSemicolon -> ";"
+  TRight -> "|>"
   TBackslash -> "\\"
 
 type Lexer = Parsec Void String
 
-mkTStream :: String -> String -> Either (ParseErrorBundle String Void) TStream
-mkTStream fileName src = TStream src . filter notComment <$> parse tTokens fileName src
+mkTStream :: String -> String -> Either [CodeError] TStream
+mkTStream fileName src = TStream src . filter notComment <$> lexTokens fileName src
   where
     notComment (WithSpan TComment _) = False
     notComment _ = True
+
+lexTokens :: String -> String -> Either [CodeError] [WithSpan TToken]
+lexTokens fileName src = case parse tTokens fileName src of
+  (Left e) -> Left $ [fromParseErrorBundle e]
+  (Right ts) -> pure ts
 
 tTokens :: Lexer [WithSpan TToken]
 tTokens = many tToken <* eof
@@ -232,6 +240,7 @@ tToken =
           TDiv <$ char '/' <?> "/",
           TAssign <$ char '=' <?> "=",
           TSemicolon <$ char ';',
+          TRight <$ string "|>" <?> "|>",
           TImage <$> ((:) <$> char '#' *> many (alphaNumChar <|> char ':' <|> char '.') <?> "image"),
           TModule <$ string "module" <?> "module",
           TImport <$ string "import" <?> "import",

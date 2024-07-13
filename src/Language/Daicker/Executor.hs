@@ -15,6 +15,7 @@ import GHC.Base (join)
 import GHC.IO (unsafePerformIO)
 import GHC.IO.Handle (BufferMode (NoBuffering), Handle, hClose, hFlush, hGetChar, hGetContents, hIsClosed, hIsEOF)
 import Language.Daicker.AST
+import Language.Daicker.Error (CodeError (CodeError))
 import Language.Daicker.Span (Span, mkSpan, union)
 import qualified Language.Daicker.Span as S
 import System.Exit (ExitCode (ExitFailure, ExitSuccess))
@@ -25,7 +26,7 @@ import System.Process
 findDefine :: String -> Module a -> Maybe (Define a)
 findDefine name (_ :< Module _ _ _ ds) = find (\(_ :< Define (_ :< Identifier n) _) -> name == n) ds
 
-execDefine :: Module Span -> Define Span -> Maybe (Expr ()) -> Either (String, Span) (Expr Span)
+execDefine :: Module Span -> Define Span -> Maybe (Expr ()) -> Either [CodeError] (Expr Span)
 execDefine (_ :< Module _ _ _ ds) (_ :< Define _ e) Nothing = eval [] e
 execDefine (_ :< Module _ _ _ ds) (_ :< Define _ e) (Just arg) = eval [] (S.span e :< EApp Nothing e (switchAnn (\_ -> mkSpan "stdin" 1 1 1 2) arg))
 
@@ -44,13 +45,13 @@ switchAnn f e = case e of
 -- (ann :< EFun (Just (Identifier i a)) e) -> f ann :< EFun (Just (Identifier i (f a))) (switchAnn f e)
 -- (ann :< EFun Nothing e) -> f ann :< EFun Nothing (switchAnn f e)
 
-eval :: [(String, Expr Span)] -> Expr Span -> Either (String, Span) (Expr Span)
+eval :: [(String, Expr Span)] -> Expr Span -> Either [CodeError] (Expr Span)
 eval vars v = case v of
   s :< EArray vs -> (:<) s . EArray <$> mapM (eval vars) vs
   s :< EObject vs -> (:<) s . EObject <$> mapM (\(k, e) -> (,) k <$> eval vars e) vs
   s :< ERef (_ :< Identifier i) -> case lookup i vars of
     Just a -> eval vars a
-    Nothing -> Left ("not defined: " <> i, s)
+    Nothing -> Left [CodeError ("not defined: " <> i) s]
   s :< EApp _ a0@(_ :< ERef (_ :< Identifier i)) arg -> do
     arg <- eval vars arg
     case lookup i stdLib of
@@ -72,21 +73,21 @@ eval vars v = case v of
       Right (_ :< EObject vs) -> case find (\(s :< Identifier i2, _) -> i1 == i2) vs of
         Just (_, v) -> pure v
         Nothing -> pure $ s :< ENull
-      Right (s :< _) -> Left ("Accessors can only be used on objects", s)
+      Right (s :< _) -> Left [CodeError "Accessors can only be used on objects" s]
   v -> Right v
 
-patternMatch :: PatternMatchAssign Span -> Expr Span -> Either (String, Span) [(String, Expr Span)]
+patternMatch :: PatternMatchAssign Span -> Expr Span -> Either [CodeError] [(String, Expr Span)]
 patternMatch pma e = case pma of
   _ :< PMAAnyValue (_ :< Identifier i) -> pure [(i, e)]
   _ :< PMAArray as -> case e of
     (_ :< EArray vs) -> concat <$> zipWithM patternMatch as vs
-    (s :< _) -> Left ("pattern match: unexpected type", s)
+    (s :< _) -> Left [CodeError "pattern match: unexpected type" s]
   _ :< PMAObject as -> case e of
     (s :< EObject es) -> concat <$> mapM (uncurry $ objectMatch es) as
-    (s :< _) -> Left ("pattern match: unexpected type", s)
+    (s :< _) -> Left [CodeError "pattern match: unexpected type" s]
     where
       objectMatch es (s :< Identifier i1) a = case find (\(s :< Identifier i2, _) -> i1 == i2) es of
-        Nothing -> Left ("not found key: " <> i1, s)
+        Nothing -> Left [CodeError ("not found key: " <> i1) s]
         Just (_, e) -> patternMatch a e
 
 stdLib :: [(String, Expr Span -> Expr Span)]
@@ -118,11 +119,12 @@ stdLib =
         sp :< EString err
     ),
     ( ";",
-      \e -> case e of
-        s :< EArray [e1, e2] -> unsafePerformIO $ do
-          _ <- pure e1 -- execute forcibly
-          pure e2
-        _ -> e
+      \(s :< EArray [e1, e2]) -> unsafePerformIO $ do
+        _ <- pure e1 -- execute forcibly
+        pure e2
+    ),
+    ( "|>",
+      \(s :< EArray [e1, e2]) -> s :< EApp Nothing e1 e2
     ),
     ("+", \(_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 `union` s2) :< ENumber (a + b)),
     ("-", \(_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 `union` s2) :< ENumber (a - b)),

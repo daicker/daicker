@@ -2,6 +2,7 @@ module Language.Daicker.ParserSpec (spec) where
 
 import Control.Comonad.Cofree
 import Language.Daicker.AST
+import Language.Daicker.Error (codeErrorPretty)
 import Language.Daicker.Lexer (mkTStream)
 import Language.Daicker.Parser (Parser, pDefine, pExpr, pImport, pModule)
 import Language.Daicker.Span (mkSpan)
@@ -162,7 +163,7 @@ spec = do
 parseTest :: Parser a -> String -> String -> Either String a
 parseTest parser fileName src = do
   case mkTStream fileName src of
-    Left e -> Left $ errorBundlePretty e
+    Left es -> Left $ codeErrorPretty $ head es
     Right ts ->
       case parse parser fileName ts of
         Right m -> Right m

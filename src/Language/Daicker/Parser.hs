@@ -5,7 +5,6 @@ import Control.Monad (void)
 import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
 import Data.Functor.Identity (Identity)
 import Data.List.NonEmpty (NonEmpty (..))
-import qualified Data.List.NonEmpty as NEL
 import Data.Scientific (toRealFloat)
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -13,6 +12,7 @@ import qualified Data.Text as T
 import Data.Void (Void)
 import GHC.Conc (par)
 import Language.Daicker.AST
+import Language.Daicker.Error (CodeError (CodeError), fromParseErrorBundle)
 import Language.Daicker.Lexer
 import Language.Daicker.Span (union)
 import Language.Daicker.Span as S
@@ -33,14 +33,19 @@ import qualified Text.Megaparsec.Char.Lexer as L
 
 type Parser = Parsec Void TStream
 
-syntaxCheck :: String -> String -> [(SourcePos, String)]
-syntaxCheck fileName src =
+parseModule :: String -> String -> Either [CodeError] (Module Span)
+parseModule fileName src =
   case mkTStream fileName src of
-    Left e -> [(errorBundleSourcePos e, errorBundlePretty e)]
+    Left e -> Left e
     Right ts ->
       case parse pModule fileName ts of
-        Right m -> []
-        Left e -> [(errorBundleSourcePos e, errorBundlePretty e)]
+        Right m -> pure m
+        Left e -> Left [fromParseErrorBundle e]
+
+syntaxCheck :: String -> String -> [CodeError]
+syntaxCheck file src = case parseModule file src of
+  Left es -> es
+  Right _ -> []
 
 pModule :: Parser (Module Span)
 pModule = do
@@ -112,8 +117,8 @@ pPatternMatchAssign =
       i <- pIdentifier
       return (i, S.span i :< PMAAnyValue i)
 
-operatorTable :: [[Operator Parser (Expr Span)]]
-operatorTable =
+termOperatorTable :: [[Operator Parser (Expr Span)]]
+termOperatorTable =
   [ [ binary TMul,
       binary TDiv
     ],
@@ -131,8 +136,13 @@ operatorTable =
     ],
     [ binary TAnd,
       binary TOr
-    ],
-    [ binary TSemicolon
+    ]
+  ]
+
+exprOperatorTable :: [[Operator Parser (Expr Span)]]
+exprOperatorTable =
+  [ [ binary TSemicolon,
+      binary TRight
     ]
   ]
 
@@ -170,24 +180,26 @@ postfix token = Postfix (f <$> pToken token)
           a
 
 pExpr :: Parser (Expr Span)
-pExpr = do
-  img <- optional pImage
-  case img of
-    Nothing -> do
-      terms <- some pTerm <?> "expr"
-      case terms of
-        [e] -> pure e
-        [f, a] -> pure $ S.span f `union` S.span a :< EApp Nothing f a
-        f : es -> pure $ foldl1 union (map S.span (f : es)) :< EApp Nothing f (foldl1 union (map S.span es) :< EArray es)
-    Just (s :< Identifier i) -> do
-      terms <- some pTerm <?> "expr"
-      case terms of
-        [e] -> pure e
-        [f, a] -> pure $ s `union` S.span a :< EApp (Just (s :< Identifier i)) f a
-        f : es -> pure $ s `union` foldl1 union (map S.span (f : es)) :< EApp (Just (s :< Identifier i)) f (foldl1 union (map S.span es) :< EArray es)
+pExpr = makeExprParser pExpr' exprOperatorTable <?> "expr"
+  where
+    pExpr' = do
+      img <- optional pImage
+      case img of
+        Nothing -> do
+          terms <- some pTerm <?> "expr"
+          case terms of
+            [e] -> pure e
+            [f, a] -> pure $ S.span f `union` S.span a :< EApp Nothing f a
+            f : es -> pure $ foldl1 union (map S.span (f : es)) :< EApp Nothing f (foldl1 union (map S.span es) :< EArray es)
+        Just (s :< Identifier i) -> do
+          terms <- some pTerm <?> "expr"
+          case terms of
+            [e] -> pure e
+            [f, a] -> pure $ s `union` S.span a :< EApp (Just (s :< Identifier i)) f a
+            f : es -> pure $ s `union` foldl1 union (map S.span (f : es)) :< EApp (Just (s :< Identifier i)) f (foldl1 union (map S.span es) :< EArray es)
 
 pTerm :: Parser (Expr Span)
-pTerm = makeExprParser pValue operatorTable <?> "term"
+pTerm = makeExprParser pValue termOperatorTable <?> "term"
 
 pValue :: Parser (Expr Span)
 pValue =
@@ -317,10 +329,3 @@ spanned parser = do
   x <- parser
   end <- getSourcePos
   pure $ WithSpan x (Span (S.fromSourcePos start) (S.fromSourcePos end))
-
-errorBundleSourcePos :: (TraversableStream a) => ParseErrorBundle a Void -> SourcePos
-errorBundleSourcePos peb = do
-  let pst = bundlePosState peb
-  let e = NEL.head $ bundleErrors peb
-  let (_, pst') = reachOffset (errorOffset e) pst
-  pstateSourcePos pst'

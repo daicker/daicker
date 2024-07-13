@@ -3,6 +3,7 @@
 
 module Language.Daicker.Span where
 
+import Language.LSP.Protocol.Types (Range, mkRange)
 import Text.Megaparsec.Pos (SourcePos (SourcePos), mkPos, unPos)
 
 data Position = Position
@@ -49,5 +50,19 @@ toSourcePos (Position file l c) = SourcePos file (mkPos l) (mkPos c)
 fromSourcePos :: SourcePos -> Position
 fromSourcePos (SourcePos file l c) = Position file (unPos l) (unPos c)
 
+toRange :: Span -> Range
+toRange (Span (Position _ l1 c1) (Position _ l2 c2)) =
+  mkRange
+    (fromIntegral l1 - 1)
+    (fromIntegral c1 - 1)
+    (fromIntegral l2 - 1)
+    (fromIntegral c2 - 1)
+
 initialPos :: FilePath -> Position
 initialPos file = Position file 1 1
+
+spanPretty :: Span -> String
+spanPretty (Span p1@(Position file l1 c1) p2@(Position _ l2 c2)) =
+  if p1 == p2
+    then file <> ":" <> show l1 <> ":" <> show c1
+    else file <> ":" <> show l1 <> ":" <> show c1 <> "-" <> show l2 <> ":" <> show c2

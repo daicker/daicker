@@ -25,9 +25,10 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Void (Void)
 import GHC.Generics (Generic)
+import Language.Daicker.Error (CodeError (CodeError))
 import Language.Daicker.Lexer
-import Language.Daicker.Parser (Parser, syntaxCheck)
-import Language.Daicker.Span (Span (Span), WithSpan (WithSpan))
+import Language.Daicker.Parser (Parser, parseModule, syntaxCheck)
+import Language.Daicker.Span (Span (Span), WithSpan (WithSpan), toRange)
 import qualified Language.Daicker.Span as S
 import Language.LSP.Diagnostics
 import Language.LSP.Logging (defaultClientLogger)
@@ -52,23 +53,18 @@ instance J.ToJSON Config where
 
 instance J.FromJSON Config
 
-sendDiagnostics :: LSP.NormalizedUri -> Maybe Int32 -> [(SourcePos, String)] -> LspM Config ()
+sendDiagnostics :: LSP.NormalizedUri -> Maybe Int32 -> [CodeError] -> LspM Config ()
 sendDiagnostics fileUri version es = do
   let diags =
         map
-          ( \(SourcePos _ l c, e) -> do
+          ( \(CodeError m s) -> do
               LSP.Diagnostic
-                ( LSP.mkRange
-                    (fromIntegral $ unPos l - 1)
-                    (fromIntegral $ unPos c - 1)
-                    (fromIntegral $ unPos l - 1)
-                    (fromIntegral $ unPos c)
-                )
+                (toRange s)
                 (Just LSP.DiagnosticSeverity_Error) -- severity
                 Nothing -- code
                 Nothing
                 (Just "daicker") -- source
-                (T.pack e)
+                (T.pack m)
                 Nothing -- tags
                 (Just [])
                 Nothing
