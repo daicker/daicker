@@ -51,12 +51,20 @@ fromSourcePos :: SourcePos -> Position
 fromSourcePos (SourcePos file l c) = Position file (unPos l) (unPos c)
 
 toRange :: Span -> Range
-toRange (Span (Position _ l1 c1) (Position _ l2 c2)) =
-  mkRange
-    (fromIntegral l1 - 1)
-    (fromIntegral c1 - 1)
-    (fromIntegral l2 - 1)
-    (fromIntegral c2 - 1)
+toRange (Span p1@(Position _ l1 c1) p2@(Position _ l2 c2)) =
+  if p1 == p2
+    then
+      mkRange
+        (fromIntegral l1 - 1)
+        (fromIntegral c1 - 1)
+        (fromIntegral l2 - 1)
+        (fromIntegral c2)
+    else
+      mkRange
+        (fromIntegral l1 - 1)
+        (fromIntegral c1 - 1)
+        (fromIntegral l2 - 1)
+        (fromIntegral c2 - 1)
 
 initialPos :: FilePath -> Position
 initialPos file = Position file 1 1
