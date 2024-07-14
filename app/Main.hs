@@ -9,7 +9,7 @@ import Data.Aeson (decode, encode)
 import Data.Aeson.Types (Value)
 import Data.ByteString.Lazy.Char8 (pack, unpack)
 import Data.Maybe (fromMaybe)
-import Language.Daicker.AST (Define' (Define), Expr, Expr' (EArray, EFun, ENull))
+import Language.Daicker.AST (Define' (Define), Expr, Expr' (EArray, EFun, ENull, EString))
 import Language.Daicker.DLS (serve)
 import Language.Daicker.Error (codeErrorListPretty, codeErrorPretty)
 import Language.Daicker.Executor (execDefine, findDefine)
@@ -33,11 +33,11 @@ opts =
           "run"
           ( info
               ( run
-                  <$> argument str (metavar "FUNCTION")
+                  <$> fileOpt
+                  <*> argument str (metavar "FUNCTION")
                   <*> many (argument str (metavar "ARGS"))
-                  <*> fileOpt
               )
-              (progDesc "Execute function")
+              (progDesc "Execute function" <> noIntersperse)
           )
     )
 
@@ -57,8 +57,8 @@ valid fileName = do
     Right m -> pure ()
     Left e -> putStrLn $ codeErrorListPretty e
 
-run :: String -> [String] -> String -> IO ()
-run funcName args fileName = do
+run :: String -> String -> [String] -> IO ()
+run fileName funcName args = do
   src <- readFile fileName
   case parseModule fileName src of
     Left e -> putStrLn $ codeErrorListPretty e
@@ -70,10 +70,8 @@ run funcName args fileName = do
           [] -> do
             input <- getContents
             pure (decode (pack input) :: Maybe (Expr ()))
-          [arg] -> do
-            pure (decode (pack arg) :: Maybe (Expr ()))
           args -> do
-            pure $ (:<) () . EArray <$> mapM (\arg -> decode (pack arg) :: Maybe (Expr ())) args
+            pure $ Just $ () :< EArray (map (\arg -> () :< EString arg) args)
         case execDefine m d arg of
           Left e -> putStrLn $ codeErrorListPretty e
           Right e -> putStrLn (unpack $ encode e)

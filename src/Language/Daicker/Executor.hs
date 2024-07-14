@@ -18,6 +18,7 @@ import Language.Daicker.AST
 import Language.Daicker.Error (CodeError (CodeError))
 import Language.Daicker.Span (Span, mkSpan, union)
 import qualified Language.Daicker.Span as S
+import System.Directory (getCurrentDirectory)
 import System.Exit (ExitCode (ExitFailure, ExitSuccess))
 import System.IO (hSetBuffering)
 import qualified System.IO as IO
@@ -192,4 +193,9 @@ hPutAndGetContents = hPutAndGetContents' ""
 -- The [http-client](https://hackage.haskell.org/package/http-client-0.7.17) package provides
 -- a low-level API for HTTP but does not appear to support Unix Sockets.
 runContainer :: String -> [String] -> IO CommandResult
-runContainer image args = runSubprocess image $ ["docker", "run", "--rm", image] <> args
+runContainer image args = do
+  -- TODO: Implement better default volume mounts and user-customisable methods.
+  currentDir <- getCurrentDirectory
+  let volume = currentDir <> ":/work"
+  runSubprocess image $
+    ["docker", "run", "--rm", "-v", volume, "-w", "/work", image] <> args
