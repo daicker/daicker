@@ -11,11 +11,12 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Void (Void)
 import GHC.Conc (par)
-import Language.Daicker.AST
+import Language.Daicker.AST hiding (Type, Type' (..))
+import qualified Language.Daicker.AST as AST
 import Language.Daicker.Error (CodeError (CodeError), fromParseErrorBundle)
 import Language.Daicker.Lexer
-import Language.Daicker.Span (union)
-import Language.Daicker.Span as S
+import Language.Daicker.Span (Span (..), WithSpan (..), union)
+import qualified Language.Daicker.Span as S
 import Language.LSP.Protocol.Lens (HasIdentifier (identifier))
 import Language.LSP.Protocol.Types
 import Text.Megaparsec
@@ -78,6 +79,14 @@ pDefine = do
   case param of
     Nothing -> return $ (s `union` S.span v) :< Define i v
     Just param -> return $ (s `union` S.span v) :< Define i ((S.span param `union` S.span v) :< EFun (Just param) v)
+
+pTypeDefine :: Parser (AST.TypeDefine Span)
+pTypeDefine = do
+  (WithSpan _ s) <- pToken TType
+  i <- pIdentifier
+  pToken TAssign
+  t <- pType
+  pure $ (s `union` S.span t) :< TypeDefine i t
 
 pPatternMatchAssign :: Parser (PatternMatchAssign Span)
 pPatternMatchAssign =
@@ -178,6 +187,103 @@ postfix token = Postfix (f <$> pToken token)
           Nothing
           (s :< ERef (s :< Identifier (showTToken op)))
           a
+
+pType :: Parser (AST.Type Span)
+pType =
+  choice
+    [ pTVoid,
+      pTNull,
+      pTBool,
+      pTNumber,
+      pTString,
+      pTArrayOrTuple,
+      pTObject,
+      pTFun,
+      pTRef
+    ]
+
+pTRef :: Parser (AST.Type Span)
+pTRef = do
+  i <- pIdentifier
+  pure $ S.span i :< AST.TRef i
+
+pTFun :: Parser (AST.Type Span)
+pTFun = do
+  f <-
+    choice
+      [ pTVoid,
+        pTNull,
+        pTBool,
+        pTNumber,
+        pTString,
+        pTArrayOrTuple,
+        pTObject,
+        pTFun,
+        pTRef
+      ]
+  pToken TArrow
+  a <- pType
+  pure $ S.span f `union` S.span a :< AST.TFun f a
+
+pTObject :: Parser (AST.Type Span)
+pTObject = do
+  (WithSpan obj s) <-
+    spanned $
+      between
+        (pToken TLBrace)
+        (pToken TRBrace)
+        (pair `sepBy` pToken TComma)
+  return $ s :< AST.TObject obj
+  where
+    pair :: Parser (EKey Span, AST.Type Span)
+    pair = do
+      s :< (EString k) <- pString
+      pToken TColon
+      t <- pType
+      return (s :< Identifier k, t)
+
+pTArrayOrTuple :: Parser (AST.Type Span)
+pTArrayOrTuple = do
+  (WithSpan ts s) <-
+    spanned $
+      between
+        (pToken TLBracket)
+        (pToken TRBracket)
+        (pType `sepBy` pToken TComma)
+  case ts of
+    [] -> fail "type"
+    [t] -> return $ s :< AST.TArray t
+    _ -> return $ s :< AST.TTuple ts
+
+pTString :: Parser (AST.Type Span)
+pTString = token test Set.empty <?> "string type"
+  where
+    test (WithSpan (TIdentifier "string") s) = Just $ s :< AST.TString
+    test _ = Nothing
+
+pTNumber :: Parser (AST.Type Span)
+pTNumber = token test Set.empty <?> "number type"
+  where
+    test (WithSpan (TIdentifier "number") s) = Just $ s :< AST.TNumber
+    test _ = Nothing
+
+pTBool :: Parser (AST.Type Span)
+pTBool = token test Set.empty <?> "bool type"
+  where
+    test (WithSpan (TIdentifier "bool") s) = Just $ s :< AST.TBool
+    test _ = Nothing
+
+pTNull :: Parser (AST.Type Span)
+pTNull = token test Set.empty <?> "null type"
+  where
+    test (WithSpan TNull s) = Just $ s :< AST.TNull
+    test _ = Nothing
+
+pTVoid :: Parser (AST.Type Span)
+pTVoid = token test Set.empty <?> "void type"
+  where
+    test (WithSpan (TIdentifier "void") s) = Just $ s :< AST.TVoid
+    test _ = Nothing
 
 pExpr :: Parser (Expr Span)
 pExpr = makeExprParser pExpr' exprOperatorTable <?> "expr"

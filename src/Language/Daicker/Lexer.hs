@@ -39,6 +39,7 @@ data TToken
   | TImport
   | TExport
   | TDefine
+  | TType
   | TLParenthesis
   | TRParenthesis
   | TLBracket
@@ -161,6 +162,7 @@ showTToken = \case
   TImport -> "import"
   TExport -> "export"
   TDefine -> "define"
+  TType -> "type"
   TLParenthesis -> "("
   TRParenthesis -> ")"
   TLBracket -> "["
@@ -246,6 +248,7 @@ tToken =
           TImport <$ string "import" <?> "import",
           TExport <$ string "export" <?> "export",
           TDefine <$ string "define" <?> "define",
+          TType <$ string "type" <?> "type",
           TNumber <$> L.signed sc L.scientific <?> "number",
           TString <$> (char '"' *> manyTill L.charLiteral (char '"') <?> "string"),
           TIdentifier <$> ((:) <$> (lowerChar <|> upperChar <|> char '$' <|> char '_') <*> many (alphaNumChar <|> char '$' <|> char '_') <?> "identifier")

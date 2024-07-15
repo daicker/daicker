@@ -58,11 +58,62 @@ instance (Eq ann) => Eq1 (Define' ann) where
 instance (Show ann) => Show1 (Define' ann) where
   liftShowsPrec _ _ _ (Define i e) = showString $ show i <> show e
 
--- type Type ann = Cofree (Type' ann) ann
+type TypeDefine ann = Cofree (TypeDefine' ann) ann
 
--- data Type' ann a
---   = TVoid
---   | TBool Bool
+data TypeDefine' ann a = TypeDefine (Identifier ann) (Type ann) deriving (Show, Eq)
+
+instance (Eq ann) => Eq1 (TypeDefine' ann) where
+  liftEq _ (TypeDefine i1 e1) (TypeDefine i2 e2) = i1 == i2 && e1 == e2
+
+instance (Show ann) => Show1 (TypeDefine' ann) where
+  liftShowsPrec _ _ _ (TypeDefine i e) = showString $ show i <> show e
+
+type Type ann = Cofree (Type' ann) ann
+
+data Type' ann a
+  = TVoid
+  | TNull
+  | TBool
+  | TNumber
+  | TString
+  | TTuple [a]
+  | TArray a
+  | TObject [(EKey ann, a)]
+  | TMap a
+  | TFun a a
+  | TRef (Identifier ann)
+  deriving (Show, Eq)
+
+instance (Eq ann) => Eq1 (Type' ann) where
+  liftEq _ TVoid TVoid = True
+  liftEq _ TNull TNull = True
+  liftEq _ TBool TBool = True
+  liftEq _ TNumber TNumber = True
+  liftEq _ TString TString = True
+  liftEq f (TTuple as) (TTuple bs) = length as == length bs && all (uncurry f) (zip as bs)
+  liftEq f (TArray a) (TArray b) = f a b
+  liftEq f (TObject as) (TObject bs) = length as == length bs && all (\((ka, va), (kb, vb)) -> ka == kb && f va vb) (zip as bs)
+  liftEq f (TMap a) (TMap b) = f a b
+  liftEq f (TFun f1 a1) (TFun f2 a2) = f f1 f2 && f a1 a2
+  liftEq _ (TRef n1) (TRef n2) = n1 == n2
+
+instance (Show ann) => Show1 (Type' ann) where
+  liftShowsPrec _ _ _ TVoid = showString "TVoid"
+  liftShowsPrec _ _ _ TNull = showString "TNull"
+  liftShowsPrec _ _ _ TBool = showString "TBool"
+  liftShowsPrec _ _ _ TNumber = showString "TNumber"
+  liftShowsPrec _ _ _ TString = showString "TString"
+  liftShowsPrec _ f _ (TTuple ts) = showString "TTuple " <> f ts
+  liftShowsPrec f _ n (TArray a) = showString "TArray " <> f n a
+  liftShowsPrec f _ n (TObject as) =
+    showString "TObject ["
+      <> foldl1
+        (\a b -> a <> showString ", " <> b)
+        (map (\(i, a) -> showString "(" <> showString (show i) <> showString ", " <> f n a <> showString ")") as)
+      <> showString "]"
+  liftShowsPrec f _ n (TMap a) = showString "TMap " <> f n a
+  liftShowsPrec f _ n (TFun a b) = showString "TFun " <> f n a <> f n b
+  liftShowsPrec f _ n (TRef name) = showString $ "TRef " <> show name
 
 type Expr ann = Cofree (Expr' ann) ann
 
@@ -159,6 +210,10 @@ instance (Eq ann) => Eq1 (Index' ann) where
 
 instance (Show ann) => Show1 (Index' ann) where
   liftShowsPrec _ _ _ (Index i) = showString $ "Index " <> show i
+
+instance Spanned (Type Span) where
+  span :: Type Span -> Span
+  span (s :< _) = s
 
 instance Spanned (Expr Span) where
   span :: Expr Span -> Span
