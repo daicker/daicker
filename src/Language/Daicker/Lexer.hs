@@ -241,7 +241,7 @@ tToken =
           TMul <$ char '*' <?> "*",
           TDiv <$ char '/' <?> "/",
           TAssign <$ char '=' <?> "=",
-          TSemicolon <$ char ';',
+          TSemicolon <$ char ';' <?> ";",
           TRight <$ string "|>" <?> "|>",
           TImage <$> ((:) <$> char '#' *> many (alphaNumChar <|> char '/' <|> char ':' <|> char '.') <?> "image"),
           TModule <$ string "module" <?> "module",

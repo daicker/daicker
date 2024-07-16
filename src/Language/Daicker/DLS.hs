@@ -212,6 +212,7 @@ lexSemanticTokens fileName src =
       TImport -> Just SemanticTokenTypes_Keyword
       TExport -> Just SemanticTokenTypes_Keyword
       TDefine -> Just SemanticTokenTypes_Keyword
+      TType -> Just SemanticTokenTypes_Keyword
       TIdentifier _ -> Just SemanticTokenTypes_Variable
       TImage _ -> Just SemanticTokenTypes_Macro
       TComment -> Just SemanticTokenTypes_Comment

@@ -65,7 +65,7 @@ run fileName funcName args = do
     Right m -> case findDefine funcName m of
       Nothing -> putStrLn $ "not defined: " <> funcName
       -- Requires an argument
-      Just d@(_ :< Define _ (_ :< EFun (Just _) _)) -> do
+      Just d@(_ :< Define _ (_ :< EFun (Just _) _) _) -> do
         arg <- case args of
           [] -> do
             input <- getContents

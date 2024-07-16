@@ -50,13 +50,13 @@ instance (Show ann) => Show1 (Export' ann) where
 
 type Define ann = Cofree (Define' ann) ann
 
-data Define' ann a = Define (Identifier ann) (Expr ann) deriving (Show, Eq)
+data Define' ann a = Define (Identifier ann) (Expr ann) (Maybe (Type ann)) deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Define' ann) where
-  liftEq _ (Define i1 e1) (Define i2 e2) = i1 == i2 && e1 == e2
+  liftEq _ (Define i1 e1 t1) (Define i2 e2 t2) = i1 == i2 && e1 == e2 && t1 == t2
 
 instance (Show ann) => Show1 (Define' ann) where
-  liftShowsPrec _ _ _ (Define i e) = showString $ show i <> show e
+  liftShowsPrec _ _ _ (Define i e t) = showString $ show i <> show e <> show t
 
 type TypeDefine ann = Cofree (TypeDefine' ann) ann
 

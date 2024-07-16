@@ -25,11 +25,11 @@ import qualified System.IO as IO
 import System.Process
 
 findDefine :: String -> Module a -> Maybe (Define a)
-findDefine name (_ :< Module _ _ _ ds) = find (\(_ :< Define (_ :< Identifier n) _) -> name == n) ds
+findDefine name (_ :< Module _ _ _ ds) = find (\(_ :< Define (_ :< Identifier n) _ _) -> name == n) ds
 
 execDefine :: Module Span -> Define Span -> Maybe (Expr ()) -> Either [CodeError] (Expr Span)
-execDefine (_ :< Module _ _ _ ds) (_ :< Define _ e) Nothing = eval [] e
-execDefine (_ :< Module _ _ _ ds) (_ :< Define _ e) (Just arg) = eval [] (S.span e :< EApp Nothing e (switchAnn (\_ -> mkSpan "stdin" 1 1 1 2) arg))
+execDefine (_ :< Module _ _ _ ds) (_ :< Define _ e _) Nothing = eval [] e
+execDefine (_ :< Module _ _ _ ds) (_ :< Define _ e _) (Just arg) = eval [] (S.span e :< EApp Nothing e (switchAnn (\_ -> mkSpan "stdin" 1 1 1 2) arg))
 
 switchAnn :: (a -> b) -> Expr a -> Expr b
 switchAnn f e = case e of

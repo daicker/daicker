@@ -76,9 +76,10 @@ pDefine = do
   param <- optional pPatternMatchAssign
   pToken TAssign
   v <- pExpr
+  t <- optional (pToken TColon *> pType)
   case param of
-    Nothing -> return $ (s `union` S.span v) :< Define i v
-    Just param -> return $ (s `union` S.span v) :< Define i ((S.span param `union` S.span v) :< EFun (Just param) v)
+    Nothing -> return $ (s `union` S.span v) :< Define i v t
+    Just param -> return $ (s `union` S.span v) :< Define i ((S.span param `union` S.span v) :< EFun (Just param) v) t
 
 pTypeDefine :: Parser (AST.TypeDefine Span)
 pTypeDefine = do
@@ -188,8 +189,25 @@ postfix token = Postfix (f <$> pToken token)
           (s :< ERef (s :< Identifier (showTToken op)))
           a
 
+typeOperatorTable :: [[Operator Parser (AST.Type Span)]]
+typeOperatorTable =
+  [ [ tBinary TArrow
+    ]
+  ]
+
+tBinary :: TToken -> Operator Parser (AST.Type Span)
+tBinary token = InfixL (f <$> pToken token)
+  where
+    f :: WithSpan TToken -> AST.Type Span -> AST.Type Span -> AST.Type Span
+    f (WithSpan op s) a b =
+      (S.span a `union` S.span b)
+        :< AST.TFun a b
+
 pType :: Parser (AST.Type Span)
-pType =
+pType = makeExprParser pTypeTerm typeOperatorTable
+
+pTypeTerm :: Parser (AST.Type Span)
+pTypeTerm =
   choice
     [ pTVoid,
       pTNull,
@@ -198,7 +216,6 @@ pType =
       pTString,
       pTArrayOrTuple,
       pTObject,
-      pTFun,
       pTRef
     ]
 
@@ -206,24 +223,6 @@ pTRef :: Parser (AST.Type Span)
 pTRef = do
   i <- pIdentifier
   pure $ S.span i :< AST.TRef i
-
-pTFun :: Parser (AST.Type Span)
-pTFun = do
-  f <-
-    choice
-      [ pTVoid,
-        pTNull,
-        pTBool,
-        pTNumber,
-        pTString,
-        pTArrayOrTuple,
-        pTObject,
-        pTFun,
-        pTRef
-      ]
-  pToken TArrow
-  a <- pType
-  pure $ S.span f `union` S.span a :< AST.TFun f a
 
 pTObject :: Parser (AST.Type Span)
 pTObject = do
