@@ -51,25 +51,26 @@ syntaxCheck file src = case parseModule file src of
 pModule :: Parser (Module Span)
 pModule = do
   (WithSpan i s1) <- spanned (pToken TModule *> pIdentifier)
-  imports <- many pImport
-  exports <- many pExport
-  defines <- many pDefine
+  statements <- many pStatement
   (WithSpan _ s2) <- spanned eof
-  return $ (s1 `union` s2) :< Module i imports exports defines
+  return $ (s1 `union` s2) :< Module i statements
 
-pImport :: Parser (Import Span)
+pStatement :: Parser (Statement Span)
+pStatement = choice [pImport, pExport, pDefine, pTypeDefine]
+
+pImport :: Parser (Statement Span)
 pImport = do
   s <- pToken TImport
   i <- pIdentifier
-  return $ (S.span s `union` S.span i) :< Import i
+  return $ (S.span s `union` S.span i) :< SImport i
 
-pExport :: Parser (Export Span)
+pExport :: Parser (Statement Span)
 pExport = do
   s <- pToken TExport
   i <- pIdentifier
-  return $ (S.span s `union` S.span i) :< Export i
+  return $ (S.span s `union` S.span i) :< SExport i
 
-pDefine :: Parser (Define Span)
+pDefine :: Parser (Statement Span)
 pDefine = do
   (WithSpan _ s) <- pToken TDefine
   i <- pIdentifier
@@ -78,16 +79,16 @@ pDefine = do
   v <- pExpr
   t <- optional (pToken TColon *> pType)
   case param of
-    Nothing -> return $ (s `union` S.span v) :< Define i v t
-    Just param -> return $ (s `union` S.span v) :< Define i ((S.span param `union` S.span v) :< EFun (Just param) v) t
+    Nothing -> return $ (s `union` S.span v) :< SDefine i v t
+    Just param -> return $ (s `union` S.span v) :< SDefine i ((S.span param `union` S.span v) :< EFun (Just param) v) t
 
-pTypeDefine :: Parser (AST.TypeDefine Span)
+pTypeDefine :: Parser (Statement Span)
 pTypeDefine = do
   (WithSpan _ s) <- pToken TType
   i <- pIdentifier
   pToken TAssign
   t <- pType
-  pure $ (s `union` S.span t) :< TypeDefine i t
+  pure $ (s `union` S.span t) :< STypeDefine i t
 
 pPatternMatchAssign :: Parser (PatternMatchAssign Span)
 pPatternMatchAssign =

@@ -19,54 +19,35 @@ import Language.Daicker.Span (Span, Spanned, mkSpan, span)
 
 type Module ann = Cofree (Module' ann) ann
 
-data Module' ann a = Module (Identifier ann) [Import ann] [Export ann] [Define ann] deriving (Show, Eq)
+data Module' ann a = Module (Identifier ann) [Statement ann] deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Module' ann) where
-  liftEq _ (Module i1 imports1 exports1 define1) (Module i2 imports2 exports2 define2) =
-    i1 == i2 && imports1 == imports2 && exports1 == exports2 && define1 == define2
+  liftEq _ (Module i1 s1) (Module i2 s2) =
+    i1 == i2 && s1 == s2
 
 instance (Show ann) => Show1 (Module' ann) where
-  liftShowsPrec _ _ _ (Module name i e d) = showString $ "Module " <> show name <> show i <> show e <> show d
+  liftShowsPrec _ _ _ (Module name s) = showString $ "Module " <> show name <> show s
 
-type Import ann = Cofree (Import' ann) ann
+type Statement ann = Cofree (Statement' ann) ann
 
-newtype Import' ann a = Import (Identifier ann) deriving (Show, Eq)
+data Statement' ann a
+  = SImport (Identifier ann)
+  | SExport (Identifier ann)
+  | SDefine (Identifier ann) (Expr ann) (Maybe (Type ann))
+  | STypeDefine (Identifier ann) (Type ann)
+  deriving (Show, Eq)
 
-instance (Eq ann) => Eq1 (Import' ann) where
-  liftEq _ (Import i1) (Import i2) = i1 == i2
+instance (Eq ann) => Eq1 (Statement' ann) where
+  liftEq _ (SImport i1) (SImport i2) = i1 == i2
+  liftEq _ (SExport i1) (SExport i2) = i1 == i2
+  liftEq _ (SDefine i1 e1 t1) (SDefine i2 e2 t2) = i1 == i2 && e1 == e2 && t1 == t2
+  liftEq _ (STypeDefine i1 e1) (STypeDefine i2 e2) = i1 == i2 && e1 == e2
 
-instance (Show ann) => Show1 (Import' ann) where
-  liftShowsPrec _ _ _ (Import i) = showString $ "Import " <> show i
-
-type Export ann = Cofree (Export' ann) ann
-
-newtype Export' ann a = Export (Identifier ann) deriving (Show, Eq)
-
-instance (Eq ann) => Eq1 (Export' ann) where
-  liftEq _ (Export i1) (Export i2) = i1 == i2
-
-instance (Show ann) => Show1 (Export' ann) where
-  liftShowsPrec _ _ _ (Export i) = showString $ "Export " <> show i
-
-type Define ann = Cofree (Define' ann) ann
-
-data Define' ann a = Define (Identifier ann) (Expr ann) (Maybe (Type ann)) deriving (Show, Eq)
-
-instance (Eq ann) => Eq1 (Define' ann) where
-  liftEq _ (Define i1 e1 t1) (Define i2 e2 t2) = i1 == i2 && e1 == e2 && t1 == t2
-
-instance (Show ann) => Show1 (Define' ann) where
-  liftShowsPrec _ _ _ (Define i e t) = showString $ show i <> show e <> show t
-
-type TypeDefine ann = Cofree (TypeDefine' ann) ann
-
-data TypeDefine' ann a = TypeDefine (Identifier ann) (Type ann) deriving (Show, Eq)
-
-instance (Eq ann) => Eq1 (TypeDefine' ann) where
-  liftEq _ (TypeDefine i1 e1) (TypeDefine i2 e2) = i1 == i2 && e1 == e2
-
-instance (Show ann) => Show1 (TypeDefine' ann) where
-  liftShowsPrec _ _ _ (TypeDefine i e) = showString $ show i <> show e
+instance (Show ann) => Show1 (Statement' ann) where
+  liftShowsPrec _ _ _ (SImport i) = showString $ "SImport " <> show i
+  liftShowsPrec _ _ _ (SExport i) = showString $ "SExport " <> show i
+  liftShowsPrec _ _ _ (SDefine i e t) = showString $ show i <> show e <> show t
+  liftShowsPrec _ _ _ (STypeDefine i e) = showString $ show i <> show e
 
 type Type ann = Cofree (Type' ann) ann
 

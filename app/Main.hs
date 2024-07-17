@@ -9,7 +9,7 @@ import Data.Aeson (decode, encode)
 import Data.Aeson.Types (Value)
 import Data.ByteString.Lazy.Char8 (pack, unpack)
 import Data.Maybe (fromMaybe)
-import Language.Daicker.AST (Define' (Define), Expr, Expr' (EArray, EFun, ENull, EString))
+import Language.Daicker.AST (Expr, Expr' (EArray, EFun, ENull, EString), Statement' (SDefine))
 import Language.Daicker.DLS (serve)
 import Language.Daicker.Error (codeErrorListPretty, codeErrorPretty)
 import Language.Daicker.Executor (execDefine, findDefine)
@@ -65,14 +65,14 @@ run fileName funcName args = do
     Right m -> case findDefine funcName m of
       Nothing -> putStrLn $ "not defined: " <> funcName
       -- Requires an argument
-      Just d@(_ :< Define _ (_ :< EFun (Just _) _) _) -> do
+      Just e@(_ :< EFun (Just _) _) -> do
         arg <- case args of
           [] -> do
             input <- getContents
             pure (decode (pack input) :: Maybe (Expr ()))
           args -> do
             pure $ Just $ () :< EArray (map (\arg -> () :< EString arg) args)
-        case execDefine m d arg of
+        case execDefine m e arg of
           Left e -> putStrLn $ codeErrorListPretty e
           Right e -> putStrLn (unpack $ encode e)
       -- No argument

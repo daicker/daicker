@@ -24,12 +24,17 @@ import System.IO (hSetBuffering)
 import qualified System.IO as IO
 import System.Process
 
-findDefine :: String -> Module a -> Maybe (Define a)
-findDefine name (_ :< Module _ _ _ ds) = find (\(_ :< Define (_ :< Identifier n) _ _) -> name == n) ds
+findDefine :: String -> Module a -> Maybe (Expr a)
+findDefine n (_ :< Module _ ss) = expr <$> find (\s -> isDefine s && name s == n) ss
+  where
+    isDefine (_ :< SDefine {}) = True
+    isDefine _ = False
+    name (_ :< SDefine (_ :< Identifier n) _ _) = n
+    expr (_ :< SDefine _ e _) = e
 
-execDefine :: Module Span -> Define Span -> Maybe (Expr ()) -> Either [CodeError] (Expr Span)
-execDefine (_ :< Module _ _ _ ds) (_ :< Define _ e _) Nothing = eval [] e
-execDefine (_ :< Module _ _ _ ds) (_ :< Define _ e _) (Just arg) = eval [] (S.span e :< EApp Nothing e (switchAnn (\_ -> mkSpan "stdin" 1 1 1 2) arg))
+execDefine :: Module Span -> Expr Span -> Maybe (Expr ()) -> Either [CodeError] (Expr Span)
+execDefine (_ :< Module {}) e Nothing = eval [] e
+execDefine (_ :< Module {}) e (Just arg) = eval [] (S.span e :< EApp Nothing e (switchAnn (\_ -> mkSpan "stdin" 1 1 1 2) arg))
 
 switchAnn :: (a -> b) -> Expr a -> Expr b
 switchAnn f e = case e of

@@ -13,21 +13,22 @@ spec :: Spec
 spec = do
   describe "import" $ do
     it "import a" $
-      parseTest pImport "test" "import a" `shouldBe` Right (mkSpan "test" 1 1 1 9 :< Import (mkSpan "test" 1 8 1 9 :< Identifier "a"))
+      parseTest pImport "test" "import a" `shouldBe` Right (mkSpan "test" 1 1 1 9 :< SImport (mkSpan "test" 1 8 1 9 :< Identifier "a"))
   describe "define" $ do
     it "define a = 1" $
       parseTest pDefine "test" "define a = 1"
         `shouldBe` Right
           ( mkSpan "test" 1 1 1 13
-              :< Define
+              :< SDefine
                 (mkSpan "test" 1 8 1 9 :< Identifier "a")
                 (mkSpan "test" 1 12 1 13 :< ENumber 1)
+                Nothing
           )
     it "define f a = a" $
       parseTest pDefine "test" "define f a = a"
         `shouldBe` Right
           ( mkSpan "test" 1 1 1 15
-              :< Define
+              :< SDefine
                 (mkSpan "test" 1 8 1 9 :< Identifier "f")
                 ( mkSpan "test" 1 10 1 15
                     :< EFun
@@ -41,6 +42,7 @@ spec = do
                       )
                       (mkSpan "test" 1 14 1 15 :< ERef (mkSpan "test" 1 14 1 15 :< Identifier "a"))
                 )
+                Nothing
           )
   describe "value parser" $ do
     describe "null" $ do
