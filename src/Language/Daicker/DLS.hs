@@ -27,9 +27,10 @@ import Data.Void (Void)
 import GHC.Generics (Generic)
 import Language.Daicker.Error (CodeError (CodeError))
 import Language.Daicker.Lexer
-import Language.Daicker.Parser (Parser, parseModule, syntaxCheck)
+import Language.Daicker.Parser (Parser, parseModule)
 import Language.Daicker.Span (Span (Span), WithSpan (WithSpan), toRange)
 import qualified Language.Daicker.Span as S
+import Language.Daicker.TypeChecker (validate)
 import Language.LSP.Diagnostics
 import Language.LSP.Logging (defaultClientLogger)
 import Language.LSP.Protocol.Lens (HasSemanticTokens (semanticTokens))
@@ -88,7 +89,7 @@ sendSyntaxError logger msg = do
   logger <& ("Processing DidSaveTextDocument  for: " <> T.pack (show doc)) `WithSeverity` Info
   mdoc <- getVirtualFile doc
   case mdoc of
-    Just file -> sendDiagnostics doc (Just $ virtualFileVersion file) $ syntaxCheck (T.unpack path) (T.unpack $ virtualFileText file)
+    Just file -> sendDiagnostics doc (Just $ virtualFileVersion file) $ validate (T.unpack path) (T.unpack $ virtualFileText file)
     Nothing -> sendDiagnostics doc Nothing []
 
 handle :: (m ~ LspM Config) => L.LogAction m (WithSeverity T.Text) -> Handlers m

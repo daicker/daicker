@@ -1,17 +1,26 @@
 module Language.Daicker.TypeChecker where
 
 import Control.Comonad.Cofree (Cofree ((:<)))
-import Language.Daicker.AST (Module, Module' (..), Statement, Statement' (SDefine))
-import Language.Daicker.Error (CodeError)
+import Control.Monad (join)
+import Language.Daicker.AST
+import Language.Daicker.Error (CodeError (CodeError))
+import Language.Daicker.Executor (findDefine)
+import Language.Daicker.Parser (parseModule)
 import Language.Daicker.Span (Span)
 
-checkModule :: Module Span -> [CodeError]
-checkModule (_ :< Module name statements) = undefined
+validate :: String -> String -> [CodeError]
+validate file src = case parseModule file src of
+  Left es -> es
+  Right m -> validateModule m
 
--- where
---   doubleName = map () $ groupBy (\(Define name1 _) (Define name2 _) -> name1 == name2) defines
+validateModule :: Module Span -> [CodeError]
+validateModule m@(_ :< Module name ss) = join $ map (validateStatement m) ss
 
-checkDefine :: Module Span -> Statement Span -> [CodeError]
-checkDefine = undefined
-
--- inferDefine :: Module Span -> Define Span -> Type ()
+validateStatement :: Module Span -> Statement Span -> [CodeError]
+validateStatement _ (_ :< SImport _) = []
+validateStatement _ (_ :< SExport _) = []
+validateStatement (_ :< Module _ ss) s@(_ :< SDefine (sp :< Identifier name) e t) =
+  case findDefine name (filter (/= s) ss) of
+    Nothing -> []
+    Just _ -> [CodeError ("duplicated function name: " <> name) sp]
+validateStatement _ (s :< STypeDefine name t) = []

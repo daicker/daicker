@@ -24,13 +24,19 @@ import System.IO (hSetBuffering)
 import qualified System.IO as IO
 import System.Process
 
-findDefine :: String -> Module a -> Maybe (Expr a)
-findDefine n (_ :< Module _ ss) = expr <$> find (\s -> isDefine s && name s == n) ss
+findDefine :: String -> [Statement a] -> Maybe (Statement a)
+findDefine n = find (\s -> isDefine s && name s == n)
   where
     isDefine (_ :< SDefine {}) = True
     isDefine _ = False
     name (_ :< SDefine (_ :< Identifier n) _ _) = n
-    expr (_ :< SDefine _ e _) = e
+
+findType :: String -> [Statement a] -> Maybe (Statement a)
+findType n = find (\s -> isType s && name s == n)
+  where
+    isType (_ :< STypeDefine {}) = True
+    isType _ = False
+    name (_ :< STypeDefine (_ :< Identifier n) _) = n
 
 execDefine :: Module Span -> Expr Span -> Maybe (Expr ()) -> Either [CodeError] (Expr Span)
 execDefine (_ :< Module {}) e Nothing = eval [] e

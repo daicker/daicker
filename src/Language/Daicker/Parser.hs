@@ -43,11 +43,6 @@ parseModule fileName src =
         Right m -> pure m
         Left e -> Left [fromParseErrorBundle e]
 
-syntaxCheck :: String -> String -> [CodeError]
-syntaxCheck file src = case parseModule file src of
-  Left es -> es
-  Right _ -> []
-
 pModule :: Parser (Module Span)
 pModule = do
   (WithSpan i s1) <- spanned (pToken TModule *> pIdentifier)

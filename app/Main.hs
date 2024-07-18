@@ -9,12 +9,12 @@ import Data.Aeson (decode, encode)
 import Data.Aeson.Types (Value)
 import Data.ByteString.Lazy.Char8 (pack, unpack)
 import Data.Maybe (fromMaybe)
-import Language.Daicker.AST (Expr, Expr' (EArray, EFun, ENull, EString), Statement' (SDefine))
+import Language.Daicker.AST (Expr, Expr' (EArray, EFun, ENull, EString), Module, Module' (Module), Statement' (SDefine))
 import Language.Daicker.DLS (serve)
 import Language.Daicker.Error (codeErrorListPretty, codeErrorPretty)
 import Language.Daicker.Executor (execDefine, findDefine)
 import Language.Daicker.Lexer (mkTStream)
-import Language.Daicker.Parser (pModule, parseModule, syntaxCheck)
+import Language.Daicker.Parser (pModule, parseModule)
 import Options.Applicative
 import System.IO.Error.Lens (fileName)
 import Text.Megaparsec (parse, parseErrorPretty)
@@ -62,10 +62,10 @@ run fileName funcName args = do
   src <- readFile fileName
   case parseModule fileName src of
     Left e -> putStrLn $ codeErrorListPretty e
-    Right m -> case findDefine funcName m of
+    Right m@(_ :< Module _ ss) -> case findDefine funcName ss of
       Nothing -> putStrLn $ "not defined: " <> funcName
       -- Requires an argument
-      Just e@(_ :< EFun (Just _) _) -> do
+      Just (_ :< SDefine _ e@(_ :< EFun (Just _) _) _) -> do
         arg <- case args of
           [] -> do
             input <- getContents
@@ -76,7 +76,7 @@ run fileName funcName args = do
           Left e -> putStrLn $ codeErrorListPretty e
           Right e -> putStrLn (unpack $ encode e)
       -- No argument
-      Just d -> case execDefine m d Nothing of
+      Just (_ :< SDefine _ e _) -> case execDefine m e Nothing of
         Left e -> putStrLn $ codeErrorListPretty e
         Right e -> putStrLn (unpack $ encode e)
 
