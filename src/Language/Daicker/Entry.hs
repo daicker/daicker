@@ -4,6 +4,7 @@ import Control.Comonad.Cofree (Cofree (..))
 import Control.Monad (liftM)
 import Control.Monad.Except (ExceptT, MonadError (throwError), liftEither)
 import Control.Monad.IO.Class (liftIO)
+import Data.Sequence (mapWithIndex)
 import Language.Daicker.AST (Expr, Expr' (EArray, EFun), Module, Module' (..), Statement' (SDefine), switchAnn)
 import Language.Daicker.CmdArgParser (parseArg)
 import Language.Daicker.Error (CodeError (CodeError))
@@ -36,5 +37,5 @@ run fileName funcName args = do
     Just f -> return f
   hasStdin <- liftIO $ hReady stdin
   input <- liftIO $ if hasStdin then Just <$> getContents else pure Nothing
-  es <- liftEither $ mapM (parseArg "command_line_arg" input) args
-  liftEither $ execDefine m e (() :< EArray (map (switchAnn (const ())) es))
+  es <- liftEither $ mapM (\(i, arg) -> parseArg ("arg@" <> show i) input arg) $ zip [1 ..] args
+  liftEither $ execDefine m e es

@@ -38,8 +38,8 @@ findType n = find (\s -> isType s && name s == n)
     isType _ = False
     name (_ :< STypeDefine (_ :< Identifier n) _) = n
 
-execDefine :: Module Span -> Expr Span -> Expr () -> Either [CodeError] (Expr Span)
-execDefine (_ :< Module {}) e arg = eval [] (S.span e :< EApp Nothing e (switchAnn (\_ -> mkSpan "stdin" 1 1 1 2) arg))
+execDefine :: Module Span -> Expr Span -> [Expr Span] -> Either [CodeError] (Expr Span)
+execDefine (_ :< Module {}) e args = eval [] (S.span e :< EApp Nothing e args)
 
 eval :: [(String, Expr Span)] -> Expr Span -> Either [CodeError] (Expr Span)
 eval vars v = case v of
@@ -48,21 +48,21 @@ eval vars v = case v of
   s :< ERef (_ :< Identifier i) -> case lookup i vars of
     Just a -> eval vars a
     Nothing -> Left [CodeError ("not defined: " <> i) s]
-  s :< EApp image a0@(_ :< ERef (_ :< Identifier i)) arg -> do
-    arg <- eval vars arg
+  s :< EApp image a0@(_ :< ERef (_ :< Identifier i)) args -> do
+    args <- mapM (eval vars) args
     case lookup i stdLib of
-      Just f -> Right $ f image arg
+      Just f -> Right $ f image args
       Nothing -> case eval vars a0 of
-        Right (s :< EFun (Just pm) e) -> do
-          args <- patternMatch pm arg
-          eval (vars <> args) e
+        Right (s :< EFun pms e) -> do
+          args <- zipWithM patternMatch pms args
+          eval (vars <> join args) e
         err -> err
-  s :< EApp _ f arg -> do
-    arg <- eval vars arg
+  s :< EApp _ f args -> do
+    args <- mapM (eval vars) args
     case eval vars f of
-      Right (s :< EFun (Just pm) e) -> do
-        args <- patternMatch pm arg
-        eval (vars <> args) e
+      Right (s :< EFun pms e) -> do
+        args <- zipWithM patternMatch pms args
+        eval (vars <> join args) e
       err -> err
   s :< EProperty e (_ :< Identifier i1) -> do
     case eval vars e of
@@ -86,10 +86,10 @@ patternMatch pma e = case pma of
         Nothing -> Left [CodeError ("not found key: " <> i1) s]
         Just (_, e) -> patternMatch a e
 
-stdLib :: [(String, Maybe (EImage Span) -> Expr Span -> Expr Span)]
+stdLib :: [(String, Maybe (EImage Span) -> [Expr Span] -> Expr Span)]
 stdLib =
   [ ( "$",
-      \image (_ :< EArray strings) -> do
+      \image strings -> do
         let cmds = map (\(_ :< EString s) -> s) strings
         let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
         let (CommandResult i out err) = case image of
@@ -103,7 +103,7 @@ stdLib =
             ]
     ),
     ( "$1",
-      \image (_ :< EArray strings) -> do
+      \image strings -> do
         let cmds = map (\(_ :< EString s) -> s) strings
         let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
         let (CommandResult _ out _) = case image of
@@ -112,7 +112,7 @@ stdLib =
         sp :< EString out
     ),
     ( "$2",
-      \image (_ :< EArray strings) -> do
+      \image strings -> do
         let cmds = map (\(_ :< EString s) -> s) strings
         let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
         let (CommandResult _ _ err) = case image of
@@ -121,17 +121,17 @@ stdLib =
         sp :< EString err
     ),
     ( ";",
-      \_ (s :< EArray [e1, e2]) -> unsafePerformIO $ do
+      \_ [e1, e2] -> unsafePerformIO $ do
         _ <- pure e1 -- execute forcibly
         pure e2
     ),
     ( "|>",
-      \_ (s :< EArray [e1, e2]) -> s :< EApp Nothing e1 e2
+      \_ [e1@(s1 :< _), e2@(s2 :< _)] -> s1 `S.union` s2 :< EApp Nothing e1 [e2]
     ),
-    ("+", \_ (_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 `union` s2) :< ENumber (a + b)),
-    ("-", \_ (_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 `union` s2) :< ENumber (a - b)),
-    ("*", \_ (_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 `union` s2) :< ENumber (a * b)),
-    ("/", \_ (_ :< EArray [s1 :< ENumber a, s2 :< ENumber b]) -> (s1 `union` s2) :< ENumber (a / b))
+    ("+", \_ [s1 :< ENumber a, s2 :< ENumber b] -> (s1 `union` s2) :< ENumber (a + b)),
+    ("-", \_ [s1 :< ENumber a, s2 :< ENumber b] -> (s1 `union` s2) :< ENumber (a - b)),
+    ("*", \_ [s1 :< ENumber a, s2 :< ENumber b] -> (s1 `union` s2) :< ENumber (a * b)),
+    ("/", \_ [s1 :< ENumber a, s2 :< ENumber b] -> (s1 `union` s2) :< ENumber (a / b))
   ]
   where
     exitCodeToInt :: ExitCode -> Int

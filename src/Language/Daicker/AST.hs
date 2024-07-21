@@ -108,8 +108,8 @@ data Expr' ann a
   | ERef (Identifier ann)
   | EProperty a (Identifier ann)
   | EElement a (Index ann)
-  | EApp (Maybe (EImage ann)) a a
-  | EFun (Maybe (PatternMatchAssign ann)) a
+  | EApp (Maybe (EImage ann)) a [a]
+  | EFun [PatternMatchAssign ann] a
   deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Expr' ann) where
@@ -121,7 +121,7 @@ instance (Eq ann) => Eq1 (Expr' ann) where
   liftEq f (EObject a) (EObject b) = length a == length b && all (\((ka, va), (kb, vb)) -> ka == kb && f va vb) (zip a b)
   liftEq _ (ERef a) (ERef b) = a == b
   liftEq f (EProperty a1 i1) (EProperty a2 i2) = f a1 a2 && i1 == i2
-  liftEq f (EApp c1 f1 a1) (EApp c2 f2 a2) = c1 == c2 && f f1 f2 && f a1 a2
+  liftEq f (EApp c1 f1 a1) (EApp c2 f2 a2) = c1 == c2 && f f1 f2 && length a1 == length a2 && all (uncurry f) (zip a1 a2)
   liftEq f (EFun arg1 e1) (EFun arg2 e2) = arg1 == arg2 && f e1 e2
   liftEq _ _ _ = False
 
@@ -138,7 +138,7 @@ instance (Show ann) => Show1 (Expr' ann) where
         (map (\(i, a) -> showString "(" <> showString (show i) <> showString ", " <> f n a <> showString ")") vs)
       <> showString "]"
   liftShowsPrec _ _ _ (ERef i) = showString "ERef " <> showString (show i)
-  liftShowsPrec f _ n (EApp img a b) = showString "EApp " <> showString (show img) <> f n a <> f n b
+  liftShowsPrec f f' n (EApp img a as) = showString "EApp " <> showString (show img) <> f n a <> f' as
   liftShowsPrec f _ n (EProperty a i) = showString "EProperty " <> f n a <> showString (show i)
   liftShowsPrec f _ n (EFun pma e) = showString "EFun " <> showString (show pma) <> f n e
 

@@ -69,13 +69,13 @@ pDefine :: Parser (Statement Span)
 pDefine = do
   (WithSpan _ s) <- pToken TDefine
   i <- pIdentifier
-  param <- optional pPatternMatchAssign
+  params <- many pPatternMatchAssign
   pToken TAssign
   v <- pExpr
   t <- optional (pToken TColon *> pType)
-  case param of
-    Nothing -> return $ (s `union` S.span v) :< SDefine i v t
-    Just param -> return $ (s `union` S.span v) :< SDefine i ((S.span param `union` S.span v) :< EFun (Just param) v) t
+  case params of
+    [] -> return $ (s `union` S.span v) :< SDefine i v t
+    params -> return $ (s `union` S.span v) :< SDefine i ((S.span (head params) `union` S.span v) :< EFun params v) t
 
 pTypeDefine :: Parser (Statement Span)
 pTypeDefine = do
@@ -94,10 +94,8 @@ pPatternMatchAssign =
     ]
   where
     anyValuePattern = do
-      (WithSpan is s) <- spanned $ some pIdentifier
-      case is of
-        [i] -> return $ S.span i :< PMAAnyValue i
-        is -> return $ s :< PMAArray (map (\i@(s :< Identifier _) -> s :< PMAAnyValue i) is)
+      (WithSpan i s) <- spanned $ pIdentifier
+      return $ s :< PMAAnyValue i
     arrayPattern = do
       (WithSpan pmas s) <-
         spanned $
@@ -161,7 +159,7 @@ binary token = InfixL (f <$> pToken token)
         :< EApp
           Nothing
           (s :< ERef (s :< Identifier (showTToken op)))
-          ((S.span a `union` S.span b) :< EArray [a, b])
+          [a, b]
 
 prefix :: TToken -> Operator Parser (Expr Span)
 prefix token = Prefix (f <$> pToken token)
@@ -172,7 +170,7 @@ prefix token = Prefix (f <$> pToken token)
         :< EApp
           Nothing
           (s :< ERef (s :< Identifier (showTToken op)))
-          a
+          [a]
 
 postfix :: TToken -> Operator Parser (Expr Span)
 postfix token = Postfix (f <$> pToken token)
@@ -183,7 +181,7 @@ postfix token = Postfix (f <$> pToken token)
         :< EApp
           Nothing
           (s :< ERef (s :< Identifier (showTToken op)))
-          a
+          [a]
 
 typeOperatorTable :: [[Operator Parser (AST.Type Span)]]
 typeOperatorTable =
@@ -290,14 +288,12 @@ pExpr = makeExprParser pExpr' exprOperatorTable <?> "expr"
           terms <- some pTerm <?> "expr"
           case terms of
             [e] -> pure e
-            [f, a] -> pure $ S.span f `union` S.span a :< EApp Nothing f a
-            f : es -> pure $ foldl1 union (map S.span (f : es)) :< EApp Nothing f (foldl1 union (map S.span es) :< EArray es)
+            f : es -> pure $ foldl1 union (map S.span (f : es)) :< EApp Nothing f es
         Just (s :< Identifier i) -> do
           terms <- some pTerm <?> "expr"
           case terms of
             [e] -> pure e
-            [f, a] -> pure $ s `union` S.span a :< EApp (Just (s :< Identifier i)) f a
-            f : es -> pure $ s `union` foldl1 union (map S.span (f : es)) :< EApp (Just (s :< Identifier i)) f (foldl1 union (map S.span es) :< EArray es)
+            f : es -> pure $ s `union` foldl1 union (map S.span (f : es)) :< EApp (Just (s :< Identifier i)) f es
 
 pTerm :: Parser (Expr Span)
 pTerm = makeExprParser pValue termOperatorTable <?> "term"
@@ -393,10 +389,10 @@ pExpr' = do
 pFunc :: Parser (Expr Span)
 pFunc = do
   (WithSpan _ s) <- pToken TBackslash
-  arg <- optional pPatternMatchAssign
+  args <- many pPatternMatchAssign
   pToken TArrow
   v <- pExpr
-  return $ (s `union` S.span v) :< EFun arg v
+  return $ (s `union` S.span v) :< EFun args v
 
 pIdentifier :: Parser (Identifier Span)
 pIdentifier = token test Set.empty <?> "identifier"
