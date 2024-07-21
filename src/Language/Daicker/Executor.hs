@@ -38,7 +38,7 @@ findType n = find (\s -> isType s && name s == n)
     isType _ = False
     name (_ :< STypeDefine (_ :< Identifier n) _) = n
 
-execDefine :: Module Span -> Expr Span -> [Expr Span] -> Either [CodeError] (Expr Span)
+execDefine :: Module Span -> Expr Span -> [(Expr Span, Expansion)] -> Either [CodeError] (Expr Span)
 execDefine (_ :< Module {}) e args = eval [] (S.span e :< EApp Nothing e args)
 
 eval :: [(String, Expr Span)] -> Expr Span -> Either [CodeError] (Expr Span)
@@ -49,20 +49,34 @@ eval vars v = case v of
     Just a -> eval vars a
     Nothing -> Left [CodeError ("not defined: " <> i) s]
   s :< EApp image a0@(_ :< ERef (_ :< Identifier i)) args -> do
-    args <- mapM (eval vars) args
+    args <-
+      mapM
+        ( \(e, expansion) ->
+            if expansion
+              then expand <$> eval vars e
+              else (: []) <$> eval vars e
+        )
+        args
     case lookup i stdLib of
-      Just f -> Right $ f image args
+      Just f -> Right $ f image (join args)
       Nothing -> case eval vars a0 of
         Right (s :< EFun pms e) -> do
-          args <- zipWithM patternMatch pms args
-          eval (vars <> join args) e
+          args <- patternMatch pms (join args)
+          eval (vars <> args) e
         err -> err
   s :< EApp _ f args -> do
-    args <- mapM (eval vars) args
+    args <-
+      mapM
+        ( \(e, expansion) ->
+            if expansion
+              then expand <$> eval vars e
+              else (: []) <$> eval vars e
+        )
+        args
     case eval vars f of
       Right (s :< EFun pms e) -> do
-        args <- zipWithM patternMatch pms args
-        eval (vars <> join args) e
+        args <- patternMatch pms (join args)
+        eval (vars <> args) e
       err -> err
   s :< EProperty e (_ :< Identifier i1) -> do
     case eval vars e of
@@ -71,12 +85,18 @@ eval vars v = case v of
         Nothing -> pure $ s :< ENull
       Right (s :< _) -> Left [CodeError "Accessors can only be used on objects" s]
   v -> Right v
+  where
+    expand (_ :< EArray es) = es
 
-patternMatch :: PatternMatchAssign Span -> Expr Span -> Either [CodeError] [(String, Expr Span)]
-patternMatch pma e = case pma of
+patternMatch :: [PatternMatchAssign Span] -> [Expr Span] -> Either [CodeError] [(String, Expr Span)]
+patternMatch [s :< PMAVarLenAnyValue (_ :< Identifier i)] es = pure [(i, s :< EArray es)]
+patternMatch (pma : pmas) (e : es) = patternMatchOne pma e <> patternMatch pmas es
+
+patternMatchOne :: PatternMatchAssign Span -> Expr Span -> Either [CodeError] [(String, Expr Span)]
+patternMatchOne pma e = case pma of
   _ :< PMAAnyValue (_ :< Identifier i) -> pure [(i, e)]
   _ :< PMAArray as -> case e of
-    (_ :< EArray vs) -> concat <$> zipWithM patternMatch as vs
+    (_ :< EArray vs) -> concat <$> zipWithM patternMatchOne as vs
     (s :< _) -> Left [CodeError "pattern match: unexpected type" s]
   _ :< PMAObject as -> case e of
     (s :< EObject es) -> concat <$> mapM (uncurry $ objectMatch es) as
@@ -84,7 +104,7 @@ patternMatch pma e = case pma of
     where
       objectMatch es (s :< Identifier i1) a = case find (\(s :< Identifier i2, _) -> i1 == i2) es of
         Nothing -> Left [CodeError ("not found key: " <> i1) s]
-        Just (_, e) -> patternMatch a e
+        Just (_, e) -> patternMatchOne a e
 
 stdLib :: [(String, Maybe (EImage Span) -> [Expr Span] -> Expr Span)]
 stdLib =
@@ -126,7 +146,7 @@ stdLib =
         pure e2
     ),
     ( "|>",
-      \_ [e1@(s1 :< _), e2@(s2 :< _)] -> s1 `S.union` s2 :< EApp Nothing e1 [e2]
+      \_ [e1@(s1 :< _), e2@(s2 :< _)] -> s1 `S.union` s2 :< EApp Nothing e1 [(e2, False)]
     ),
     ("+", \_ [s1 :< ENumber a, s2 :< ENumber b] -> (s1 `union` s2) :< ENumber (a + b)),
     ("-", \_ [s1 :< ENumber a, s2 :< ENumber b] -> (s1 `union` s2) :< ENumber (a - b)),

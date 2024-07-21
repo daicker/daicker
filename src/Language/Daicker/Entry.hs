@@ -38,4 +38,4 @@ run fileName funcName args = do
   hasStdin <- liftIO $ hReady stdin
   input <- liftIO $ if hasStdin then Just <$> getContents else pure Nothing
   es <- liftEither $ mapM (\(i, arg) -> parseArg ("command-line-argument($" <> show i <> ")") input arg) $ zip [1 ..] args
-  liftEither $ execDefine m e es
+  liftEither $ execDefine m e (map (\e -> (e, False)) es)

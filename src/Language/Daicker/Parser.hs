@@ -89,12 +89,17 @@ pPatternMatchAssign :: Parser (PatternMatchAssign Span)
 pPatternMatchAssign =
   choice
     [ anyValuePattern,
+      varLenValuePattern,
       arrayPattern,
       objectPattern
     ]
   where
     anyValuePattern = do
-      (WithSpan i s) <- spanned $ pIdentifier
+      (WithSpan i s) <- spanned pIdentifier
+      return $ s :< PMAAnyValue i
+    varLenValuePattern = do
+      pToken T3Dots
+      (WithSpan i s) <- spanned pIdentifier
       return $ s :< PMAAnyValue i
     arrayPattern = do
       (WithSpan pmas s) <-
@@ -159,7 +164,7 @@ binary token = InfixL (f <$> pToken token)
         :< EApp
           Nothing
           (s :< ERef (s :< Identifier (showTToken op)))
-          [a, b]
+          [(a, False), (b, False)]
 
 prefix :: TToken -> Operator Parser (Expr Span)
 prefix token = Prefix (f <$> pToken token)
@@ -170,7 +175,7 @@ prefix token = Prefix (f <$> pToken token)
         :< EApp
           Nothing
           (s :< ERef (s :< Identifier (showTToken op)))
-          [a]
+          [(a, False)]
 
 postfix :: TToken -> Operator Parser (Expr Span)
 postfix token = Postfix (f <$> pToken token)
@@ -181,7 +186,7 @@ postfix token = Postfix (f <$> pToken token)
         :< EApp
           Nothing
           (s :< ERef (s :< Identifier (showTToken op)))
-          [a]
+          [(a, False)]
 
 typeOperatorTable :: [[Operator Parser (AST.Type Span)]]
 typeOperatorTable =
@@ -283,17 +288,22 @@ pExpr = makeExprParser pExpr' exprOperatorTable <?> "expr"
   where
     pExpr' = do
       img <- optional pImage
+      terms <- some $ do
+        expand <- optional $ pToken T3Dots
+        expand <- pure $ case expand of
+          Just _ -> True
+          Nothing -> False
+        term <- pTerm <?> "expr"
+        pure (term, expand)
       case img of
         Nothing -> do
-          terms <- some pTerm <?> "expr"
           case terms of
-            [e] -> pure e
-            f : es -> pure $ foldl1 union (map S.span (f : es)) :< EApp Nothing f es
+            [(e, _)] -> pure e
+            (f, _) : es -> pure $ S.span f `union` S.span (fst $ last es) :< EApp Nothing f es
         Just (s :< Identifier i) -> do
-          terms <- some pTerm <?> "expr"
           case terms of
-            [e] -> pure e
-            f : es -> pure $ s `union` foldl1 union (map S.span (f : es)) :< EApp (Just (s :< Identifier i)) f es
+            [(e, _)] -> pure e
+            (f, _) : es -> pure $ s `union` S.span (fst $ last es) :< EApp (Just (s :< Identifier i)) f es
 
 pTerm :: Parser (Expr Span)
 pTerm = makeExprParser pValue termOperatorTable <?> "term"
