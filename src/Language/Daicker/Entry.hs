@@ -10,7 +10,7 @@ import Language.Daicker.CmdArgParser (parseArg)
 import Language.Daicker.Error (CodeError (CodeError))
 import Language.Daicker.Executor (execDefine, findDefine)
 import Language.Daicker.Parser (parseModule)
-import Language.Daicker.Span (Span)
+import Language.Daicker.Span (Span, mkSpan)
 import Language.Daicker.TypeChecker (validateModule)
 import System.IO (hGetContents, hReady, stdin)
 
@@ -33,7 +33,7 @@ run fileName funcName args = do
     [] -> Right ()
     es -> Left es
   (_ :< SDefine _ e _) <- case findDefine funcName ss of
-    Nothing -> throwError [CodeError "" undefined]
+    Nothing -> throwError [CodeError ("not found: " <> funcName) (mkSpan "command-line-function" 1 1 1 1)]
     Just f -> return f
   hasStdin <- liftIO $ hReady stdin
   input <- liftIO $ if hasStdin then Just <$> getContents else pure Nothing
