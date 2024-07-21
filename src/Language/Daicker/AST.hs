@@ -232,3 +232,12 @@ instance FromJSON (Expr ()) where
         <$> mapM
           (\(k, v) -> (,) (() :< Identifier (K.toString k)) <$> parseJSON v)
           (KM.toList vs)
+
+switchAnn :: (a -> b) -> Expr a -> Expr b
+switchAnn f e = case e of
+  (ann :< ENull) -> f ann :< ENull
+  (ann :< EBool v) -> f ann :< EBool v
+  (ann :< ENumber v) -> f ann :< ENumber v
+  (ann :< EString v) -> f ann :< EString v
+  (ann :< EArray es) -> f ann :< EArray (map (switchAnn f) es)
+  (ann :< EObject es) -> f ann :< EObject (map (\(ann1 :< Identifier i, e) -> (f ann1 :< Identifier i, switchAnn f e)) es)

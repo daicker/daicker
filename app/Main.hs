@@ -4,6 +4,7 @@ module Main where
 
 import Control.Comonad.Cofree
 import Control.Monad (join, void)
+import Control.Monad.Except (runExceptT)
 import Control.Monad.Writer.Strict
 import Data.Aeson (decode, encode)
 import Data.Aeson.Types (Value)
@@ -11,11 +12,13 @@ import Data.ByteString.Lazy.Char8 (pack, unpack)
 import Data.Maybe (fromMaybe)
 import Language.Daicker.AST (Expr, Expr' (EArray, EFun, ENull, EString), Module, Module' (Module), Statement' (SDefine))
 import Language.Daicker.DLS (serve)
+import qualified Language.Daicker.Entry as E
 import Language.Daicker.Error (codeErrorListPretty, codeErrorPretty)
 import Language.Daicker.Executor (execDefine, findDefine)
 import Language.Daicker.Lexer (mkTStream)
 import Language.Daicker.Parser (pModule, parseModule)
 import Options.Applicative
+import System.IO (hGetContents, hIsClosed, hIsOpen, hPutStrLn, hReady, hWaitForInput, stderr, stdin)
 import System.IO.Error.Lens (fileName)
 import Text.Megaparsec (parse, parseErrorPretty)
 
@@ -24,9 +27,9 @@ opts =
   subparser
     ( command "serve" (info (pure $ void serve) (progDesc "Run daicker language server"))
         <> command
-          "valid"
+          "check"
           ( info
-              (valid <$> fileOpt)
+              (validate <$> fileOpt)
               (progDesc "Validate daicker file")
           )
         <> command
@@ -50,35 +53,19 @@ fileOpt =
         <> value "main.daic"
     )
 
-valid :: String -> IO ()
-valid fileName = do
-  src <- readFile fileName
-  case parseModule fileName src of
-    Right m -> pure ()
-    Left e -> putStrLn $ codeErrorListPretty e
+validate :: String -> IO ()
+validate fileName = do
+  res <- E.validate fileName
+  case res of
+    [] -> hPutStrLn stderr "The module is valid!"
+    es -> hPutStrLn stderr $ codeErrorListPretty es
 
 run :: String -> String -> [String] -> IO ()
 run fileName funcName args = do
-  src <- readFile fileName
-  case parseModule fileName src of
-    Left e -> putStrLn $ codeErrorListPretty e
-    Right m@(_ :< Module _ ss) -> case findDefine funcName ss of
-      Nothing -> putStrLn $ "not defined: " <> funcName
-      -- Requires an argument
-      Just (_ :< SDefine _ e@(_ :< EFun (Just _) _) _) -> do
-        arg <- case args of
-          [] -> do
-            input <- getContents
-            pure (decode (pack input) :: Maybe (Expr ()))
-          args -> do
-            pure $ Just $ () :< EArray (map (\arg -> () :< EString arg) args)
-        case execDefine m e arg of
-          Left e -> putStrLn $ codeErrorListPretty e
-          Right e -> putStrLn (unpack $ encode e)
-      -- No argument
-      Just (_ :< SDefine _ e _) -> case execDefine m e Nothing of
-        Left e -> putStrLn $ codeErrorListPretty e
-        Right e -> putStrLn (unpack $ encode e)
+  res <- runExceptT (E.run fileName funcName args)
+  case res of
+    Left e -> hPutStrLn stderr $ codeErrorListPretty e
+    Right e -> putStrLn (unpack $ encode e)
 
 main :: IO ()
 main = join $ execParser (info (opts <**> helper) idm)

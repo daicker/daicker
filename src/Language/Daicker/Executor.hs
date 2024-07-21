@@ -38,24 +38,8 @@ findType n = find (\s -> isType s && name s == n)
     isType _ = False
     name (_ :< STypeDefine (_ :< Identifier n) _) = n
 
-execDefine :: Module Span -> Expr Span -> Maybe (Expr ()) -> Either [CodeError] (Expr Span)
-execDefine (_ :< Module {}) e Nothing = eval [] e
-execDefine (_ :< Module {}) e (Just arg) = eval [] (S.span e :< EApp Nothing e (switchAnn (\_ -> mkSpan "stdin" 1 1 1 2) arg))
-
-switchAnn :: (a -> b) -> Expr a -> Expr b
-switchAnn f e = case e of
-  (ann :< ENull) -> f ann :< ENull
-  (ann :< EBool v) -> f ann :< EBool v
-  (ann :< ENumber v) -> f ann :< ENumber v
-  (ann :< EString v) -> f ann :< EString v
-  (ann :< EArray es) -> f ann :< EArray (map (switchAnn f) es)
-  (ann :< EObject es) -> f ann :< EObject (map (\(ann1 :< Identifier i, e) -> (f ann1 :< Identifier i, switchAnn f e)) es)
-
--- (ann :< ERef (Identifier i ann1)) -> f ann :< ERef (Identifier i (f ann1))
--- (ann :< EApp (Just (Identifier i ann1)) a b) -> f ann :< EApp (Just $ Identifier i (f ann1)) (switchAnn f a) (switchAnn f b)
--- (ann :< EApp Nothing a b) -> f ann :< EApp Nothing (switchAnn f a) (switchAnn f b)
--- (ann :< EFun (Just (Identifier i a)) e) -> f ann :< EFun (Just (Identifier i (f a))) (switchAnn f e)
--- (ann :< EFun Nothing e) -> f ann :< EFun Nothing (switchAnn f e)
+execDefine :: Module Span -> Expr Span -> Expr () -> Either [CodeError] (Expr Span)
+execDefine (_ :< Module {}) e arg = eval [] (S.span e :< EApp Nothing e (switchAnn (\_ -> mkSpan "stdin" 1 1 1 2) arg))
 
 eval :: [(String, Expr Span)] -> Expr Span -> Either [CodeError] (Expr Span)
 eval vars v = case v of

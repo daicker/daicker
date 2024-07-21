@@ -8,11 +8,6 @@ import Language.Daicker.Executor (findDefine)
 import Language.Daicker.Parser (parseModule)
 import Language.Daicker.Span (Span)
 
-validate :: String -> String -> [CodeError]
-validate file src = case parseModule file src of
-  Left es -> es
-  Right m -> validateModule m
-
 validateModule :: Module Span -> [CodeError]
 validateModule m@(_ :< Module name ss) = join $ map (validateStatement m) ss
 
