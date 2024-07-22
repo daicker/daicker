@@ -47,7 +47,7 @@ pBool = do
   return $ s :< EBool b
 
 pNumber :: CmdArgParser (Expr Span)
-pNumber = do
+pNumber = try $ do
   (WithSpan n s) <- withSpan $ L.signed sc L.scientific
   return $ s :< ENumber n
 

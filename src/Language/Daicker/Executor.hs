@@ -60,8 +60,8 @@ eval vars v = case v of
     case lookup i stdLib of
       Just f -> Right $ f image (join args)
       Nothing -> case eval vars a0 of
-        Right (s :< EFun pms e) -> do
-          args <- patternMatch pms (join args)
+        Right (s :< EFun pms e ex) -> do
+          args <- patternMatch ex pms (join args)
           eval (vars <> args) e
         err -> err
   s :< EApp _ f args -> do
@@ -74,8 +74,8 @@ eval vars v = case v of
         )
         args
     case eval vars f of
-      Right (s :< EFun pms e) -> do
-        args <- patternMatch pms (join args)
+      Right (s :< EFun pms e ex) -> do
+        args <- patternMatch ex pms (join args)
         eval (vars <> args) e
       err -> err
   s :< EProperty e (_ :< Identifier i1) -> do
@@ -88,9 +88,10 @@ eval vars v = case v of
   where
     expand (_ :< EArray es) = es
 
-patternMatch :: [PatternMatchAssign Span] -> [Expr Span] -> Either [CodeError] [(String, Expr Span)]
-patternMatch [s :< PMAVarLenAnyValue (_ :< Identifier i)] es = pure [(i, s :< EArray es)]
-patternMatch (pma : pmas) (e : es) = patternMatchOne pma e <> patternMatch pmas es
+patternMatch :: Bool -> [PatternMatchAssign Span] -> [Expr Span] -> Either [CodeError] [(String, Expr Span)]
+patternMatch True [_ :< PMAAnyValue (_ :< Identifier i)] es = pure [(i, S.span (head es) `union` S.span (last es) :< EArray es)]
+patternMatch ex (pma : pmas) (e : es) = patternMatchOne pma e <> patternMatch ex pmas es
+patternMatch _ [] [] = pure []
 
 patternMatchOne :: PatternMatchAssign Span -> Expr Span -> Either [CodeError] [(String, Expr Span)]
 patternMatchOne pma e = case pma of

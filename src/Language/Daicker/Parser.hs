@@ -5,6 +5,7 @@ import Control.Monad (void)
 import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
 import Data.Functor.Identity (Identity)
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.Maybe (isJust)
 import Data.Scientific (toRealFloat)
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -70,12 +71,13 @@ pDefine = do
   (WithSpan _ s) <- pToken TDefine
   i <- pIdentifier
   params <- many pPatternMatchAssign
+  extends <- optional $ pToken T3Dots
   pToken TAssign
   v <- pExpr
   t <- optional (pToken TColon *> pType)
   case params of
     [] -> return $ (s `union` S.span v) :< SDefine i v t
-    params -> return $ (s `union` S.span v) :< SDefine i ((S.span (head params) `union` S.span v) :< EFun params v) t
+    params -> return $ (s `union` S.span v) :< SDefine i ((S.span (head params) `union` S.span v) :< EFun params v (isJust extends)) t
 
 pTypeDefine :: Parser (Statement Span)
 pTypeDefine = do
@@ -89,16 +91,11 @@ pPatternMatchAssign :: Parser (PatternMatchAssign Span)
 pPatternMatchAssign =
   choice
     [ anyValuePattern,
-      varLenValuePattern,
       arrayPattern,
       objectPattern
     ]
   where
     anyValuePattern = do
-      (WithSpan i s) <- spanned pIdentifier
-      return $ s :< PMAAnyValue i
-    varLenValuePattern = do
-      pToken T3Dots
       (WithSpan i s) <- spanned pIdentifier
       return $ s :< PMAAnyValue i
     arrayPattern = do
@@ -289,12 +286,9 @@ pExpr = makeExprParser pExpr' exprOperatorTable <?> "expr"
     pExpr' = do
       img <- optional pImage
       terms <- some $ do
-        expand <- optional $ pToken T3Dots
-        expand <- pure $ case expand of
-          Just _ -> True
-          Nothing -> False
         term <- pTerm <?> "expr"
-        pure (term, expand)
+        expand <- optional $ pToken T3Dots
+        pure (term, isJust expand)
       case img of
         Nothing -> do
           case terms of
@@ -400,9 +394,10 @@ pFunc :: Parser (Expr Span)
 pFunc = do
   (WithSpan _ s) <- pToken TBackslash
   args <- many pPatternMatchAssign
+  extends <- optional $ pToken T3Dots
   pToken TArrow
   v <- pExpr
-  return $ (s `union` S.span v) :< EFun args v
+  return $ (s `union` S.span v) :< EFun args v (isJust extends)
 
 pIdentifier :: Parser (Identifier Span)
 pIdentifier = token test Set.empty <?> "identifier"

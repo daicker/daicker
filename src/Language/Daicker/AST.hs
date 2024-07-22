@@ -109,7 +109,7 @@ data Expr' ann a
   | EProperty a (Identifier ann)
   | EElement a (Index ann)
   | EApp (Maybe (EImage ann)) a [(a, Expansion)]
-  | EFun [PatternMatchAssign ann] a
+  | EFun [PatternMatchAssign ann] a Expansion
   deriving (Show, Eq)
 
 type Expansion = Bool
@@ -124,7 +124,7 @@ instance (Eq ann) => Eq1 (Expr' ann) where
   liftEq _ (ERef a) (ERef b) = a == b
   liftEq f (EProperty a1 i1) (EProperty a2 i2) = f a1 a2 && i1 == i2
   liftEq f (EApp c1 f1 a1) (EApp c2 f2 a2) = c1 == c2 && f f1 f2 && length a1 == length a2 && all (\((a1', e1), (a2', e2)) -> f a1' a2' && e1 == e2) (zip a1 a2)
-  liftEq f (EFun arg1 e1) (EFun arg2 e2) = arg1 == arg2 && f e1 e2
+  liftEq f (EFun arg1 e1 ex1) (EFun arg2 e2 ex2) = arg1 == arg2 && f e1 e2 && ex1 == ex2
   liftEq _ _ _ = False
 
 instance (Show ann) => Show1 (Expr' ann) where
@@ -142,27 +142,24 @@ instance (Show ann) => Show1 (Expr' ann) where
   liftShowsPrec _ _ _ (ERef i) = showString "ERef " <> showString (show i)
   liftShowsPrec f f' n (EApp img a as) = showString "EApp " <> showString (show img) <> f n a <> f' (map fst as)
   liftShowsPrec f _ n (EProperty a i) = showString "EProperty " <> f n a <> showString (show i)
-  liftShowsPrec f _ n (EFun pma e) = showString "EFun " <> showString (show pma) <> f n e
+  liftShowsPrec f _ n (EFun pma e ex) = showString "EFun " <> showString (show pma) <> f n e <> showString (show ex)
 
 type PatternMatchAssign ann = Cofree (PatternMatchAssign' ann) ann
 
 data PatternMatchAssign' ann a
   = PMAAnyValue (Identifier ann)
-  | PMAVarLenAnyValue (Identifier ann)
   | PMAArray [a]
   | PMAObject [(EKey ann, a)]
   deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (PatternMatchAssign' ann) where
   liftEq _ (PMAAnyValue a) (PMAAnyValue b) = a == b
-  liftEq _ (PMAVarLenAnyValue a) (PMAVarLenAnyValue b) = a == b
   liftEq f (PMAArray as) (PMAArray bs) = length as == length bs && all (uncurry f) (zip as bs)
   liftEq f (PMAObject as) (PMAObject bs) = length as == length bs && all (\((k1, v1), (k2, v2)) -> k1 == k2 && f v1 v2) (zip as bs)
   liftEq _ _ _ = False
 
 instance (Show ann) => Show1 (PatternMatchAssign' ann) where
   liftShowsPrec _ _ _ (PMAAnyValue i) = showString $ "PMAAnyValue " <> show i
-  liftShowsPrec _ _ _ (PMAVarLenAnyValue i) = showString $ "PMAVarLenAnyValue " <> show i
   liftShowsPrec _ f _ (PMAArray vs) = showString "PMAArray " <> f vs
   liftShowsPrec f _ n (PMAObject vs) =
     showString "PMAObject ["

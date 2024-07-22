@@ -32,15 +32,15 @@ spec = do
                 (mkSpan "test" 1 8 1 9 :< Identifier "f")
                 ( mkSpan "test" 1 10 1 15
                     :< EFun
-                      ( Just $
-                          mkSpan "test" 1 10 1 11
-                            :< PMAAnyValue
-                              ( mkSpan "test" 1 10 1 11
-                                  :< Identifier
-                                    "a"
-                              )
-                      )
+                      [ mkSpan "test" 1 10 1 11
+                          :< PMAAnyValue
+                            ( mkSpan "test" 1 10 1 11
+                                :< Identifier
+                                  "a"
+                            )
+                      ]
                       (mkSpan "test" 1 14 1 15 :< ERef (mkSpan "test" 1 14 1 15 :< Identifier "a"))
+                      False
                 )
                 Nothing
           )
@@ -113,7 +113,7 @@ spec = do
                         :< ERef
                           (mkSpan "test" 1 2 1 3 :< Identifier "f")
                     )
-                    (mkSpan "test" 1 4 1 5 :< ENumber 1)
+                    [(mkSpan "test" 1 4 1 5 :< ENumber 1, False)]
               )
       it "1 + 2" $ do
         parseTest pExpr "test" "1 + 2"
@@ -125,12 +125,9 @@ spec = do
                       :< ERef
                         (mkSpan "test" 1 3 1 4 :< Identifier "+")
                   )
-                  ( mkSpan "test" 1 1 1 6
-                      :< EArray
-                        [ mkSpan "test" 1 1 1 2 :< ENumber 1,
-                          mkSpan "test" 1 5 1 6 :< ENumber 2
-                        ]
-                  )
+                  [ (mkSpan "test" 1 1 1 2 :< ENumber 1, False),
+                    (mkSpan "test" 1 5 1 6 :< ENumber 2, False)
+                  ]
             )
       it "(#alpine f 1 2)" $ do
         parseTest pExpr "test" "(#alpine f 1 2)"
@@ -142,12 +139,9 @@ spec = do
                       :< ERef
                         (mkSpan "test" 1 10 1 11 :< Identifier "f")
                   )
-                  ( mkSpan "test" 1 12 1 15
-                      :< EArray
-                        [ mkSpan "test" 1 12 1 13 :< ENumber 1,
-                          mkSpan "test" 1 14 1 15 :< ENumber 2
-                        ]
-                  )
+                  [ (mkSpan "test" 1 12 1 13 :< ENumber 1, False),
+                    (mkSpan "test" 1 14 1 15 :< ENumber 2, False)
+                  ]
             )
     describe "fun" $ do
       it "\\a -> a" $ do
@@ -155,11 +149,12 @@ spec = do
           `shouldBe` Right
             ( mkSpan "test" 1 1 1 8
                 :< EFun
-                  (Just $ mkSpan "test" 1 2 1 3 :< PMAAnyValue (mkSpan "test" 1 2 1 3 :< Identifier "a"))
+                  [mkSpan "test" 1 2 1 3 :< PMAAnyValue (mkSpan "test" 1 2 1 3 :< Identifier "a")]
                   ( mkSpan "test" 1 7 1 8
                       :< ERef
                         (mkSpan "test" 1 7 1 8 :< Identifier "a")
                   )
+                  False
             )
 
 parseTest :: Parser a -> String -> String -> Either String a
