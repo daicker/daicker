@@ -96,8 +96,8 @@ pPatternMatchAssign =
     ]
   where
     anyValuePattern = do
-      (WithSpan i s) <- spanned pIdentifier
-      return $ s :< PMAAnyValue i
+      i <- pIdentifier
+      return $ S.span i :< PMAAnyValue i
     arrayPattern = do
       (WithSpan pmas s) <-
         spanned $
