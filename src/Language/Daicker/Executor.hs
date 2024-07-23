@@ -11,6 +11,7 @@ import Data.Foldable (find)
 import qualified Data.Text as T
 import Data.Text.IO (hGetLine, hPutStrLn)
 import Data.Tree (flatten)
+import Debug.Trace (traceShow)
 import GHC.Base (join)
 import GHC.IO (unsafePerformIO)
 import GHC.IO.Handle (BufferMode (NoBuffering), Handle, hClose, hFlush, hGetChar, hGetContents, hIsClosed, hIsEOF)
@@ -90,7 +91,7 @@ eval vars v = case v of
 
 patternMatch :: Bool -> [PatternMatchAssign Span] -> [Expr Span] -> Either [CodeError] [(String, Expr Span)]
 patternMatch True [_ :< PMAAnyValue (_ :< Identifier i)] es = pure [(i, S.span (head es) `union` S.span (last es) :< EArray es)]
-patternMatch ex (pma : pmas) (e : es) = patternMatchOne pma e <> patternMatch ex pmas es
+patternMatch ex (pma : pmas) (e : es) = (<>) <$> patternMatchOne pma e <*> patternMatch ex pmas es
 patternMatch _ [] [] = pure []
 
 patternMatchOne :: PatternMatchAssign Span -> Expr Span -> Either [CodeError] [(String, Expr Span)]
