@@ -10,6 +10,8 @@ import Data.Aeson (decode, encode)
 import Data.Aeson.Types (Value)
 import Data.ByteString.Lazy.Char8 (pack, unpack)
 import Data.Maybe (fromMaybe)
+import GHC.IO.IOMode (IOMode (..))
+import GHC.IO.StdHandles (openFile)
 import Language.Daicker.AST (Expr, Expr' (EArray, EFun, ENull, EString), Module, Module' (Module), Statement' (SDefine))
 import Language.Daicker.DLS (serve)
 import qualified Language.Daicker.Entry as E
@@ -18,7 +20,7 @@ import Language.Daicker.Executor (execDefine, findDefine)
 import Language.Daicker.Lexer (mkTStream)
 import Language.Daicker.Parser (pModule, parseModule)
 import Options.Applicative
-import System.IO (hGetContents, hIsClosed, hIsOpen, hPutStrLn, hReady, hWaitForInput, stderr, stdin)
+import System.IO (hClose, hGetContents, hIsClosed, hIsOpen, hPutStrLn, hReady, hWaitForInput, stderr, stdin)
 import System.IO.Error.Lens (fileName)
 import Text.Megaparsec (parse, parseErrorPretty)
 
@@ -36,6 +38,16 @@ opts =
           "run"
           ( info
               ( run
+                  <$> fileOpt
+                  <*> argument str (metavar "FUNCTION")
+                  <*> many (argument str (metavar "ARGS"))
+              )
+              (progDesc "Execute function" <> noIntersperse)
+          )
+        <> command
+          "eval"
+          ( info
+              ( eval
                   <$> fileOpt
                   <*> argument str (metavar "FUNCTION")
                   <*> many (argument str (metavar "ARGS"))
@@ -62,6 +74,17 @@ validate fileName = do
 
 run :: String -> String -> [String] -> IO ()
 run fileName funcName args = do
+  res <- runExceptT (E.run fileName funcName args)
+  case res of
+    Left e -> hPutStrLn stderr $ codeErrorListPretty e
+    Right e -> do
+      -- strict evaluation
+      handle <- openFile "/dev/null" WriteMode
+      hPutStrLn handle (unpack $ encode e)
+      hClose handle
+
+eval :: String -> String -> [String] -> IO ()
+eval fileName funcName args = do
   res <- runExceptT (E.run fileName funcName args)
   case res of
     Left e -> hPutStrLn stderr $ codeErrorListPretty e
