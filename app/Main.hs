@@ -14,13 +14,14 @@ import GHC.IO.IOMode (IOMode (..))
 import GHC.IO.StdHandles (openFile)
 import Language.Daicker.AST (Expr, Expr' (EArray, EFun, ENull, EString), Module, Module' (Module), Statement' (SDefine))
 import Language.Daicker.DLS (serve)
+import Language.Daicker.Entry (hExitWithCodeErrors, hExitWithExpr, withDevNull)
 import qualified Language.Daicker.Entry as E
 import Language.Daicker.Error (codeErrorListPretty, codeErrorPretty)
 import Language.Daicker.Executor (execDefine, findDefine)
 import Language.Daicker.Lexer (mkTStream)
 import Language.Daicker.Parser (pModule, parseModule)
 import Options.Applicative
-import System.IO (hClose, hGetContents, hIsClosed, hIsOpen, hPutStrLn, hReady, hWaitForInput, stderr, stdin)
+import System.IO (hClose, hGetContents, hIsClosed, hIsOpen, hPutStrLn, hReady, hWaitForInput, stderr, stdin, stdout)
 import System.IO.Error.Lens (fileName)
 import Text.Megaparsec (parse, parseErrorPretty)
 
@@ -76,19 +77,15 @@ run :: String -> String -> [String] -> IO ()
 run fileName funcName args = do
   res <- runExceptT (E.run fileName funcName args)
   case res of
-    Left e -> hPutStrLn stderr $ codeErrorListPretty e
-    Right e -> do
-      -- strict evaluation
-      handle <- openFile "/dev/null" WriteMode
-      hPutStrLn handle (unpack $ encode e)
-      hClose handle
+    Left e -> hExitWithCodeErrors stderr e
+    Right e -> withDevNull (`hExitWithExpr` e)
 
 eval :: String -> String -> [String] -> IO ()
 eval fileName funcName args = do
   res <- runExceptT (E.run fileName funcName args)
   case res of
-    Left e -> hPutStrLn stderr $ codeErrorListPretty e
-    Right e -> putStrLn (unpack $ encode e)
+    Left e -> hExitWithCodeErrors stderr e
+    Right e -> hExitWithExpr stdout e
 
 main :: IO ()
 main = join $ execParser (info (opts <**> helper) idm)

@@ -4,13 +4,18 @@ import Data.List (intercalate)
 import qualified Data.List.NonEmpty as NEL
 import Data.Void (Void)
 import Language.Daicker.Span (Position (Position), Span (Span), spanPretty)
+import System.Exit (ExitCode (ExitFailure), exitWith)
+import System.IO (Handle, hPutStrLn)
 import Text.Megaparsec (ParseErrorBundle, SourcePos (SourcePos), TraversableStream, VisualStream, errorBundlePretty, errorOffset, parseErrorPretty, parseErrorTextPretty)
 import Text.Megaparsec.Error (ParseErrorBundle (..))
 import Text.Megaparsec.Pos (unPos)
 import Text.Megaparsec.State (PosState (..))
 import Text.Megaparsec.Stream (TraversableStream (..))
 
+-- CodeError is a lexical, syntax, type or semantic error.
 data CodeError = CodeError String Span deriving (Show, Eq)
+
+data RuntimeError = RuntimeError String Span ExitCode deriving (Show, Eq)
 
 fromParseErrorBundle :: (TraversableStream a, VisualStream a) => ParseErrorBundle a Void -> CodeError
 fromParseErrorBundle e =
@@ -32,3 +37,6 @@ codeErrorPretty (CodeError m s) = spanPretty s <> ": " <> m
 
 codeErrorListPretty :: [CodeError] -> String
 codeErrorListPretty es = intercalate "\n" $ map codeErrorPretty es
+
+runtimeErrorPretty :: RuntimeError -> String
+runtimeErrorPretty (RuntimeError m s _) = spanPretty s <> ": " <> m
