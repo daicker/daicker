@@ -1,6 +1,9 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Language.Daicker.ParserSpec (spec) where
 
 import Control.Comonad.Cofree
+import Data.Text (Text)
 import Language.Daicker.AST
 import Language.Daicker.Error (codeErrorPretty)
 import Language.Daicker.Lexer (mkTStream)
@@ -157,7 +160,7 @@ spec = do
                   False
             )
 
-parseTest :: Parser a -> String -> String -> Either String a
+parseTest :: Parser a -> String -> Text -> Either String a
 parseTest parser fileName src = do
   case mkTStream fileName src of
     Left es -> Left $ codeErrorPretty $ head es

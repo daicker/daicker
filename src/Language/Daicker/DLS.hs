@@ -88,7 +88,7 @@ sendSyntaxError logger msg = do
   logger <& ("Processing DidSaveTextDocument  for: " <> T.pack (show doc)) `WithSeverity` Info
   mdoc <- getVirtualFile doc
   case mdoc of
-    Just file -> sendDiagnostics doc (Just $ virtualFileVersion file) $ sValidate (T.unpack path) (T.unpack $ virtualFileText file)
+    Just file -> sendDiagnostics doc (Just $ virtualFileVersion file) $ sValidate (T.unpack path) (virtualFileText file)
     Nothing -> sendDiagnostics doc Nothing []
 
 handle :: (m ~ LspM Config) => L.LogAction m (WithSeverity T.Text) -> Handlers m
@@ -109,7 +109,7 @@ handle logger =
         mdoc <- getVirtualFile doc
         let (NormalizedUri _ path) = doc
         let tokens = case mdoc of
-              Just file -> case lexSemanticTokens (T.unpack path) (T.unpack $ virtualFileText file) of
+              Just file -> case lexSemanticTokens (T.unpack path) (virtualFileText file) of
                 Right ts -> makeSemanticTokens defaultSemanticTokensLegend ts
                 Left e -> Left e
               Nothing -> makeSemanticTokens defaultSemanticTokensLegend []
@@ -183,7 +183,7 @@ reactor logger inp = do
     ReactorAction act <- atomically $ readTChan inp
     act
 
-lexSemanticTokens :: String -> String -> Either Text [SemanticTokenAbsolute]
+lexSemanticTokens :: String -> Text -> Either Text [SemanticTokenAbsolute]
 lexSemanticTokens fileName src =
   case parse tTokens fileName src of
     Left e -> Left $ T.pack $ errorBundlePretty e

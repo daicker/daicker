@@ -10,6 +10,7 @@ import Data.Aeson (decode, encode)
 import Data.Aeson.Types (Value)
 import Data.ByteString.Lazy.Char8 (pack, unpack)
 import Data.Maybe (fromMaybe)
+import Data.Text (Text)
 import GHC.IO.IOMode (IOMode (..))
 import GHC.IO.StdHandles (openFile)
 import Language.Daicker.AST (Expr, Expr' (EArray, EFun, ENull, EString), Module, Module' (Module), Statement' (SDefine))
@@ -73,14 +74,14 @@ validate fileName = do
     [] -> hPutStrLn stderr "The module is valid!"
     es -> hPutStrLn stderr $ codeErrorListPretty es
 
-run :: String -> String -> [String] -> IO ()
+run :: String -> String -> [Text] -> IO ()
 run fileName funcName args = do
   res <- runExceptT (E.run fileName funcName args)
   case res of
     Left e -> hExitWithCodeErrors stderr e
     Right e -> withDevNull (`hExitWithExpr` e)
 
-eval :: String -> String -> [String] -> IO ()
+eval :: String -> String -> [Text] -> IO ()
 eval fileName funcName args = do
   res <- runExceptT (E.run fileName funcName args)
   case res of

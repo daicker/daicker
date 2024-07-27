@@ -14,6 +14,8 @@ import qualified Data.List.NonEmpty as NE
 import Data.Proxy
 import Data.Scientific (Scientific, toRealFloat)
 import qualified Data.Set as Set
+import Data.Text (Text)
+import qualified Data.Text as T
 import Data.Void
 import Language.Daicker.Error (CodeError, fromParseErrorBundle)
 import Language.Daicker.Span
@@ -71,7 +73,7 @@ data TToken
   deriving (Eq, Ord, Show)
 
 data TStream = TStream
-  { tStreamInput :: String, -- for showing offending lines
+  { tStreamInput :: Text, -- for showing offending lines
     unTStream :: [WithSpan TToken]
   }
 
@@ -85,24 +87,24 @@ instance Stream TStream where
   chunkLength Proxy = length
   chunkEmpty Proxy = null
   take1_ (TStream _ []) = Nothing
-  take1_ (TStream str (t : ts)) =
+  take1_ (TStream txt (t : ts)) =
     Just
       ( t,
-        TStream (drop (tokensLength pxy (t :| [])) str) ts
+        TStream (T.drop (tokensLength pxy (t :| [])) txt) ts
       )
-  takeN_ n (TStream str s)
-    | n <= 0 = Just ([], TStream str s)
+  takeN_ n (TStream txt s)
+    | n <= 0 = Just ([], TStream txt s)
     | null s = Nothing
     | otherwise =
         let (x, s') = splitAt n s
          in case NE.nonEmpty x of
-              Nothing -> Just (x, TStream str s')
-              Just nex -> Just (x, TStream (drop (tokensLength pxy nex) str) s')
-  takeWhile_ f (TStream str s) =
+              Nothing -> Just (x, TStream txt s')
+              Just nex -> Just (x, TStream (T.drop (tokensLength pxy nex) txt) s')
+  takeWhile_ f (TStream txt s) =
     let (x, s') = DL.span f s
      in case NE.nonEmpty x of
-          Nothing -> (x, TStream str s')
-          Just nex -> (x, TStream (drop (tokensLength pxy nex) str) s')
+          Nothing -> (x, TStream txt s')
+          Just nex -> (x, TStream (T.drop (tokensLength pxy nex) txt) s')
 
 instance VisualStream TStream where
   showTokens Proxy =
@@ -113,23 +115,23 @@ instance VisualStream TStream where
 
 instance TraversableStream TStream where
   reachOffset o PosState {..} =
-    ( Just (prefix ++ restOfLine),
+    ( Just (T.unpack prefix ++ T.unpack restOfLine),
       PosState
         { pstateInput =
             TStream
-              { tStreamInput = postStr,
+              { tStreamInput = postTxt,
                 unTStream = post
               },
           pstateOffset = max pstateOffset o,
           pstateSourcePos = newSourcePos,
           pstateTabWidth = pstateTabWidth,
-          pstateLinePrefix = prefix
+          pstateLinePrefix = T.unpack prefix
         }
     )
     where
       prefix =
         if sameLine
-          then pstateLinePrefix ++ preLine
+          then T.pack pstateLinePrefix `T.append` preLine
           else preLine
       sameLine = sourceLine newSourcePos == sourceLine pstateSourcePos
       newSourcePos =
@@ -139,13 +141,13 @@ instance TraversableStream TStream where
             xs -> toSourcePos (endPos (S.span (last xs)))
           (x : _) -> toSourcePos (startPos (S.span x))
       (pre, post) = splitAt (o - pstateOffset) (unTStream pstateInput)
-      (preStr, postStr) = splitAt tokensConsumed (tStreamInput pstateInput)
-      preLine = reverse . takeWhile (/= '\n') . reverse $ preStr
+      (preTxt, postTxt) = T.splitAt tokensConsumed (tStreamInput pstateInput)
+      preLine = T.reverse . T.takeWhile (/= '\n') . T.reverse $ preTxt
       tokensConsumed =
         case NE.nonEmpty pre of
           Nothing -> 0
           Just nePre -> tokensLength pxy nePre
-      restOfLine = takeWhile (/= '\n') postStr
+      restOfLine = T.takeWhile (/= '\n') postTxt
 
 pxy :: Proxy TStream
 pxy = Proxy
@@ -192,15 +194,15 @@ showTToken = \case
   TRight -> "|>"
   TBackslash -> "\\"
 
-type Lexer = Parsec Void String
+type Lexer = Parsec Void Text
 
-mkTStream :: String -> String -> Either [CodeError] TStream
+mkTStream :: String -> Text -> Either [CodeError] TStream
 mkTStream fileName src = TStream src . filter notComment <$> lexTokens fileName src
   where
     notComment (WithSpan TComment _) = False
     notComment _ = True
 
-lexTokens :: String -> String -> Either [CodeError] [WithSpan TToken]
+lexTokens :: String -> Text -> Either [CodeError] [WithSpan TToken]
 lexTokens fileName src = case parse tTokens fileName src of
   (Left e) -> Left $ [fromParseErrorBundle e]
   (Right ts) -> pure ts

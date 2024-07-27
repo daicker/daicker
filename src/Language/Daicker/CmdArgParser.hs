@@ -1,8 +1,11 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Language.Daicker.CmdArgParser where
 
 import Control.Comonad.Cofree (Cofree (..))
 import Data.Aeson (decode)
-import Data.ByteString.Lazy.Char8 (pack)
+import Data.ByteString.Lazy.Char8 (ByteString, pack)
+import Data.Text (Text)
 import Data.Void (Void)
 import Language.Daicker.AST
 import Language.Daicker.Error (CodeError, fromParseErrorBundle)
@@ -11,15 +14,15 @@ import Text.Megaparsec
 import Text.Megaparsec.Char (char, space1, string)
 import qualified Text.Megaparsec.Char.Lexer as L
 
-type CmdArgParser = Parsec Void String
+type CmdArgParser = Parsec Void Text
 
-parseArg :: String -> Maybe String -> String -> Either [CodeError] (Expr Span)
+parseArg :: String -> Maybe ByteString -> Text -> Either [CodeError] (Expr Span)
 parseArg fileName stdinContent src =
   case parse (pArg stdinContent) fileName src of
     Right e -> pure e
     Left e -> Left [fromParseErrorBundle e]
 
-pArg :: Maybe String -> CmdArgParser (Expr Span)
+pArg :: Maybe ByteString -> CmdArgParser (Expr Span)
 pArg content =
   lexeme $
     choice
@@ -51,13 +54,13 @@ pNumber = try $ do
   (WithSpan n s) <- withSpan $ L.signed sc L.scientific
   return $ s :< ENumber n
 
-pStdin :: Maybe String -> CmdArgParser (Expr Span)
+pStdin :: Maybe ByteString -> CmdArgParser (Expr Span)
 pStdin content = do
   (WithSpan _ s) <- withSpan $ string "@stdin"
   content <- case content of
     Nothing -> fail "stdin is not provided"
     Just content -> pure content
-  expr <- case decode (pack content) :: Maybe (Expr ()) of
+  expr <- case decode content :: Maybe (Expr ()) of
     Nothing -> fail "stdin is not json format"
     Just expr -> pure expr
   return $ switchAnn (const s) expr
