@@ -19,7 +19,6 @@ import Language.Daicker.Entry (hExitWithCodeErrors, hExitWithExpr, withDevNull)
 import qualified Language.Daicker.Entry as E
 import Language.Daicker.Error (codeErrorListPretty, codeErrorPretty)
 import Language.Daicker.Executor (execDefine, findDefine)
-import Language.Daicker.Lexer (mkTStream)
 import Language.Daicker.Parser (pModule, parseModule)
 import Options.Applicative
 import System.IO (hClose, hGetContents, hIsClosed, hIsOpen, hPutStrLn, hReady, hWaitForInput, stderr, stdin, stdout)
@@ -33,7 +32,7 @@ opts =
         <> command
           "check"
           ( info
-              (validate <$> fileOpt)
+              (check <$> fileOpt)
               (progDesc "Validate daicker file")
           )
         <> command
@@ -67,12 +66,12 @@ fileOpt =
         <> value "main.daic"
     )
 
-validate :: String -> IO ()
-validate fileName = do
-  res <- E.validate fileName
+check :: String -> IO ()
+check fileName = do
+  res <- runExceptT $ E.validate fileName
   case res of
-    [] -> hPutStrLn stderr "The module is valid!"
-    es -> hPutStrLn stderr $ codeErrorListPretty es
+    Right _ -> hPutStrLn stderr "The module is valid!"
+    Left es -> hPutStrLn stderr $ codeErrorListPretty es
 
 run :: String -> String -> [Text] -> IO ()
 run fileName funcName args = do

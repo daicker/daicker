@@ -8,8 +8,12 @@ import Language.Daicker.Executor (findDefine)
 import Language.Daicker.Parser (parseModule)
 import Language.Daicker.Span (Span)
 
-validateModule :: Module Span -> [CodeError]
-validateModule m@(_ :< Module name ss) = join $ map (validateStatement m) ss
+validateModule :: Module Span -> Either [CodeError] ()
+validateModule m@(_ :< Module name ss) = case es of
+  [] -> Right ()
+  _ -> Left es
+  where
+    es = join $ map (validateStatement m) ss
 
 validateStatement :: Module Span -> Statement Span -> [CodeError]
 validateStatement _ (_ :< SImport _) = []

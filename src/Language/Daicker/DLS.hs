@@ -19,13 +19,14 @@ import Control.Lens hiding (Iso)
 import Control.Monad (forever)
 import Control.Monad.IO.Class
 import qualified Data.Aeson as J
+import Data.Either (fromLeft)
 import qualified Data.List.NonEmpty as NEL
 import Data.Maybe (catMaybes, isJust)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Void (Void)
 import GHC.Generics (Generic)
-import Language.Daicker.Entry (sValidate)
+import Language.Daicker.Entry (validate')
 import Language.Daicker.Error (CodeError (CodeError))
 import Language.Daicker.Lexer
 import Language.Daicker.Span (Span (Span), WithSpan (WithSpan), toRange)
@@ -88,7 +89,7 @@ sendSyntaxError logger msg = do
   logger <& ("Processing DidSaveTextDocument  for: " <> T.pack (show doc)) `WithSeverity` Info
   mdoc <- getVirtualFile doc
   case mdoc of
-    Just file -> sendDiagnostics doc (Just $ virtualFileVersion file) $ sValidate (T.unpack path) (virtualFileText file)
+    Just file -> sendDiagnostics doc (Just $ virtualFileVersion file) $ fromLeft [] $ validate' (T.unpack path) (virtualFileText file)
     Nothing -> sendDiagnostics doc Nothing []
 
 handle :: (m ~ LspM Config) => L.LogAction m (WithSeverity T.Text) -> Handlers m

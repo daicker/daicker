@@ -14,7 +14,7 @@ import Data.Tree (flatten)
 import Debug.Trace (traceShow)
 import GHC.Base (join)
 import GHC.IO (unsafePerformIO)
-import GHC.IO.Handle (BufferMode (NoBuffering), Handle, hClose, hFlush, hGetChar, hGetContents, hIsClosed, hIsEOF)
+import GHC.IO.Handle (Handle, hClose, hFlush, hGetChar, hGetContents, hIsClosed, hIsEOF)
 import Language.Daicker.AST
 import Language.Daicker.Error (CodeError (CodeError))
 import Language.Daicker.Span (Span, mkSpan, union)

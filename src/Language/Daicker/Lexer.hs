@@ -196,15 +196,15 @@ showTToken = \case
 
 type Lexer = Parsec Void Text
 
-mkTStream :: String -> Text -> Either [CodeError] TStream
-mkTStream fileName src = TStream src . filter notComment <$> lexTokens fileName src
+mkTStreamWithoutComment :: Text -> [WithSpan TToken] -> TStream
+mkTStreamWithoutComment src tokens = TStream src $ filter notComment tokens
   where
     notComment (WithSpan TComment _) = False
     notComment _ = True
 
 lexTokens :: String -> Text -> Either [CodeError] [WithSpan TToken]
 lexTokens fileName src = case parse tTokens fileName src of
-  (Left e) -> Left $ [fromParseErrorBundle e]
+  (Left e) -> Left [fromParseErrorBundle e]
   (Right ts) -> pure ts
 
 tTokens :: Lexer [WithSpan TToken]

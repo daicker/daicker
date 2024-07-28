@@ -35,14 +35,10 @@ import qualified Text.Megaparsec.Char.Lexer as L
 
 type Parser = Parsec Void TStream
 
-parseModule :: String -> Text -> Either [CodeError] (Module Span)
-parseModule fileName src =
-  case mkTStream fileName src of
-    Left e -> Left e
-    Right ts ->
-      case parse pModule fileName ts of
-        Right m -> pure m
-        Left e -> Left [fromParseErrorBundle e]
+parseModule :: String -> TStream -> Either [CodeError] (Module Span)
+parseModule fileName stream = case parse pModule fileName stream of
+  Right m -> pure m
+  Left e -> Left [fromParseErrorBundle e]
 
 pModule :: Parser (Module Span)
 pModule = do
