@@ -8,7 +8,7 @@ import Data.ByteString.Lazy.Char8 (ByteString, pack)
 import Data.Text (Text)
 import Data.Void (Void)
 import Language.Daicker.AST
-import Language.Daicker.Error (CodeError, fromParseErrorBundle)
+import Language.Daicker.Error (StaticError (StaticError), fromParseErrorBundle)
 import Language.Daicker.Span
 import Text.Megaparsec
 import Text.Megaparsec.Char (char, space1, string)
@@ -16,7 +16,7 @@ import qualified Text.Megaparsec.Char.Lexer as L
 
 type CmdArgParser = Parsec Void Text
 
-parseArg :: String -> Maybe ByteString -> Text -> Either [CodeError] (Expr Span)
+parseArg :: String -> Maybe ByteString -> Text -> Either [StaticError] (Expr Span)
 parseArg fileName stdinContent src =
   case parse (pArg stdinContent) fileName src of
     Right e -> pure e

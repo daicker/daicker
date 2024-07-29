@@ -14,7 +14,7 @@ import Data.Void (Void)
 import GHC.Conc (par)
 import Language.Daicker.AST hiding (Type, Type' (..))
 import qualified Language.Daicker.AST as AST
-import Language.Daicker.Error (CodeError (CodeError), fromParseErrorBundle)
+import Language.Daicker.Error (StaticError (StaticError), fromParseErrorBundle)
 import Language.Daicker.Lexer
 import Language.Daicker.Span (Span (..), WithSpan (..), union)
 import qualified Language.Daicker.Span as S
@@ -35,7 +35,7 @@ import qualified Text.Megaparsec.Char.Lexer as L
 
 type Parser = Parsec Void TStream
 
-parseModule :: String -> TStream -> Either [CodeError] (Module Span)
+parseModule :: String -> TStream -> Either [StaticError] (Module Span)
 parseModule fileName stream = case parse pModule fileName stream of
   Right m -> pure m
   Left e -> Left [fromParseErrorBundle e]

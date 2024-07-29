@@ -17,7 +17,7 @@ import Language.Daicker.AST (Expr, Expr' (EArray, EFun, ENull, EString), Module,
 import Language.Daicker.DLS (serve)
 import Language.Daicker.Entry (hExitWithCodeErrors, hExitWithExpr, withDevNull)
 import qualified Language.Daicker.Entry as E
-import Language.Daicker.Error (codeErrorListPretty, codeErrorPretty)
+import Language.Daicker.Error (staticErrorListPretty)
 import Language.Daicker.Executor (execDefine, findDefine)
 import Language.Daicker.Parser (pModule, parseModule)
 import Options.Applicative
@@ -71,7 +71,7 @@ check fileName = do
   res <- runExceptT $ E.validate fileName
   case res of
     Right _ -> hPutStrLn stderr "The module is valid!"
-    Left es -> hPutStrLn stderr $ codeErrorListPretty es
+    Left es -> hPutStrLn stderr $ staticErrorListPretty es
 
 run :: String -> String -> [Text] -> IO ()
 run fileName funcName args = do

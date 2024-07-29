@@ -17,7 +17,7 @@ import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Void
-import Language.Daicker.Error (CodeError, fromParseErrorBundle)
+import Language.Daicker.Error (StaticError (StaticError), fromParseErrorBundle)
 import Language.Daicker.Span
   ( Span (Span, endPos, startPos),
     WithSpan (WithSpan, _value),
@@ -202,7 +202,7 @@ mkTStreamWithoutComment src tokens = TStream src $ filter notComment tokens
     notComment (WithSpan TComment _) = False
     notComment _ = True
 
-lexTokens :: String -> Text -> Either [CodeError] [WithSpan TToken]
+lexTokens :: String -> Text -> Either [StaticError] [WithSpan TToken]
 lexTokens fileName src = case parse tTokens fileName src of
   (Left e) -> Left [fromParseErrorBundle e]
   (Right ts) -> pure ts

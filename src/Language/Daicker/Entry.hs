@@ -1,10 +1,12 @@
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TupleSections #-}
 
 module Language.Daicker.Entry where
 
 import Control.Comonad.Cofree (Cofree (..))
 import Control.Monad (liftM)
-import Control.Monad.Except (ExceptT, MonadError (throwError), liftEither)
+import Control.Monad.Except (ExceptT, MonadError (throwError), liftEither, withExceptT)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Identity (Identity)
 import Data.Aeson (encode)
@@ -15,7 +17,7 @@ import Data.Text (Text)
 import qualified Data.Text.IO as T
 import Language.Daicker.AST (Expr, Expr' (EArray, EFun), Identifier, Module, Module' (..), Statement' (SDefine), switchAnn)
 import Language.Daicker.CmdArgParser (parseArg)
-import Language.Daicker.Error (CodeError (CodeError), RuntimeError (RuntimeError), codeErrorListPretty, runtimeErrorPretty)
+import Language.Daicker.Error (CodeError (RuntimeE, StaticE), RuntimeError (RuntimeError), StaticError, codeErrorPretty)
 import Language.Daicker.Executor (execDefine, findDefine)
 import Language.Daicker.Lexer (lexTokens, mkTStreamWithoutComment)
 import Language.Daicker.Parser (parseModule)
@@ -24,40 +26,43 @@ import Language.Daicker.TypeChecker (validateModule)
 import System.Exit (ExitCode (ExitFailure, ExitSuccess), exitFailure, exitSuccess, exitWith)
 import System.IO (Handle, IOMode (..), hClose, hGetContents, hPutStrLn, hReady, openFile, stdin)
 
-validate :: String -> ExceptT [CodeError] IO ()
+validate :: String -> ExceptT [StaticError] IO ()
 validate fileName = do
   src <- liftIO $ T.readFile fileName
   liftEither $ validate' fileName src
 
-validate' :: String -> Text -> Either [CodeError] ()
+validate' :: String -> Text -> Either [StaticError] ()
 validate' fileName src = do
   tokens <- liftEither $ lexTokens fileName src
   let stream = mkTStreamWithoutComment src tokens
   m <- liftEither $ parseModule fileName stream
   liftEither $ validateModule m
 
-run :: String -> String -> [Text] -> ExceptT [CodeError] IO (Expr Span)
+run :: String -> String -> [Text] -> ExceptT CodeError IO (Expr Span)
 run fileName funcName args = do
   src <- liftIO $ T.readFile fileName
-  tokens <- liftEither $ lexTokens fileName src
+  tokens <- liftEither $ mapLeft StaticE $ lexTokens fileName src
   let stream = mkTStreamWithoutComment src tokens
-  m@(_ :< Module _ ss) <- liftEither $ parseModule fileName stream
+  m@(_ :< Module _ ss) <- liftEither $ mapLeft StaticE $ parseModule fileName stream
   (_ :< SDefine _ e _) <- case findDefine funcName ss of
-    Nothing -> throwError [CodeError ("not found: " <> funcName) (mkSpan "command-line-function" 1 1 1 1)]
+    Nothing -> throwError $ RuntimeE $ RuntimeError ("not found: " <> funcName) (mkSpan "command-line-function" 1 1 1 1) (ExitFailure 1)
     Just f -> return f
   hasStdin <- liftIO $ hReady stdin
   input <- liftIO $ if hasStdin then Just <$> B.getContents else pure Nothing
-  es <- liftEither $ mapM (\(i, arg) -> parseArg ("command-line-argument($" <> show i <> ")") input arg) $ zip [1 ..] args
-  liftEither $ execDefine m e (map (,False) es)
+  es <- liftEither $ mapLeft StaticE $ mapM (\(i, arg) -> parseArg ("command-line-argument($" <> show i <> ")") input arg) $ zip [1 ..] args
+  withExceptT RuntimeE $ execDefine m e (map (,False) es)
 
-hExitWithCodeErrors :: Handle -> [CodeError] -> IO ()
+mapLeft :: (a -> c) -> Either a b -> Either c b
+mapLeft f = either (Left . f) Right
+
+hExitWithCodeErrors :: Handle -> CodeError -> IO ()
 hExitWithCodeErrors h e = do
-  hPutStrLn h $ codeErrorListPretty e
+  hPutStrLn h $ codeErrorPretty e
   exitFailure
 
-hExitWithRuntimeError :: Handle -> RuntimeError -> IO ()
-hExitWithRuntimeError h e@(RuntimeError m s n) = do
-  hPutStrLn h $ runtimeErrorPretty e
+hExitWithRuntimeError :: Handle -> CodeError -> IO ()
+hExitWithRuntimeError h e@(RuntimeE (RuntimeError m s n)) = do
+  hPutStrLn h $ codeErrorPretty e
   exitWith n
 
 hExitWithExpr :: Handle -> Expr a -> IO ()

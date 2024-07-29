@@ -5,8 +5,8 @@ module Language.Daicker.ParserSpec (spec) where
 import Control.Comonad.Cofree
 import Data.Text (Text)
 import Language.Daicker.AST
-import Language.Daicker.Error (codeErrorPretty)
-import Language.Daicker.Lexer (mkTStream)
+import Language.Daicker.Error (codeErrorPretty, staticErrorListPretty)
+import Language.Daicker.Lexer (lexTokens, mkTStreamWithoutComment)
 import Language.Daicker.Parser (Parser, pDefine, pExpr, pImport, pModule)
 import Language.Daicker.Span (mkSpan)
 import Test.Hspec
@@ -162,9 +162,10 @@ spec = do
 
 parseTest :: Parser a -> String -> Text -> Either String a
 parseTest parser fileName src = do
-  case mkTStream fileName src of
-    Left es -> Left $ codeErrorPretty $ head es
-    Right ts ->
-      case parse parser fileName ts of
-        Right m -> Right m
-        Left e -> Left $ errorBundlePretty e
+  tokens <- case lexTokens fileName src of
+    Left es -> Left $ staticErrorListPretty es
+    Right tokens -> pure tokens
+  let stream = mkTStreamWithoutComment src tokens
+  case parse parser fileName stream of
+    Right m -> Right m
+    Left e -> Left $ errorBundlePretty e

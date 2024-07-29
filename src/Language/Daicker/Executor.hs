@@ -7,20 +7,23 @@ import Control.Comonad.Cofree
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, readMVar)
 import Control.Monad (zipWithM)
+import Control.Monad.Except (ExceptT, MonadError (throwError))
+import Control.Monad.IO.Class
+import qualified Control.Monad.IO.Class (liftIO)
 import Data.Foldable (find)
+import Data.List (intercalate)
 import qualified Data.Text as T
 import Data.Text.IO (hGetLine, hPutStrLn)
 import Data.Tree (flatten)
 import Debug.Trace (traceShow)
 import GHC.Base (join)
-import GHC.IO (unsafePerformIO)
 import GHC.IO.Handle (Handle, hClose, hFlush, hGetChar, hGetContents, hIsClosed, hIsEOF)
 import Language.Daicker.AST
-import Language.Daicker.Error (CodeError (CodeError))
+import Language.Daicker.Error (RuntimeError (RuntimeError))
 import Language.Daicker.Span (Span, mkSpan, union)
 import qualified Language.Daicker.Span as S
 import System.Directory (getCurrentDirectory)
-import System.Exit (ExitCode (ExitFailure, ExitSuccess))
+import System.Exit (ExitCode (ExitFailure, ExitSuccess), exitFailure)
 import System.IO (hSetBuffering)
 import qualified System.IO as IO
 import System.Process
@@ -39,16 +42,16 @@ findType n = find (\s -> isType s && name s == n)
     isType _ = False
     name (_ :< STypeDefine (_ :< Identifier n) _) = n
 
-execDefine :: Module Span -> Expr Span -> [(Expr Span, Expansion)] -> Either [CodeError] (Expr Span)
+execDefine :: Module Span -> Expr Span -> [(Expr Span, Expansion)] -> ExceptT RuntimeError IO (Expr Span)
 execDefine (_ :< Module {}) e args = eval [] (S.span e :< EApp Nothing e args)
 
-eval :: [(String, Expr Span)] -> Expr Span -> Either [CodeError] (Expr Span)
+eval :: [(String, Expr Span)] -> Expr Span -> ExceptT RuntimeError IO (Expr Span)
 eval vars v = case v of
   s :< EArray vs -> (:<) s . EArray <$> mapM (eval vars) vs
   s :< EObject vs -> (:<) s . EObject <$> mapM (\(k, e) -> (,) k <$> eval vars e) vs
   s :< ERef (_ :< Identifier i) -> case lookup i vars of
     Just a -> eval vars a
-    Nothing -> Left [CodeError ("not defined: " <> i) s]
+    Nothing -> throwError $ RuntimeError ("not defined: " <> i) s (ExitFailure 1)
   s :< EApp image a0@(_ :< ERef (_ :< Identifier i)) args -> do
     args <-
       mapM
@@ -59,12 +62,11 @@ eval vars v = case v of
         )
         args
     case lookup i stdLib of
-      Just f -> Right $ f image (join args)
-      Nothing -> case eval vars a0 of
-        Right (s :< EFun pms e ex) -> do
-          args <- patternMatch ex pms (join args)
-          eval (vars <> args) e
-        err -> err
+      Just f -> f image (join args)
+      Nothing -> do
+        (s :< EFun pms e ex) <- eval vars a0
+        args <- patternMatch ex pms (join args)
+        eval (vars <> args) e
   s :< EApp _ f args -> do
     args <-
       mapM
@@ -74,86 +76,101 @@ eval vars v = case v of
               else (: []) <$> eval vars e
         )
         args
-    case eval vars f of
-      Right (s :< EFun pms e ex) -> do
-        args <- patternMatch ex pms (join args)
-        eval (vars <> args) e
-      err -> err
+    (s :< EFun pms e ex) <- eval vars f
+    args <- patternMatch ex pms (join args)
+    eval (vars <> args) e
   s :< EProperty e (_ :< Identifier i1) -> do
-    case eval vars e of
-      Right (_ :< EObject vs) -> case find (\(s :< Identifier i2, _) -> i1 == i2) vs of
+    e <- eval vars e
+    case e of
+      (_ :< EObject vs) -> case find (\(s :< Identifier i2, _) -> i1 == i2) vs of
         Just (_, v) -> pure v
         Nothing -> pure $ s :< ENull
-      Right (s :< _) -> Left [CodeError "Accessors can only be used on objects" s]
-  v -> Right v
+      (s :< _) -> throwError $ RuntimeError "Accessors can only be used on objects" s (ExitFailure 1)
+  v -> pure v
   where
     expand (_ :< EArray es) = es
 
-patternMatch :: Bool -> [PatternMatchAssign Span] -> [Expr Span] -> Either [CodeError] [(String, Expr Span)]
+patternMatch :: Bool -> [PatternMatchAssign Span] -> [Expr Span] -> ExceptT RuntimeError IO [(String, Expr Span)]
 patternMatch True [_ :< PMAAnyValue (_ :< Identifier i)] es = pure [(i, S.span (head es) `union` S.span (last es) :< EArray es)]
 patternMatch ex (pma : pmas) (e : es) = (<>) <$> patternMatchOne pma e <*> patternMatch ex pmas es
 patternMatch _ [] [] = pure []
 
-patternMatchOne :: PatternMatchAssign Span -> Expr Span -> Either [CodeError] [(String, Expr Span)]
+patternMatchOne :: PatternMatchAssign Span -> Expr Span -> ExceptT RuntimeError IO [(String, Expr Span)]
 patternMatchOne pma e = case pma of
   _ :< PMAAnyValue (_ :< Identifier i) -> pure [(i, e)]
   _ :< PMAArray as -> case e of
     (_ :< EArray vs) -> concat <$> zipWithM patternMatchOne as vs
-    (s :< _) -> Left [CodeError "pattern match: unexpected type" s]
+    (s :< _) -> throwError $ RuntimeError "pattern match: unexpected type" s (ExitFailure 1)
   _ :< PMAObject as -> case e of
     (s :< EObject es) -> concat <$> mapM (uncurry $ objectMatch es) as
-    (s :< _) -> Left [CodeError "pattern match: unexpected type" s]
+    (s :< _) -> throwError $ RuntimeError "pattern match: unexpected type" s (ExitFailure 1)
     where
       objectMatch es (s :< Identifier i1) a = case find (\(s :< Identifier i2, _) -> i1 == i2) es of
-        Nothing -> Left [CodeError ("not found key: " <> i1) s]
+        Nothing -> throwError $ RuntimeError ("not found key: " <> i1) s (ExitFailure 1)
         Just (_, e) -> patternMatchOne a e
 
-stdLib :: [(String, Maybe (EImage Span) -> [Expr Span] -> Expr Span)]
+stdLib :: [(String, Maybe (EImage Span) -> [Expr Span] -> ExceptT RuntimeError IO (Expr Span))]
 stdLib =
-  [ ( "$",
+  [ ( "$_",
       \image strings -> do
         let cmds = map (\(_ :< EString s) -> s) strings
         let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
-        let (CommandResult i out err) = case image of
-              Nothing -> unsafePerformIO $ runSubprocess "local" cmds
-              Just (_ :< Identifier image) -> unsafePerformIO $ runContainer image cmds
-        sp
-          :< EObject
-            [ (sp :< Identifier "exitCode", sp :< ENumber (fromIntegral $ exitCodeToInt i)),
-              (sp :< Identifier "stdout", sp :< EString out),
-              (sp :< Identifier "stderr", sp :< EString err)
-            ]
+        (CommandResult i out err) <- liftIO $ case image of
+          Nothing -> runSubprocess "local" cmds
+          Just (_ :< Identifier image) -> runContainer image cmds
+        pure $
+          sp
+            :< EObject
+              [ (sp :< Identifier "exitCode", sp :< ENumber (fromIntegral $ exitCodeToInt i)),
+                (sp :< Identifier "stdout", sp :< EString out),
+                (sp :< Identifier "stderr", sp :< EString err)
+              ]
+    ),
+    ( "$",
+      \image strings -> do
+        let cmds = map (\(_ :< EString s) -> s) strings
+        let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
+        (CommandResult i out _) <- liftIO $ case image of
+          Nothing -> runSubprocess "local" cmds
+          Just (_ :< Identifier image) -> runContainer image cmds
+        case i of
+          ExitSuccess -> pure $ sp :< EString out
+          ExitFailure _ -> throwError $ RuntimeError ("Error command exec: " <> "$ " <> unwords cmds) sp i
     ),
     ( "$1",
       \image strings -> do
         let cmds = map (\(_ :< EString s) -> s) strings
         let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
-        let (CommandResult _ out _) = case image of
-              Nothing -> unsafePerformIO $ runSubprocess "local" cmds
-              Just (_ :< Identifier image) -> unsafePerformIO $ runContainer image cmds
-        sp :< EString out
+        (CommandResult i out _) <- liftIO $ case image of
+          Nothing -> runSubprocess "local" cmds
+          Just (_ :< Identifier image) -> runContainer image cmds
+        case i of
+          ExitSuccess -> pure $ sp :< EString out
+          ExitFailure _ -> throwError $ RuntimeError ("Error command exec: " <> "$1 " <> unwords cmds) sp i
     ),
     ( "$2",
       \image strings -> do
         let cmds = map (\(_ :< EString s) -> s) strings
         let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
-        let (CommandResult _ _ err) = case image of
-              Nothing -> unsafePerformIO $ runSubprocess "local" cmds
-              Just (_ :< Identifier image) -> unsafePerformIO $ runContainer image cmds
-        sp :< EString err
+        (CommandResult i _ err) <- liftIO $ case image of
+          Nothing -> runSubprocess "local" cmds
+          Just (_ :< Identifier image) -> runContainer image cmds
+        case i of
+          ExitSuccess -> pure $ sp :< EString err
+          ExitFailure _ -> throwError $ RuntimeError ("Error command exec: " <> "$1 " <> unwords cmds) sp i
     ),
     ( ";",
-      \_ [e1, e2] -> unsafePerformIO $ do
+      \_ [e1, e2] -> do
         _ <- pure e1 -- execute forcibly
         pure e2
     ),
     ( "|>",
-      \_ [e1@(s1 :< _), e2@(s2 :< _)] -> s1 `S.union` s2 :< EApp Nothing e1 [(e2, False)]
+      \_ [e1@(s1 :< _), e2@(s2 :< _)] -> pure $ s1 `S.union` s2 :< EApp Nothing e1 [(e2, False)]
     ),
-    ("+", \_ [s1 :< ENumber a, s2 :< ENumber b] -> (s1 `union` s2) :< ENumber (a + b)),
-    ("-", \_ [s1 :< ENumber a, s2 :< ENumber b] -> (s1 `union` s2) :< ENumber (a - b)),
-    ("*", \_ [s1 :< ENumber a, s2 :< ENumber b] -> (s1 `union` s2) :< ENumber (a * b)),
-    ("/", \_ [s1 :< ENumber a, s2 :< ENumber b] -> (s1 `union` s2) :< ENumber (a / b))
+    ("+", \_ [s1 :< ENumber a, s2 :< ENumber b] -> pure $ (s1 `union` s2) :< ENumber (a + b)),
+    ("-", \_ [s1 :< ENumber a, s2 :< ENumber b] -> pure $ (s1 `union` s2) :< ENumber (a - b)),
+    ("*", \_ [s1 :< ENumber a, s2 :< ENumber b] -> pure $ (s1 `union` s2) :< ENumber (a * b)),
+    ("/", \_ [s1 :< ENumber a, s2 :< ENumber b] -> pure $ (s1 `union` s2) :< ENumber (a / b))
   ]
   where
     exitCodeToInt :: ExitCode -> Int

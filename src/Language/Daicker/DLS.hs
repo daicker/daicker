@@ -27,7 +27,7 @@ import qualified Data.Text as T
 import Data.Void (Void)
 import GHC.Generics (Generic)
 import Language.Daicker.Entry (validate')
-import Language.Daicker.Error (CodeError (CodeError))
+import Language.Daicker.Error (CodeError (), StaticError (StaticError))
 import Language.Daicker.Lexer
 import Language.Daicker.Span (Span (Span), WithSpan (WithSpan), toRange)
 import qualified Language.Daicker.Span as S
@@ -54,11 +54,11 @@ instance J.ToJSON Config where
 
 instance J.FromJSON Config
 
-sendDiagnostics :: LSP.NormalizedUri -> Maybe Int32 -> [CodeError] -> LspM Config ()
+sendDiagnostics :: LSP.NormalizedUri -> Maybe Int32 -> [StaticError] -> LspM Config ()
 sendDiagnostics fileUri version es = do
   let diags =
         map
-          ( \(CodeError m s) -> do
+          ( \(StaticError m s) -> do
               LSP.Diagnostic
                 (toRange s)
                 (Just LSP.DiagnosticSeverity_Error) -- severity
@@ -72,6 +72,7 @@ sendDiagnostics fileUri version es = do
           )
           es
   publishDiagnostics 100 fileUri version (partitionBySource diags)
+  where
 
 sendSyntaxError ::
   (m ~ LspM Config, LSP.HasUri a1 Uri, LSP.HasTextDocument a2 a1, LSP.HasParams s a2) =>
