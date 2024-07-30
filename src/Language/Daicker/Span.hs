@@ -13,10 +13,12 @@ data Position = Position
   }
   deriving (Show, Ord, Eq)
 
-data Span = Span
-  { startPos :: Position,
-    endPos :: Position
-  }
+data Span
+  = Span
+      { startPos :: Position,
+        endPos :: Position
+      }
+  | FixtureSpan String
   deriving (Show, Ord, Eq)
 
 data WithSpan a = WithSpan

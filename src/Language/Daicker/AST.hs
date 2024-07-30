@@ -6,16 +6,20 @@ module Language.Daicker.AST where
 
 import Control.Comonad.Cofree
 import Control.Monad (join, void)
+import Control.Monad.Except (ExceptT)
 import Data.Aeson (FromJSON (parseJSON), FromJSONKey (), ToJSON (toJSON), Value (Array, Bool, Null, Object, String), (.:))
 import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as KM
 import Data.Aeson.Types (Parser, Value (Number))
+import Data.Data (typeOf)
 import Data.Functor.Classes (Eq1 (liftEq), Show1 (liftShowsPrec), Show2 (liftShowsPrec2))
 import Data.Scientific (Scientific, toRealFloat)
 import Data.Text (pack)
 import qualified Data.Text as T
 import qualified Data.Vector as V
+import Language.Daicker.Error (RuntimeError)
 import Language.Daicker.Span (Span, Spanned, mkSpan, span)
+import System.Exit (ExitCode)
 
 type Module ann = Cofree (Module' ann) ann
 
@@ -110,7 +114,18 @@ data Expr' ann a
   | EElement a (Index ann)
   | EApp (Maybe (EImage ann)) a [(a, Expansion)]
   | EFun [PatternMatchAssign ann] a Expansion
+  | ENamedExpr (Identifier ann) a
+  | EError String ExitCode
+  | EFixtureFun [PatternMatchAssign ann] (Maybe (EImage ann) -> [a] -> IO a) Expansion
   deriving (Show, Eq)
+
+instance Show (Maybe (EImage ann) -> [a] -> IO a) where
+  show :: (Maybe (EImage ann) -> [a] -> IO a) -> String
+  show f = undefined
+
+instance Eq (Maybe (EImage ann) -> [a] -> IO a) where
+  (==) :: (Maybe (EImage ann) -> [a] -> IO a) -> (Maybe (EImage ann) -> [a] -> IO a) -> Bool
+  _ == _ = undefined
 
 type Expansion = Bool
 

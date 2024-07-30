@@ -20,7 +20,7 @@ import GHC.Base (join)
 import GHC.IO.Handle (Handle, hClose, hFlush, hGetChar, hGetContents, hIsClosed, hIsEOF)
 import Language.Daicker.AST
 import Language.Daicker.Error (RuntimeError (RuntimeError))
-import Language.Daicker.Span (Span, mkSpan, union)
+import Language.Daicker.Span (Span (FixtureSpan), mkSpan, union)
 import qualified Language.Daicker.Span as S
 import System.Directory (getCurrentDirectory)
 import System.Exit (ExitCode (ExitFailure, ExitSuccess), exitFailure)
@@ -43,16 +43,17 @@ findType n = find (\s -> isType s && name s == n)
     name (_ :< STypeDefine (_ :< Identifier n) _) = n
 
 execDefine :: Module Span -> Expr Span -> [(Expr Span, Expansion)] -> ExceptT RuntimeError IO (Expr Span)
-execDefine (_ :< Module {}) e args = eval [] (S.span e :< EApp Nothing e args)
+execDefine (_ :< Module {}) e args = eval prelude (S.span e :< EApp Nothing e args)
 
 eval :: [(String, Expr Span)] -> Expr Span -> ExceptT RuntimeError IO (Expr Span)
 eval vars v = case v of
+  e@(s :< EError {}) -> pure e
   s :< EArray vs -> (:<) s . EArray <$> mapM (eval vars) vs
   s :< EObject vs -> (:<) s . EObject <$> mapM (\(k, e) -> (,) k <$> eval vars e) vs
   s :< ERef (_ :< Identifier i) -> case lookup i vars of
     Just a -> eval vars a
     Nothing -> throwError $ RuntimeError ("not defined: " <> i) s (ExitFailure 1)
-  s :< EApp image a0@(_ :< ERef (_ :< Identifier i)) args -> do
+  s :< EApp image f args -> do
     args <-
       mapM
         ( \(e, expansion) ->
@@ -61,24 +62,14 @@ eval vars v = case v of
               else (: []) <$> eval vars e
         )
         args
-    case lookup i stdLib of
-      Just f -> f image (join args)
-      Nothing -> do
-        (s :< EFun pms e ex) <- eval vars a0
+    f' <- eval vars f
+    case f' of
+      (s :< EFun pms e ex) -> do
         args <- patternMatch ex pms (join args)
         eval (vars <> args) e
-  s :< EApp _ f args -> do
-    args <-
-      mapM
-        ( \(e, expansion) ->
-            if expansion
-              then expand <$> eval vars e
-              else (: []) <$> eval vars e
-        )
-        args
-    (s :< EFun pms e ex) <- eval vars f
-    args <- patternMatch ex pms (join args)
-    eval (vars <> args) e
+      (s :< EFixtureFun pms e ex) -> do
+        liftIO $ e image (join args)
+      (s :< _) -> throwError $ RuntimeError "Not a function" s (ExitFailure 1)
   s :< EProperty e (_ :< Identifier i1) -> do
     e <- eval vars e
     case e of
@@ -109,68 +100,143 @@ patternMatchOne pma e = case pma of
         Nothing -> throwError $ RuntimeError ("not found key: " <> i1) s (ExitFailure 1)
         Just (_, e) -> patternMatchOne a e
 
-stdLib :: [(String, Maybe (EImage Span) -> [Expr Span] -> ExceptT RuntimeError IO (Expr Span))]
-stdLib =
+preludeSpan :: Span
+preludeSpan = FixtureSpan "prelude"
+
+prelude :: [(String, Expr Span)]
+prelude =
   [ ( "$_",
-      \image strings -> do
-        let cmds = map (\(_ :< EString s) -> s) strings
-        let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
-        (CommandResult i out err) <- liftIO $ case image of
-          Nothing -> runSubprocess "local" cmds
-          Just (_ :< Identifier image) -> runContainer image cmds
-        pure $
-          sp
-            :< EObject
-              [ (sp :< Identifier "exitCode", sp :< ENumber (fromIntegral $ exitCodeToInt i)),
-                (sp :< Identifier "stdout", sp :< EString out),
-                (sp :< Identifier "stderr", sp :< EString err)
-              ]
+      preludeSpan
+        :< EFixtureFun
+          [preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "args")]
+          ( \image strings -> do
+              let cmds = map (\(_ :< EString s) -> s) strings
+              let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
+              (CommandResult i out err) <- liftIO $ case image of
+                Nothing -> runSubprocess "local" cmds
+                Just (_ :< Identifier image) -> runContainer image cmds
+              pure $
+                sp
+                  :< EObject
+                    [ (sp :< Identifier "exitCode", sp :< ENumber (fromIntegral $ exitCodeToInt i)),
+                      (sp :< Identifier "stdout", sp :< EString out),
+                      (sp :< Identifier "stderr", sp :< EString err)
+                    ]
+          )
+          True
     ),
     ( "$",
-      \image strings -> do
-        let cmds = map (\(_ :< EString s) -> s) strings
-        let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
-        (CommandResult i out _) <- liftIO $ case image of
-          Nothing -> runSubprocess "local" cmds
-          Just (_ :< Identifier image) -> runContainer image cmds
-        case i of
-          ExitSuccess -> pure $ sp :< EString out
-          ExitFailure _ -> throwError $ RuntimeError ("Error command exec: " <> "$ " <> unwords cmds) sp i
+      preludeSpan
+        :< EFixtureFun
+          [preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "args")]
+          ( \image strings -> do
+              let cmds = map (\(_ :< EString s) -> s) strings
+              let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
+              (CommandResult i out _) <- liftIO $ case image of
+                Nothing -> runSubprocess "local" cmds
+                Just (_ :< Identifier image) -> runContainer image cmds
+              case i of
+                ExitSuccess -> pure $ sp :< EString out
+                ExitFailure _ -> pure $ sp :< EError ("Error command exec: " <> "$ " <> unwords cmds) i
+          )
+          True
     ),
     ( "$1",
-      \image strings -> do
-        let cmds = map (\(_ :< EString s) -> s) strings
-        let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
-        (CommandResult i out _) <- liftIO $ case image of
-          Nothing -> runSubprocess "local" cmds
-          Just (_ :< Identifier image) -> runContainer image cmds
-        case i of
-          ExitSuccess -> pure $ sp :< EString out
-          ExitFailure _ -> throwError $ RuntimeError ("Error command exec: " <> "$1 " <> unwords cmds) sp i
+      preludeSpan
+        :< EFixtureFun
+          [preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "args")]
+          ( \image strings -> do
+              let cmds = map (\(_ :< EString s) -> s) strings
+              let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
+              (CommandResult i out _) <- liftIO $ case image of
+                Nothing -> runSubprocess "local" cmds
+                Just (_ :< Identifier image) -> runContainer image cmds
+              case i of
+                ExitSuccess -> pure $ sp :< EString out
+                ExitFailure _ -> pure $ sp :< EError ("Error command exec: " <> "$1 " <> unwords cmds) i
+          )
+          True
     ),
     ( "$2",
-      \image strings -> do
-        let cmds = map (\(_ :< EString s) -> s) strings
-        let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
-        (CommandResult i _ err) <- liftIO $ case image of
-          Nothing -> runSubprocess "local" cmds
-          Just (_ :< Identifier image) -> runContainer image cmds
-        case i of
-          ExitSuccess -> pure $ sp :< EString err
-          ExitFailure _ -> throwError $ RuntimeError ("Error command exec: " <> "$1 " <> unwords cmds) sp i
+      preludeSpan
+        :< EFixtureFun
+          [preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "args")]
+          ( \image strings -> do
+              let cmds = map (\(_ :< EString s) -> s) strings
+              let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
+              (CommandResult i _ err) <- liftIO $ case image of
+                Nothing -> runSubprocess "local" cmds
+                Just (_ :< Identifier image) -> runContainer image cmds
+              case i of
+                ExitSuccess -> pure $ sp :< EString err
+                ExitFailure _ -> pure $ sp :< EError ("Error command exec: " <> "$1 " <> unwords cmds) i
+          )
+          True
     ),
     ( ";",
-      \_ [e1, e2] -> do
-        _ <- pure e1 -- execute forcibly
-        pure e2
+      preludeSpan
+        :< EFixtureFun
+          [ preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "a"),
+            preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "b")
+          ]
+          ( \_ [e1, e2] -> do
+              _ <- pure e1 -- execute forcibly
+              pure e2
+          )
+          False
     ),
     ( "|>",
-      \_ [e1@(s1 :< _), e2@(s2 :< _)] -> pure $ s1 `S.union` s2 :< EApp Nothing e1 [(e2, False)]
+      preludeSpan
+        :< EFixtureFun
+          [ preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "a"),
+            preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "b")
+          ]
+          ( \_ [e1@(s1 :< _), e2@(s2 :< _)] ->
+              pure $
+                s1 `S.union` s2
+                  :< EApp
+                    Nothing
+                    e1
+                    [(e2, False)]
+          )
+          False
     ),
-    ("+", \_ [s1 :< ENumber a, s2 :< ENumber b] -> pure $ (s1 `union` s2) :< ENumber (a + b)),
-    ("-", \_ [s1 :< ENumber a, s2 :< ENumber b] -> pure $ (s1 `union` s2) :< ENumber (a - b)),
-    ("*", \_ [s1 :< ENumber a, s2 :< ENumber b] -> pure $ (s1 `union` s2) :< ENumber (a * b)),
-    ("/", \_ [s1 :< ENumber a, s2 :< ENumber b] -> pure $ (s1 `union` s2) :< ENumber (a / b))
+    ( "+",
+      preludeSpan
+        :< EFixtureFun
+          [ preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "a"),
+            preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "b")
+          ]
+          (\_ [s1 :< ENumber a, s2 :< ENumber b] -> pure $ (s1 `union` s2) :< ENumber (a + b))
+          False
+    ),
+    ( "-",
+      preludeSpan
+        :< EFixtureFun
+          [ preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "a"),
+            preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "b")
+          ]
+          (\_ [s1 :< ENumber a, s2 :< ENumber b] -> pure $ (s1 `union` s2) :< ENumber (a - b))
+          False
+    ),
+    ( "*",
+      preludeSpan
+        :< EFixtureFun
+          [ preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "a"),
+            preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "b")
+          ]
+          (\_ [s1 :< ENumber a, s2 :< ENumber b] -> pure $ (s1 `union` s2) :< ENumber (a * b))
+          False
+    ),
+    ( "/",
+      preludeSpan
+        :< EFixtureFun
+          [ preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "a"),
+            preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "b")
+          ]
+          (\_ [s1 :< ENumber a, s2 :< ENumber b] -> pure $ (s1 `union` s2) :< ENumber (a / b))
+          False
+    )
   ]
   where
     exitCodeToInt :: ExitCode -> Int
