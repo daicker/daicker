@@ -69,7 +69,10 @@ eval vars v = case v of
         eval (vars <> args) e
       (s :< EFixtureFun pms e ex) -> do
         liftIO $ e image (join args)
-      (s :< _) -> throwError $ RuntimeError "Not a function" s (ExitFailure 1)
+      (s :< e) ->
+        case args of
+          [] -> pure $ s :< e
+          _ -> throwError $ RuntimeError "Not a function" s (ExitFailure 1)
   s :< EProperty e (_ :< Identifier i1) -> do
     e <- eval vars e
     case e of
@@ -99,9 +102,6 @@ patternMatchOne pma e = case pma of
       objectMatch es (s :< Identifier i1) a = case find (\(s :< Identifier i2, _) -> i1 == i2) es of
         Nothing -> throwError $ RuntimeError ("not found key: " <> i1) s (ExitFailure 1)
         Just (_, e) -> patternMatchOne a e
-
-preludeSpan :: Span
-preludeSpan = FixtureSpan "prelude"
 
 prelude :: [(String, Expr Span)]
 prelude =
@@ -243,6 +243,8 @@ prelude =
     exitCodeToInt c = case c of
       ExitSuccess -> 0
       ExitFailure i -> i
+    preludeSpan :: Span
+    preludeSpan = FixtureSpan "prelude"
 
 data CommandResult = CommandResult {exitCode :: ExitCode, stdout :: String, stderr :: String}
 
