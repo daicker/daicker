@@ -15,8 +15,8 @@ import Text.Megaparsec hiding (parseTest)
 spec :: Spec
 spec = do
   describe "import" $ do
-    it "import a" $
-      parseTest pImport "test" "import a" `shouldBe` Right (mkSpan "test" 1 1 1 9 :< SImport (mkSpan "test" 1 8 1 9 :< Identifier "a"))
+    it "import a from \"test.daic\"" $
+      parseTest pImport "test" "import a from \"test.daic\"" `shouldBe` Right (mkSpan "test" 1 1 1 26 :< NamedImport (mkSpan "test" 1 8 1 9 :< Identifier "a") "test.daic")
   describe "define" $ do
     it "define a = 1" $
       parseTest pDefine "test" "define a = 1"
