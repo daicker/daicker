@@ -43,7 +43,7 @@ run fileName funcName args = do
   src <- liftIO $ T.readFile fileName
   tokens <- liftEither $ mapLeft StaticE $ lexTokens fileName src
   let stream = mkTStreamWithoutComment src tokens
-  m@(_ :< Module _ ss) <- liftEither $ mapLeft StaticE $ parseModule fileName stream
+  m@(_ :< Module _ _ ss) <- liftEither $ mapLeft StaticE $ parseModule fileName stream
   (_ :< SDefine _ e _) <- case findDefine funcName ss of
     Nothing -> throwError $ RuntimeE $ RuntimeError ("not found: " <> funcName) (mkSpan "command-line-function" 1 1 1 1) (ExitFailure 1)
     Just f -> return f

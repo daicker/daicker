@@ -37,10 +37,10 @@ data TToken
   | TIdentifier String
   | TImage String
   | TAssign
-  | TModule
   | TImport
   | TExport
   | TDefine
+  | TFrom
   | TType
   | TLParenthesis
   | TRParenthesis
@@ -161,10 +161,10 @@ showTToken = \case
   (TIdentifier v) -> v
   (TImage v) -> "#" <> v
   TAssign -> "="
-  TModule -> "module"
   TImport -> "import"
   TExport -> "export"
   TDefine -> "define"
+  TFrom -> "from"
   TType -> "type"
   TLParenthesis -> "("
   TRParenthesis -> ")"
@@ -248,11 +248,11 @@ tToken =
           TAssign <$ char '=' <?> "=",
           TSemicolon <$ char ';' <?> ";",
           TRight <$ string "|>" <?> "|>",
-          TModule <$ string "module" <?> "module",
           TImage <$> ((:) <$> char '#' *> many (alphaNumChar <|> char '/' <|> char ':' <|> char '.' <|> char '-' <|> char '_') <?> "image"),
           TImport <$ string "import" <?> "import",
           TExport <$ string "export" <?> "export",
           TDefine <$ string "define" <?> "define",
+          TFrom <$ string "from" <?> "from",
           TType <$ string "type" <?> "type",
           TNumber <$> L.signed sc L.scientific <?> "number",
           TString <$> (char '"' *> manyTill L.charLiteral (char '"') <?> "string"),

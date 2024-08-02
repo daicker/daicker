@@ -43,7 +43,7 @@ findType n = find (\s -> isType s && name s == n)
     name (_ :< STypeDefine (_ :< Identifier n) _) = n
 
 execDefine :: Module Span -> Expr Span -> [(Expr Span, Expansion)] -> ExceptT RuntimeError IO (Expr Span)
-execDefine (_ :< Module {}) e args = eval prelude (S.span e :< EApp Nothing e args)
+execDefine (_ :< Module _ _ ss) e args = eval prelude (S.span e :< EApp Nothing e args)
 
 eval :: [(String, Expr Span)] -> Expr Span -> ExceptT RuntimeError IO (Expr Span)
 eval vars v = case v of

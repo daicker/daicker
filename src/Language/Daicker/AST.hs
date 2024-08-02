@@ -19,39 +19,62 @@ import qualified Data.Text as T
 import qualified Data.Vector as V
 import Language.Daicker.Error (RuntimeError)
 import Language.Daicker.Span (Span, Spanned, mkSpan, span)
+import Language.LSP.Protocol.Types (Uri)
 import System.Exit (ExitCode)
 
 type Module ann = Cofree (Module' ann) ann
 
-data Module' ann a = Module (Identifier ann) [Statement ann] deriving (Show, Eq)
+data Module' ann a = Module [Import ann] (Maybe (Export ann)) [Statement ann] deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Module' ann) where
-  liftEq _ (Module i1 s1) (Module i2 s2) =
-    i1 == i2 && s1 == s2
+  liftEq _ (Module i1 e1 s1) (Module i2 e2 s2) =
+    i1 == i2 && e1 == e2 && s1 == s2
 
 instance (Show ann) => Show1 (Module' ann) where
-  liftShowsPrec _ _ _ (Module name s) = showString $ "Module " <> show name <> show s
+  liftShowsPrec _ _ _ (Module i e s) = showString $ "Module " <> show i <> show e <> show s
+
+type Import ann = Cofree (Import' ann) ann
+
+data Import' ann a
+  = NamedImport (Identifier ann) String
+  | PartialImport [Identifier ann] String
+  | WildImport String
+  deriving (Show, Eq)
+
+instance (Eq ann) => Eq1 (Import' ann) where
+  liftEq _ (NamedImport i1 url1) (NamedImport i2 url2) = i1 == i2 && url1 == url2
+  liftEq _ (PartialImport i1 url1) (PartialImport i2 url2) = i1 == i2 && url1 == url2
+  liftEq _ (WildImport url1) (WildImport url2) = url1 == url2
+
+instance (Show ann) => Show1 (Import' ann) where
+  liftShowsPrec _ _ _ (NamedImport i url) = showString $ "NamedImport " <> show i <> show url
+  liftShowsPrec _ _ _ (PartialImport is url) = showString $ "PartialImport " <> show is <> show url
+  liftShowsPrec _ _ _ (WildImport url) = showString $ "WildImport " <> show url
+
+type Export ann = Cofree (Export' ann) ann
+
+newtype Export' ann a = Export [Identifier ann] deriving (Show, Eq)
+
+instance (Eq ann) => Eq1 (Export' ann) where
+  liftEq _ (Export i1) (Export i2) = i1 == i2
+
+instance (Show ann) => Show1 (Export' ann) where
+  liftShowsPrec _ _ _ (Export i) = showString $ show "Export " <> show i
 
 type Statement ann = Cofree (Statement' ann) ann
 
 data Statement' ann a
-  = SImport (Identifier ann)
-  | SExport (Identifier ann)
-  | SDefine (Identifier ann) (Expr ann) (Maybe (Type ann))
+  = SDefine (Identifier ann) (Expr ann) (Maybe (Type ann))
   | STypeDefine (Identifier ann) (Type ann)
   deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Statement' ann) where
-  liftEq _ (SImport i1) (SImport i2) = i1 == i2
-  liftEq _ (SExport i1) (SExport i2) = i1 == i2
   liftEq _ (SDefine i1 e1 t1) (SDefine i2 e2 t2) = i1 == i2 && e1 == e2 && t1 == t2
   liftEq _ (STypeDefine i1 e1) (STypeDefine i2 e2) = i1 == i2 && e1 == e2
 
 instance (Show ann) => Show1 (Statement' ann) where
-  liftShowsPrec _ _ _ (SImport i) = showString $ "SImport " <> show i
-  liftShowsPrec _ _ _ (SExport i) = showString $ "SExport " <> show i
-  liftShowsPrec _ _ _ (SDefine i e t) = showString $ show i <> show e <> show t
-  liftShowsPrec _ _ _ (STypeDefine i e) = showString $ show i <> show e
+  liftShowsPrec _ _ _ (SDefine i e t) = showString $ show "SDefine " <> show i <> show e <> show t
+  liftShowsPrec _ _ _ (STypeDefine i e) = showString $ show "STypeDefine " <> show i <> show e
 
 type Type ann = Cofree (Type' ann) ann
 

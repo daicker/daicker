@@ -5,7 +5,7 @@ import Control.Monad (void)
 import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
 import Data.Functor.Identity (Identity)
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.Maybe (isJust)
+import Data.Maybe (fromJust, fromMaybe, isJust)
 import Data.Scientific (toRealFloat)
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -42,25 +42,56 @@ parseModule fileName stream = case parse pModule fileName stream of
 
 pModule :: Parser (Module Span)
 pModule = do
-  (WithSpan i s1) <- spanned (pToken TModule *> pIdentifier)
+  (WithSpan imports s1) <- spanned $ many pImport
+  export <- optional pExport
   statements <- many pStatement
   (WithSpan _ s2) <- spanned eof
-  return $ (s1 `union` s2) :< Module i statements
+  return $ (s1 `union` s2) :< Module imports export statements
 
 pStatement :: Parser (Statement Span)
-pStatement = choice [pImport, pExport, pDefine, pTypeDefine]
+pStatement = choice [pDefine, pTypeDefine]
 
-pImport :: Parser (Statement Span)
+pImport :: Parser (Import Span)
 pImport = do
-  s <- pToken TImport
-  i <- pIdentifier
-  return $ (S.span s `union` S.span i) :< SImport i
+  (WithSpan _ s1) <- pToken TImport
+  s2 :< i <- pImport'
+  return $ (s1 `union` s2) :< i
+  where
+    pImport' :: Parser (Import Span)
+    pImport' =
+      choice
+        [ do
+            i@(s1 :< _) <- pIdentifier
+            pToken TFrom
+            (WithSpan u s2) <- pUrl
+            pure $ s1 `union` s2 :< NamedImport i u,
+          do
+            (WithSpan is s1) <-
+              spanned $
+                between
+                  (pToken TLBrace)
+                  (pToken TRBrace)
+                  (pIdentifier `sepBy` pToken TComma)
+            pToken TFrom
+            (WithSpan u s2) <- pUrl
+            pure $ s1 `union` s2 :< PartialImport is u,
+          do
+            (WithSpan _ s1) <- pToken TMul
+            pToken TFrom
+            (WithSpan u s2) <- pUrl
+            pure $ s1 `union` s2 :< WildImport u
+        ]
+    pUrl :: Parser (WithSpan String)
+    pUrl = token test Set.empty <?> "url"
+      where
+        test (WithSpan (TString t) s) = Just $ WithSpan t s
+        test _ = Nothing
 
-pExport :: Parser (Statement Span)
+pExport :: Parser (Export Span)
 pExport = do
-  s <- pToken TExport
-  i <- pIdentifier
-  return $ (S.span s `union` S.span i) :< SExport i
+  (WithSpan _ s1) <- pToken TExport
+  (WithSpan is s2) <- spanned $ some pIdentifier
+  return $ (s1 `union` s2) :< Export is
 
 pDefine :: Parser (Statement Span)
 pDefine = do

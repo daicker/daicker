@@ -210,10 +210,10 @@ lexSemanticTokens fileName src =
       TBool _ -> Just SemanticTokenTypes_Macro
       TNumber _ -> Just SemanticTokenTypes_Number
       TString _ -> Just SemanticTokenTypes_String
-      TModule -> Just SemanticTokenTypes_Keyword
       TImport -> Just SemanticTokenTypes_Keyword
       TExport -> Just SemanticTokenTypes_Keyword
       TDefine -> Just SemanticTokenTypes_Keyword
+      TFrom -> Just SemanticTokenTypes_Keyword
       TType -> Just SemanticTokenTypes_Keyword
       TIdentifier _ -> Just SemanticTokenTypes_Variable
       TImage _ -> Just SemanticTokenTypes_Macro
