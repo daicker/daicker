@@ -1,5 +1,3 @@
-module main
-
 define test =
   $ "stack" "test"
 
