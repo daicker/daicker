@@ -6,3 +6,6 @@ define install =
 
 define uninstall =
   $ "rm" "/usr/local/bin/daicker"
+
+define count =
+  $ "cloc" "." "--vcs=git"

@@ -1,5 +1,3 @@
-module main
-
 // stdin から stdout, stderrが出力される。stderrはメタ扱いする。
 // stdoutが通常の出力として与えられる。
 // stderrはメタな操作に使われる。リトライなどのロジックに使う。

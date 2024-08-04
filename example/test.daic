@@ -1,15 +1,17 @@
-module main
+import a from "https://localhost"
 
-import apply
-export stdlib
+export terraform abc
 
 // comment
-define apply = #terraform $ {
-  "a": 1,
-  "b": {}
-}
+define terraform args... = #hashicorp/terraform $ args...
 
 /* 日本語のコメント */
-define test = $1 "terraform" "--help"
-define echo [a, b] = $1 "echo" a b
-define add [a, b] = a + b
+define test = $ "terraform" "--help"
+define echo args... = #alpine $ "echo" args...
+define opentofu args... = #chainguard/opentofu $ args...
+
+type ab = { "a": string, "b": string, "c": integer }
+
+define add a b args... =
+  $ "echo" args...;
+  a + b
