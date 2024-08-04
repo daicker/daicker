@@ -36,20 +36,37 @@ instance (Show ann) => Show1 (Module' ann) where
 type Import ann = Cofree (Import' ann) ann
 
 data Import' ann a
-  = NamedImport (Identifier ann) String
-  | PartialImport [Identifier ann] String
-  | WildImport String
+  = NamedImport (Identifier ann) (URL ann)
+  | PartialImport [Identifier ann] (URL ann)
+  | WildImport (URL ann)
   deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Import' ann) where
   liftEq _ (NamedImport i1 url1) (NamedImport i2 url2) = i1 == i2 && url1 == url2
   liftEq _ (PartialImport i1 url1) (PartialImport i2 url2) = i1 == i2 && url1 == url2
   liftEq _ (WildImport url1) (WildImport url2) = url1 == url2
+  liftEq _ _ _ = False
 
 instance (Show ann) => Show1 (Import' ann) where
   liftShowsPrec _ _ _ (NamedImport i url) = showString $ "NamedImport " <> show i <> show url
   liftShowsPrec _ _ _ (PartialImport is url) = showString $ "PartialImport " <> show is <> show url
   liftShowsPrec _ _ _ (WildImport url) = showString $ "WildImport " <> show url
+
+type URL ann = Cofree (URL' ann) ann
+
+data URL' ann a
+  = LocalFile String
+  | RemoteFile String
+  deriving (Show, Eq)
+
+instance (Eq ann) => Eq1 (URL' ann) where
+  liftEq _ (LocalFile url1) (LocalFile url2) = url1 == url2
+  liftEq _ (RemoteFile url1) (RemoteFile url2) = url1 == url2
+  liftEq _ _ _ = False
+
+instance (Show ann) => Show1 (URL' ann) where
+  liftShowsPrec _ _ _ (LocalFile url) = showString $ "LocalFile " <> show url
+  liftShowsPrec _ _ _ (RemoteFile url) = showString $ "RemoteFile " <> show url
 
 type Export ann = Cofree (Export' ann) ann
 

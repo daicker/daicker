@@ -14,6 +14,7 @@ import Data.Foldable (find)
 import Data.List (intercalate)
 import qualified Data.Text as T
 import Data.Text.IO (hGetLine, hPutStrLn)
+import qualified Data.Text.IO as T
 import Data.Tree (flatten)
 import Debug.Trace (traceShow)
 import GHC.Base (join)
@@ -28,22 +29,8 @@ import System.IO (hSetBuffering)
 import qualified System.IO as IO
 import System.Process
 
-findDefine :: String -> [Statement a] -> Maybe (Statement a)
-findDefine n = find (\s -> isDefine s && name s == n)
-  where
-    isDefine (_ :< SDefine {}) = True
-    isDefine _ = False
-    name (_ :< SDefine (_ :< Identifier n) _ _) = n
-
-findType :: String -> [Statement a] -> Maybe (Statement a)
-findType n = find (\s -> isType s && name s == n)
-  where
-    isType (_ :< STypeDefine {}) = True
-    isType _ = False
-    name (_ :< STypeDefine (_ :< Identifier n) _) = n
-
-execDefine :: Module Span -> Expr Span -> [(Expr Span, Expansion)] -> ExceptT RuntimeError IO (Expr Span)
-execDefine (_ :< Module _ _ ss) e args = eval prelude (S.span e :< EApp Nothing e args)
+execDefine :: Expr Span -> [(Expr Span, Expansion)] -> [(String, Expr Span)] -> ExceptT RuntimeError IO (Expr Span)
+execDefine e args env = eval (prelude <> env) (S.span e :< EApp Nothing e args)
 
 eval :: [(String, Expr Span)] -> Expr Span -> ExceptT RuntimeError IO (Expr Span)
 eval vars v = case v of

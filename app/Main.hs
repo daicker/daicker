@@ -14,11 +14,12 @@ import Data.Text (Text)
 import GHC.IO.IOMode (IOMode (..))
 import GHC.IO.StdHandles (openFile)
 import Language.Daicker.AST (Expr, Expr' (EArray, EFun, ENull, EString), Module, Module' (Module), Statement' (SDefine))
+import Language.Daicker.Bundler (findDefine)
 import Language.Daicker.DLS (serve)
 import Language.Daicker.Entry (hExitWithCodeErrors, hExitWithExpr, withDevNull)
 import qualified Language.Daicker.Entry as E
 import Language.Daicker.Error (staticErrorListPretty)
-import Language.Daicker.Executor (execDefine, findDefine)
+import Language.Daicker.Executor (execDefine)
 import Language.Daicker.Parser (pModule, parseModule)
 import Options.Applicative
 import System.IO (hClose, hGetContents, hIsClosed, hIsOpen, hPutStrLn, hReady, hWaitForInput, stderr, stdin, stdout)

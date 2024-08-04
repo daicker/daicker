@@ -16,9 +16,10 @@ import Data.Sequence (mapWithIndex)
 import Data.Text (Text)
 import qualified Data.Text.IO as T
 import Language.Daicker.AST (Expr, Expr' (EArray, EFun), Identifier, Module, Module' (..), Statement' (SDefine), switchAnn)
+import Language.Daicker.Bundler (findDefine)
 import Language.Daicker.CmdArgParser (parseArg)
 import Language.Daicker.Error (CodeError (RuntimeE, StaticE), RuntimeError (RuntimeError), StaticError, codeErrorPretty)
-import Language.Daicker.Executor (execDefine, findDefine)
+import Language.Daicker.Executor (execDefine)
 import Language.Daicker.Lexer (lexTokens, mkTStreamWithoutComment)
 import Language.Daicker.Parser (parseModule)
 import Language.Daicker.Span (Span, mkSpan)
@@ -50,7 +51,7 @@ run fileName funcName args = do
   hasStdin <- liftIO $ hReady stdin
   input <- liftIO $ if hasStdin then Just <$> B.getContents else pure Nothing
   es <- liftEither $ mapLeft StaticE $ mapM (\(i, arg) -> parseArg ("command-line-argument($" <> show i <> ")") input arg) $ zip [1 ..] args
-  withExceptT RuntimeE $ execDefine m e (map (,False) es)
+  withExceptT RuntimeE $ execDefine e (map (,False) es) []
 
 mapLeft :: (a -> c) -> Either a b -> Either c b
 mapLeft f = either (Left . f) Right

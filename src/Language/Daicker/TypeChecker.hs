@@ -3,8 +3,8 @@ module Language.Daicker.TypeChecker where
 import Control.Comonad.Cofree (Cofree ((:<)))
 import Control.Monad (join)
 import Language.Daicker.AST
+import Language.Daicker.Bundler (findDefine)
 import Language.Daicker.Error (StaticError (StaticError))
-import Language.Daicker.Executor (findDefine)
 import Language.Daicker.Parser (parseModule)
 import Language.Daicker.Span (Span)
 

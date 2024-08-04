@@ -63,7 +63,7 @@ pImport = do
         [ do
             i@(s1 :< _) <- pIdentifier
             pToken TFrom
-            (WithSpan u s2) <- pUrl
+            u@(s2 :< _) <- pUrl
             pure $ s1 `union` s2 :< NamedImport i u,
           do
             (WithSpan is s1) <-
@@ -73,19 +73,20 @@ pImport = do
                   (pToken TRBrace)
                   (pIdentifier `sepBy` pToken TComma)
             pToken TFrom
-            (WithSpan u s2) <- pUrl
+            u@(s2 :< _) <- pUrl
             pure $ s1 `union` s2 :< PartialImport is u,
           do
             (WithSpan _ s1) <- pToken TMul
             pToken TFrom
-            (WithSpan u s2) <- pUrl
+            u@(s2 :< _) <- pUrl
             pure $ s1 `union` s2 :< WildImport u
         ]
-    pUrl :: Parser (WithSpan String)
-    pUrl = token test Set.empty <?> "url"
-      where
-        test (WithSpan (TString t) s) = Just $ WithSpan t s
-        test _ = Nothing
+
+pUrl :: Parser (URL Span)
+pUrl = token test Set.empty <?> "url"
+  where
+    test (WithSpan (TString t) s) = Just $ s :< LocalFile t
+    test _ = Nothing
 
 pExport :: Parser (Export Span)
 pExport = do

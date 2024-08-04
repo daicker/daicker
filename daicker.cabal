@@ -23,6 +23,7 @@ source-repository head
 library
   exposed-modules:
       Language.Daicker.AST
+      Language.Daicker.Bundler
       Language.Daicker.CmdArgParser
       Language.Daicker.DLS
       Language.Daicker.Entry
