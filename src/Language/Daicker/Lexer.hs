@@ -208,7 +208,7 @@ lexTokens fileName src = case parse tTokens fileName src of
   (Right ts) -> pure ts
 
 tTokens :: Lexer [WithSpan TToken]
-tTokens = many tToken <* eof
+tTokens = sc *> many tToken <* eof
 
 tToken :: Lexer (WithSpan TToken)
 tToken =
