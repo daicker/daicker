@@ -72,7 +72,6 @@ sendDiagnostics fileUri version es = do
           )
           es
   publishDiagnostics 100 fileUri version (partitionBySource diags)
-  where
 
 sendSyntaxError ::
   (m ~ LspM Config, LSP.HasUri a1 Uri, LSP.HasTextDocument a2 a1, LSP.HasParams s a2) =>
@@ -110,14 +109,15 @@ handle logger =
                   . to LSP.toNormalizedUri
         mdoc <- getVirtualFile doc
         let (NormalizedUri _ path) = doc
-        let tokens = case mdoc of
-              Just file -> case lexSemanticTokens (T.unpack path) (virtualFileText file) of
-                Right ts -> makeSemanticTokens defaultSemanticTokensLegend ts
-                Left e -> Left e
-              Nothing -> makeSemanticTokens defaultSemanticTokensLegend []
-        case tokens of
-          Left t -> responder $ Left $ LSP.ResponseError (LSP.InR LSP.ErrorCodes_InternalError) t Nothing
-          Right tokens -> responder $ Right $ LSP.InL tokens,
+        case mdoc of
+          Just file -> case lexSemanticTokens (T.unpack path) (virtualFileText file) of
+            Right ts -> case makeSemanticTokens defaultSemanticTokensLegend ts of
+              Right ts -> responder $ Right $ LSP.InL ts
+              Left t -> responder $ Left $ LSP.ResponseError (LSP.InR LSP.ErrorCodes_InternalError) t Nothing
+            Left _ -> case makeSemanticTokens defaultSemanticTokensLegend [] of
+              Right ts -> responder $ Right $ LSP.InL ts
+              Left t -> responder $ Left $ LSP.ResponseError (LSP.InR LSP.ErrorCodes_InternalError) t Nothing
+          Nothing -> responder $ Left $ LSP.ResponseError (LSP.InR LSP.ErrorCodes_InternalError) "cannot get virtual file" Nothing,
       notificationHandler LSP.SMethod_WorkspaceDidChangeConfiguration $ \_ -> pure () -- Nothing to do
     ]
 
