@@ -81,17 +81,37 @@ instance (Show ann) => Show1 (Export' ann) where
 type Statement ann = Cofree (Statement' ann) ann
 
 data Statement' ann a
-  = SDefine (Identifier ann) (Expr ann) (Maybe (Type ann))
-  | STypeDefine (Identifier ann) (Type ann)
+  = SDefine (Define ann)
+  | STypeDefine (TypeDefine ann)
   deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Statement' ann) where
-  liftEq _ (SDefine i1 e1 t1) (SDefine i2 e2 t2) = i1 == i2 && e1 == e2 && t1 == t2
-  liftEq _ (STypeDefine i1 e1) (STypeDefine i2 e2) = i1 == i2 && e1 == e2
+  liftEq _ (SDefine d1) (SDefine d2) = d1 == d2
+  liftEq _ (STypeDefine d1) (STypeDefine d2) = d1 == d2
 
 instance (Show ann) => Show1 (Statement' ann) where
-  liftShowsPrec _ _ _ (SDefine i e t) = showString $ show "SDefine " <> show i <> show e <> show t
-  liftShowsPrec _ _ _ (STypeDefine i e) = showString $ show "STypeDefine " <> show i <> show e
+  liftShowsPrec _ _ _ (SDefine d) = showString $ show "SDefine " <> show d
+  liftShowsPrec _ _ _ (STypeDefine d) = showString $ show "STypeDefine " <> show d
+
+type Define ann = Cofree (Define' ann) ann
+
+data Define' ann a = Define (Identifier ann) (Expr ann) (Maybe (Type ann)) deriving (Show, Eq)
+
+instance (Eq ann) => Eq1 (Define' ann) where
+  liftEq _ (Define i1 e1 t1) (Define i2 e2 t2) = i1 == i2 && e1 == e2 && t1 == t2
+
+instance (Show ann) => Show1 (Define' ann) where
+  liftShowsPrec _ _ _ (Define i e t) = showString $ show "Define " <> show i <> show e <> show t
+
+type TypeDefine ann = Cofree (TypeDefine' ann) ann
+
+data TypeDefine' ann a = TypeDefine (Identifier ann) (Type ann) deriving (Show, Eq)
+
+instance (Eq ann) => Eq1 (TypeDefine' ann) where
+  liftEq _ (TypeDefine i1 t1) (TypeDefine i2 t2) = i1 == i2 && t1 == t2
+
+instance (Show ann) => Show1 (TypeDefine' ann) where
+  liftShowsPrec _ _ _ (TypeDefine i t) = showString $ show "TypeDefine " <> show i <> show t
 
 type Type ann = Cofree (Type' ann) ann
 

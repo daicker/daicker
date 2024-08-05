@@ -29,29 +29,35 @@ spec = do
         `shouldBe` Right
           ( mkSpan "test" 1 1 1 13
               :< SDefine
-                (mkSpan "test" 1 8 1 9 :< Identifier "a")
-                (mkSpan "test" 1 12 1 13 :< ENumber 1)
-                Nothing
+                ( mkSpan "test" 1 1 1 13
+                    :< Define
+                      (mkSpan "test" 1 8 1 9 :< Identifier "a")
+                      (mkSpan "test" 1 12 1 13 :< ENumber 1)
+                      Nothing
+                )
           )
     it "define f a = a" $
       parseTest pDefine "test" "define f a = a"
         `shouldBe` Right
           ( mkSpan "test" 1 1 1 15
               :< SDefine
-                (mkSpan "test" 1 8 1 9 :< Identifier "f")
-                ( mkSpan "test" 1 10 1 15
-                    :< EFun
-                      [ mkSpan "test" 1 10 1 11
-                          :< PMAAnyValue
-                            ( mkSpan "test" 1 10 1 11
-                                :< Identifier
-                                  "a"
-                            )
-                      ]
-                      (mkSpan "test" 1 14 1 15 :< ERef (mkSpan "test" 1 14 1 15 :< Identifier "a"))
-                      False
+                ( mkSpan "test" 1 1 1 15
+                    :< Define
+                      (mkSpan "test" 1 8 1 9 :< Identifier "f")
+                      ( mkSpan "test" 1 10 1 15
+                          :< EFun
+                            [ mkSpan "test" 1 10 1 11
+                                :< PMAAnyValue
+                                  ( mkSpan "test" 1 10 1 11
+                                      :< Identifier
+                                        "a"
+                                  )
+                            ]
+                            (mkSpan "test" 1 14 1 15 :< ERef (mkSpan "test" 1 14 1 15 :< Identifier "a"))
+                            False
+                      )
+                      Nothing
                 )
-                Nothing
           )
   describe "value parser" $ do
     describe "null" $ do

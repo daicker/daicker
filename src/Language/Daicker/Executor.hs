@@ -20,6 +20,7 @@ import Debug.Trace (traceShow)
 import GHC.Base (join)
 import GHC.IO.Handle (Handle, hClose, hFlush, hGetChar, hGetContents, hIsClosed, hIsEOF)
 import Language.Daicker.AST
+import Language.Daicker.Bundler (ExprBundle (ExprBundle))
 import Language.Daicker.Error (RuntimeError (RuntimeError))
 import Language.Daicker.Span (Span (FixtureSpan), mkSpan, union)
 import qualified Language.Daicker.Span as S
@@ -29,31 +30,31 @@ import System.IO (hSetBuffering)
 import qualified System.IO as IO
 import System.Process
 
-execDefine :: Expr Span -> [(Expr Span, Expansion)] -> [(String, Expr Span)] -> ExceptT RuntimeError IO (Expr Span)
-execDefine e args env = eval (prelude <> env) (S.span e :< EApp Nothing e args)
+execDefine :: Expr Span -> [(Expr Span, Expansion)] -> ExprBundle -> ExceptT RuntimeError IO (Expr Span)
+execDefine e args (ExprBundle env child) = eval (ExprBundle (prelude <> env) child) (S.span e :< EApp Nothing e args)
 
-eval :: [(String, Expr Span)] -> Expr Span -> ExceptT RuntimeError IO (Expr Span)
-eval vars v = case v of
+eval :: ExprBundle -> Expr Span -> ExceptT RuntimeError IO (Expr Span)
+eval bundle@(ExprBundle vars child) v = case v of
   e@(s :< EError {}) -> pure e
-  s :< EArray vs -> (:<) s . EArray <$> mapM (eval vars) vs
-  s :< EObject vs -> (:<) s . EObject <$> mapM (\(k, e) -> (,) k <$> eval vars e) vs
+  s :< EArray vs -> (:<) s . EArray <$> mapM (eval bundle) vs
+  s :< EObject vs -> (:<) s . EObject <$> mapM (\(k, e) -> (,) k <$> eval bundle e) vs
   s :< ERef (_ :< Identifier i) -> case lookup i vars of
-    Just a -> eval vars a
+    Just a -> eval bundle a
     Nothing -> throwError $ RuntimeError ("not defined: " <> i) s (ExitFailure 1)
   s :< EApp image f args -> do
     args <-
       mapM
         ( \(e, expansion) ->
             if expansion
-              then expand <$> eval vars e
-              else (: []) <$> eval vars e
+              then expand <$> eval bundle e
+              else (: []) <$> eval bundle e
         )
         args
-    f' <- eval vars f
+    f' <- eval bundle f
     case f' of
       (s :< EFun pms e ex) -> do
         args <- patternMatch ex pms (join args)
-        eval (vars <> args) e
+        eval (ExprBundle (vars <> args) child) e
       (s :< EFixtureFun pms e ex) -> do
         liftIO $ e image (join args)
       (s :< e) ->
@@ -61,7 +62,7 @@ eval vars v = case v of
           [] -> pure $ s :< e
           _ -> throwError $ RuntimeError "Not a function" s (ExitFailure 1)
   s :< EProperty e (_ :< Identifier i1) -> do
-    e <- eval vars e
+    e <- eval bundle e
     case e of
       (_ :< EObject vs) -> case find (\(s :< Identifier i2, _) -> i1 == i2) vs of
         Just (_, v) -> pure v

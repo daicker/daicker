@@ -15,8 +15,8 @@ import qualified Data.ByteString.Lazy.Char8 as B
 import Data.Sequence (mapWithIndex)
 import Data.Text (Text)
 import qualified Data.Text.IO as T
-import Language.Daicker.AST (Expr, Expr' (EArray, EFun), Identifier, Module, Module' (..), Statement' (SDefine), switchAnn)
-import Language.Daicker.Bundler (findDefine)
+import Language.Daicker.AST (Define' (Define), Expr, Expr' (EArray, EFun), Identifier, Module, Module' (..), Statement' (SDefine), switchAnn)
+import Language.Daicker.Bundler (findDefine, loadExprs)
 import Language.Daicker.CmdArgParser (parseArg)
 import Language.Daicker.Error (CodeError (RuntimeE, StaticE), RuntimeError (RuntimeError), StaticError, codeErrorPretty)
 import Language.Daicker.Executor (execDefine)
@@ -45,13 +45,14 @@ run fileName funcName args = do
   tokens <- liftEither $ mapLeft StaticE $ lexTokens fileName src
   let stream = mkTStreamWithoutComment src tokens
   m@(_ :< Module _ _ ss) <- liftEither $ mapLeft StaticE $ parseModule fileName stream
-  (_ :< SDefine _ e _) <- case findDefine funcName ss of
+  (_ :< SDefine (_ :< Define _ e _)) <- case findDefine funcName ss of
     Nothing -> throwError $ RuntimeE $ RuntimeError ("not found: " <> funcName) (mkSpan "command-line-function" 1 1 1 1) (ExitFailure 1)
     Just f -> return f
+  b <- withExceptT StaticE $ loadExprs m
   hasStdin <- liftIO $ hReady stdin
   input <- liftIO $ if hasStdin then Just <$> B.getContents else pure Nothing
   es <- liftEither $ mapLeft StaticE $ mapM (\(i, arg) -> parseArg ("command-line-argument($" <> show i <> ")") input arg) $ zip [1 ..] args
-  withExceptT RuntimeE $ execDefine e (map (,False) es) []
+  withExceptT RuntimeE $ execDefine e (map (,False) es) b
 
 mapLeft :: (a -> c) -> Either a b -> Either c b
 mapLeft f = either (Left . f) Right

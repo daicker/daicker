@@ -104,8 +104,8 @@ pDefine = do
   v <- pExpr
   t <- optional (pToken TColon *> pType)
   case params of
-    [] -> return $ (s `union` S.span v) :< SDefine i v t
-    params -> return $ (s `union` S.span v) :< SDefine i ((S.span (head params) `union` S.span v) :< EFun params v (isJust extends)) t
+    [] -> return $ (s `union` S.span v) :< SDefine ((s `union` S.span v) :< Define i v t)
+    params -> return $ (s `union` S.span v) :< SDefine ((s `union` S.span v) :< Define i ((S.span (head params) `union` S.span v) :< EFun params v (isJust extends)) t)
 
 pTypeDefine :: Parser (Statement Span)
 pTypeDefine = do
@@ -113,7 +113,7 @@ pTypeDefine = do
   i <- pIdentifier
   pToken TAssign
   t <- pType
-  pure $ (s `union` S.span t) :< STypeDefine i t
+  pure $ (s `union` S.span t) :< STypeDefine ((s `union` S.span t) :< TypeDefine i t)
 
 pPatternMatchAssign :: Parser (PatternMatchAssign Span)
 pPatternMatchAssign =

@@ -16,8 +16,8 @@ validateModule m@(_ :< Module _ _ ss) = case es of
     es = join $ map (validateStatement m) ss
 
 validateStatement :: Module Span -> Statement Span -> [StaticError]
-validateStatement (_ :< Module _ _ ss) s@(_ :< SDefine (sp :< Identifier name) e t) =
+validateStatement (_ :< Module _ _ ss) s@(_ :< SDefine (_ :< Define (sp :< Identifier name) e t)) =
   case findDefine name (filter (/= s) ss) of
     Nothing -> []
     Just _ -> [StaticError ("duplicated function name: " <> name) sp]
-validateStatement _ (s :< STypeDefine name t) = []
+validateStatement _ (s :< STypeDefine (_ :< TypeDefine name t)) = []
