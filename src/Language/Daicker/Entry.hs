@@ -5,8 +5,8 @@
 module Language.Daicker.Entry where
 
 import Control.Comonad.Cofree (Cofree (..))
-import Control.Monad (liftM)
-import Control.Monad.Except (ExceptT, MonadError (throwError), liftEither, withExceptT)
+import Control.Monad (liftM, void)
+import Control.Monad.Except (ExceptT, MonadError (throwError), liftEither, runExceptT, withExceptT)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Identity (Identity)
 import Data.Aeson (encode)
@@ -30,14 +30,15 @@ import System.IO (Handle, IOMode (..), hClose, hGetContents, hPutStrLn, hReady, 
 validate :: String -> ExceptT [StaticError] IO ()
 validate fileName = do
   src <- liftIO $ T.readFile fileName
-  liftEither $ validate' fileName src
+  validate' fileName src
 
-validate' :: String -> Text -> Either [StaticError] ()
+validate' :: String -> Text -> ExceptT [StaticError] IO ()
 validate' fileName src = do
   tokens <- liftEither $ lexTokens fileName src
   let stream = mkTStreamWithoutComment src tokens
   m <- liftEither $ parseModule fileName stream
   liftEither $ validateModule m
+  void (loadExprs m)
 
 run :: String -> String -> [Text] -> ExceptT CodeError IO (Expr Span)
 run fileName funcName args = do

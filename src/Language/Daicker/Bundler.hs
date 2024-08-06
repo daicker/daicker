@@ -1,13 +1,14 @@
 module Language.Daicker.Bundler where
 
 import Control.Comonad.Cofree (Cofree ((:<)))
-import Control.Exception (IOException, catch)
+import Control.Exception.Safe (IOException, catch)
 import Control.Monad (join)
 import Control.Monad.Error.Class (MonadError (throwError), liftEither)
 import Control.Monad.Except (ExceptT, withExceptT)
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.List (find)
 import Data.Text (Text)
+import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Language.Daicker.AST
   ( Define,
@@ -30,6 +31,9 @@ import Language.Daicker.Error (StaticError (StaticError))
 import Language.Daicker.Lexer (lexTokens, mkTStreamWithoutComment)
 import Language.Daicker.Parser (parseModule)
 import Language.Daicker.Span (Span)
+import Language.Daicker.StdLib (prelude)
+import System.Directory (doesFileExist)
+import System.IO (readFile)
 
 findDefine :: String -> [Statement a] -> Maybe (Statement a)
 findDefine n = find (\s -> isExpr s && name s == n)
@@ -41,14 +45,22 @@ findType n = find (\s -> isType s && name s == n)
   where
     name (_ :< STypeDefine (_ :< TypeDefine (_ :< Identifier n) _)) = n
 
-data ExprBundle = ExprBundle [(String, Expr Span)] [ExprBundle]
+data ExprBundle = ExprBundle String (Expr Span) [ExprBundle] deriving (Show, Eq)
 
-loadExprs :: Module Span -> ExceptT [StaticError] IO ExprBundle
+toExprBundle :: (String, Expr Span) -> ExprBundle
+toExprBundle (name, e) = ExprBundle name e []
+
+lookupExpr :: String -> [ExprBundle] -> Maybe (Expr Span)
+lookupExpr name bundles = expr <$> find (\(ExprBundle name' _ _) -> name == name') bundles
+  where
+    expr (ExprBundle _ e _) = e
+
+loadExprs :: Module Span -> ExceptT [StaticError] IO [ExprBundle]
 loadExprs (s :< Module is e ss) = do
   let es = map toPairExpr (pickupExpr ss)
   ms <- loadModules is
-  bs <- mapM loadExprs ms
-  pure $ ExprBundle es bs
+  bs <- join <$> mapM loadExprs ms
+  pure $ map (\(s, e) -> ExprBundle s e bs) (es <> prelude)
 
 toPairExpr :: Define a -> (String, Expr a)
 toPairExpr (_ :< Define (_ :< Identifier name) e _) = (name, e)
@@ -74,11 +86,15 @@ importModules (s :< WildImport url) = readModule url
 
 readModule :: URL Span -> ExceptT [StaticError] IO [Module Span]
 readModule (s :< LocalFile fileName) = do
-  src <- withExceptT (\e -> [StaticError (show e) s]) $ safeReadFile fileName
+  src <- withExceptT (\e -> [StaticError e s]) $ safeReadFile fileName
   tokens <- liftEither $ lexTokens fileName src
   let stream = mkTStreamWithoutComment src tokens
   m@(_ :< Module is _ _) <- liftEither $ parseModule fileName stream
   (<>) [m] <$> loadModules is
 
-safeReadFile :: FilePath -> ExceptT IOException IO Text
-safeReadFile filePath = liftIO $ T.readFile filePath `catch` throwError
+safeReadFile :: FilePath -> ExceptT String IO Text
+safeReadFile filePath = do
+  existsFile <- liftIO $ doesFileExist filePath
+  if existsFile
+    then liftIO $ T.readFile filePath
+    else throwError "does not exist daic file"

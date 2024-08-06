@@ -17,6 +17,7 @@ import Control.Concurrent.STM
 import Control.Concurrent.STM.TChan
 import Control.Lens hiding (Iso)
 import Control.Monad (forever)
+import Control.Monad.Except (runExceptT)
 import Control.Monad.IO.Class
 import qualified Data.Aeson as J
 import Data.Either (fromLeft)
@@ -41,6 +42,7 @@ import Language.LSP.Protocol.Types
 import qualified Language.LSP.Protocol.Types as LSP
 import Language.LSP.Server
 import Language.LSP.VFS (VirtualFile (VirtualFile), virtualFileText, virtualFileVersion)
+import System.IO.Unsafe (unsafePerformIO)
 import Text.Megaparsec (ParseErrorBundle (bundlePosState), PosState (PosState), SourcePos (SourcePos), bundlePosState, choice, errorBundlePretty, parse, unPos)
 import Text.Megaparsec.Error (ParseErrorBundle (bundleErrors), errorOffset)
 import Text.Megaparsec.State (PosState (pstateSourcePos))
@@ -86,10 +88,12 @@ sendSyntaxError logger msg = do
             . LSP.uri
             . to LSP.toNormalizedUri
   let (NormalizedUri _ path) = doc
-  logger <& ("Processing DidSaveTextDocument  for: " <> T.pack (show doc)) `WithSeverity` Info
+  logger <& ("Processing DidSaveTextDocument for: " <> T.pack (show doc)) `WithSeverity` Info
   mdoc <- getVirtualFile doc
   case mdoc of
-    Just file -> sendDiagnostics doc (Just $ virtualFileVersion file) $ fromLeft [] $ validate' (T.unpack path) (virtualFileText file)
+    Just file -> do
+      vs <- liftIO $ runExceptT $ validate' (T.unpack path) (virtualFileText file)
+      sendDiagnostics doc (Just $ virtualFileVersion file) $ fromLeft [] vs
     Nothing -> sendDiagnostics doc Nothing []
 
 handle :: (m ~ LspM Config) => L.LogAction m (WithSeverity T.Text) -> Handlers m
