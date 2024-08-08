@@ -1,12 +1,12 @@
 module Language.Daicker.Bundler where
 
 import Control.Comonad.Cofree (Cofree ((:<)))
-import Control.Exception.Safe (IOException, catch)
 import Control.Monad (join)
 import Control.Monad.Error.Class (MonadError (throwError), liftEither)
 import Control.Monad.Except (ExceptT, withExceptT)
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.List (find)
+import Data.Maybe (fromJust)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -15,7 +15,10 @@ import Language.Daicker.AST
     Define'
       ( Define
       ),
+    Export' (Export),
     Expr,
+    Expr' (EObject),
+    Identifier,
     Identifier' (Identifier),
     Import,
     Import' (NamedImport, PartialImport, WildImport),
@@ -27,7 +30,7 @@ import Language.Daicker.AST
     URL,
     URL' (LocalFile),
   )
-import Language.Daicker.Error (StaticError (StaticError))
+import Language.Daicker.Error (RuntimeError, StaticError (StaticError))
 import Language.Daicker.Lexer (lexTokens, mkTStreamWithoutComment)
 import Language.Daicker.Parser (parseModule)
 import Language.Daicker.Span (Span)
@@ -45,25 +48,45 @@ findType n = find (\s -> isType s && name s == n)
   where
     name (_ :< STypeDefine (_ :< TypeDefine (_ :< Identifier n) _)) = n
 
-data ExprBundle = ExprBundle String (Expr Span) [ExprBundle] deriving (Show, Eq)
+data Bundle a = Bundle
+  { modules :: ModuleBundle a,
+    exprs :: ExprBundle a,
+    current :: Module a
+  }
+  deriving (Show, Eq)
 
-toExprBundle :: (String, Expr Span) -> ExprBundle
-toExprBundle (name, e) = ExprBundle name e []
+findExpr :: Bundle Span -> Identifier Span -> Either [StaticError] (Expr Span, Bundle Span)
+findExpr (Bundle ms es c) (s :< Identifier name) = case lookup name es of
+  Just (e, m) -> do
+    es' <- loadExprs ms m
+    pure (e, Bundle ms es' m)
+  Nothing -> Left [StaticError ("not defined: " <> name) s]
 
-lookupExpr :: String -> [ExprBundle] -> Maybe (Expr Span)
-lookupExpr name bundles = expr <$> find (\(ExprBundle name' _ _) -> name == name') bundles
-  where
-    expr (ExprBundle _ e _) = e
+type ExprBundle a = [(String, (Expr a, Module a))]
 
-loadExprs :: Module Span -> ExceptT [StaticError] IO [ExprBundle]
-loadExprs (s :< Module is e ss) = do
-  let es = map toPairExpr (pickupExpr ss)
-  ms <- loadModules is
-  bs <- join <$> mapM loadExprs ms
-  pure $ map (\(s, e) -> ExprBundle s e bs) (es <> prelude)
+type ModuleBundle a = [(String, Module a)]
 
-toPairExpr :: Define a -> (String, Expr a)
-toPairExpr (_ :< Define (_ :< Identifier name) e _) = (name, e)
+loadExprs :: ModuleBundle Span -> Module Span -> Either [StaticError] (ExprBundle Span)
+loadExprs ms m@(s :< Module is e ss) = do
+  let es = map (toPairExpr m) (pickupExpr ss)
+  bs <- mapM (importedExprs ms) is
+  ps <- exportedExprs prelude
+  pure $ ps <> join bs <> es
+
+importedExprs :: ModuleBundle Span -> Import Span -> Either [StaticError] (ExprBundle Span)
+importedExprs ms (s :< NamedImport (_ :< Identifier name) (_ :< LocalFile url)) = do
+  let m = fromJust $ lookup url ms
+  exprs <- exportedExprs m
+  pure [(name, (s :< EObject (map (\(k, (e, _)) -> (s :< Identifier k, e)) exprs), m))]
+importedExprs ms (s :< PartialImport _ (_ :< LocalFile url)) = Left [StaticError "partial import is not implemented yet" s]
+importedExprs ms (s :< WildImport (_ :< LocalFile url)) = Left [StaticError "wild import is not implemented yet" s]
+
+exportedExprs :: Module Span -> Either [StaticError] (ExprBundle Span)
+exportedExprs m@(s :< Module _ (Just (_ :< Export names)) ss) = Left [StaticError "partial export is not implemented yet" s]
+exportedExprs m@(_ :< Module _ Nothing ss) = pure $ map (toPairExpr m) (pickupExpr ss)
+
+toPairExpr :: Module a -> Define a -> (String, (Expr a, Module a))
+toPairExpr m (_ :< Define (_ :< Identifier name) e _) = (name, (e, m))
 
 pickupExpr :: [Statement a] -> [Define a]
 pickupExpr ss = map (\(_ :< SDefine d) -> d) $ filter isExpr ss
@@ -76,25 +99,25 @@ isType :: Statement a -> Bool
 isType (_ :< STypeDefine {}) = True
 isType _ = False
 
-loadModules :: [Import Span] -> ExceptT [StaticError] IO [Module Span]
+loadModules :: [Import Span] -> ExceptT [StaticError] IO (ModuleBundle Span)
 loadModules = foldr (\i -> (<*>) ((<>) <$> importModules i)) (pure [])
 
-importModules :: Import Span -> ExceptT [StaticError] IO [Module Span]
+importModules :: Import Span -> ExceptT [StaticError] IO (ModuleBundle Span)
 importModules (s :< NamedImport _ url) = readModule url
 importModules (s :< PartialImport _ url) = readModule url
 importModules (s :< WildImport url) = readModule url
 
-readModule :: URL Span -> ExceptT [StaticError] IO [Module Span]
+readModule :: URL Span -> ExceptT [StaticError] IO (ModuleBundle Span)
 readModule (s :< LocalFile fileName) = do
   src <- withExceptT (\e -> [StaticError e s]) $ safeReadFile fileName
   tokens <- liftEither $ lexTokens fileName src
   let stream = mkTStreamWithoutComment src tokens
   m@(_ :< Module is _ _) <- liftEither $ parseModule fileName stream
-  (<>) [m] <$> loadModules is
+  (<>) [(fileName, m)] <$> loadModules is
 
 safeReadFile :: FilePath -> ExceptT String IO Text
 safeReadFile filePath = do
   existsFile <- liftIO $ doesFileExist filePath
   if existsFile
     then liftIO $ T.readFile filePath
-    else throwError "does not exist daic file"
+    else throwError ("does not exist: " <> filePath)

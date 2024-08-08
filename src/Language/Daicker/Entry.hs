@@ -16,7 +16,7 @@ import Data.Sequence (mapWithIndex)
 import Data.Text (Text)
 import qualified Data.Text.IO as T
 import Language.Daicker.AST (Define' (Define), Expr, Expr' (EArray, EFun), Identifier, Module, Module' (..), Statement' (SDefine), switchAnn)
-import Language.Daicker.Bundler (findDefine, loadExprs)
+import Language.Daicker.Bundler (Bundle (Bundle), findDefine, loadExprs, loadModules)
 import Language.Daicker.CmdArgParser (parseArg)
 import Language.Daicker.Error (CodeError (RuntimeE, StaticE), RuntimeError (RuntimeError), StaticError, codeErrorPretty)
 import Language.Daicker.Executor (execDefine)
@@ -36,24 +36,26 @@ validate' :: String -> Text -> ExceptT [StaticError] IO ()
 validate' fileName src = do
   tokens <- liftEither $ lexTokens fileName src
   let stream = mkTStreamWithoutComment src tokens
-  m <- liftEither $ parseModule fileName stream
+  m@(_ :< Module is _ _) <- liftEither $ parseModule fileName stream
   liftEither $ validateModule m
-  void (loadExprs m)
+  ms <- loadModules is
+  void $ liftEither $ loadExprs ms m
 
 run :: String -> String -> [Text] -> ExceptT CodeError IO (Expr Span)
 run fileName funcName args = do
   src <- liftIO $ T.readFile fileName
   tokens <- liftEither $ mapLeft StaticE $ lexTokens fileName src
   let stream = mkTStreamWithoutComment src tokens
-  m@(_ :< Module _ _ ss) <- liftEither $ mapLeft StaticE $ parseModule fileName stream
+  m@(_ :< Module is _ ss) <- liftEither $ mapLeft StaticE $ parseModule fileName stream
   (_ :< SDefine (_ :< Define _ e _)) <- case findDefine funcName ss of
     Nothing -> throwError $ RuntimeE $ RuntimeError ("not found: " <> funcName) (mkSpan "command-line-function" 1 1 1 1) (ExitFailure 1)
     Just f -> return f
-  b <- withExceptT StaticE $ loadExprs m
+  mb <- withExceptT StaticE $ loadModules is
+  eb <- withExceptT StaticE $ liftEither $ loadExprs mb m
   hasStdin <- liftIO $ hReady stdin
   input <- liftIO $ if hasStdin then Just <$> B.getContents else pure Nothing
   es <- liftEither $ mapLeft StaticE $ mapM (\(i, arg) -> parseArg ("command-line-argument($" <> show i <> ")") input arg) $ zip [1 ..] args
-  withExceptT RuntimeE $ execDefine e (map (,False) es) b
+  withExceptT RuntimeE $ execDefine (Bundle mb eb m) e (map (,False) es)
 
 mapLeft :: (a -> c) -> Either a b -> Either c b
 mapLeft f = either (Left . f) Right
