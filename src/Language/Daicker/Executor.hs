@@ -68,6 +68,9 @@ eval bundle v = case v of
       (_ :< EObject vs) -> case find (\(s :< Identifier i2, _) -> i1 == i2) vs of
         Just (_, v) -> pure v
         Nothing -> pure $ s :< ENull
+      (_ :< ENamespace vs) -> case find (\(i2, _) -> i1 == i2) vs of
+        Just (_, v) -> pure v
+        Nothing -> throwError $ RuntimeError "Accessors can only be used on namespace" s (ExitFailure 1)
       (s :< _) -> throwError $ RuntimeError "Accessors can only be used on objects" s (ExitFailure 1)
   v -> pure v
   where

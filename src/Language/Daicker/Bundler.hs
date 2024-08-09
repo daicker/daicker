@@ -17,7 +17,7 @@ import Language.Daicker.AST
       ),
     Export' (Export),
     Expr,
-    Expr' (EObject),
+    Expr' (ENamespace, EObject),
     Identifier,
     Identifier' (Identifier),
     Import,
@@ -77,7 +77,7 @@ importedExprs :: ModuleBundle Span -> Import Span -> Either [StaticError] (ExprB
 importedExprs ms (s :< NamedImport (_ :< Identifier name) (_ :< LocalFile url)) = do
   let m = fromJust $ lookup url ms
   exprs <- exportedExprs m
-  pure [(name, (s :< EObject (map (\(k, (e, _)) -> (s :< Identifier k, e)) exprs), m))]
+  pure [(name, (s :< ENamespace (map (\(k, (e, _)) -> (k, e)) exprs), m))]
 importedExprs ms (s :< PartialImport _ (_ :< LocalFile url)) = Left [StaticError "partial import is not implemented yet" s]
 importedExprs ms (s :< WildImport (_ :< LocalFile url)) = Left [StaticError "wild import is not implemented yet" s]
 

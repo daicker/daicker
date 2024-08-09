@@ -4,6 +4,7 @@ import Control.Comonad.Cofree (Cofree ((:<)))
 import Control.Concurrent (putMVar, readMVar)
 import Control.Concurrent.MVar (newEmptyMVar)
 import Control.Monad.IO.Class (liftIO)
+import Data.List (intercalate)
 import qualified Data.Text as T
 import Data.Text.IO (hGetLine, hPutStrLn)
 import GHC.Conc (forkIO)
@@ -246,6 +247,7 @@ data CommandResult = CommandResult {exitCode :: ExitCode, stdout :: String, stde
 
 runSubprocess :: String -> [String] -> IO CommandResult
 runSubprocess image (cmd : args) = do
+  hPutStrLn IO.stderr $ T.pack $ "> " <> unwords (cmd : args)
   (_, Just stdout, Just stderr, ps) <-
     createProcess (proc cmd args) {std_out = CreatePipe, std_err = CreatePipe, delegate_ctlc = True}
   stdout' <- newEmptyMVar
