@@ -74,16 +74,35 @@ loadExprs ms m@(s :< Module is e ss) = do
   pure $ ps <> join bs <> es
 
 importedExprs :: ModuleBundle Span -> Import Span -> Either [StaticError] (ExprBundle Span)
-importedExprs ms (s :< NamedImport (_ :< Identifier name) (_ :< LocalFile url)) = do
-  let m = fromJust $ lookup url ms
-  exprs <- exportedExprs m
-  pure [(name, (s :< ENamespace (map (\(k, (e, _)) -> (k, e)) exprs), m))]
-importedExprs ms (s :< PartialImport _ (_ :< LocalFile url)) = Left [StaticError "partial import is not implemented yet" s]
-importedExprs ms (s :< WildImport (_ :< LocalFile url)) = Left [StaticError "wild import is not implemented yet" s]
+importedExprs ms (s :< impt) = do
+  case impt of
+    NamedImport (_ :< Identifier name) (_ :< LocalFile url) -> do
+      let m = findModule url
+      exprs <- exportedExprs m
+      pure [(name, (s :< ENamespace (map (\(k, (e, _)) -> (k, e)) exprs), findModule url))]
+    PartialImport imports (_ :< LocalFile url) -> do
+      let m = findModule url
+      exprs <- exportedExprs m
+      mapM (findExpr exprs) imports
+    WildImport (_ :< LocalFile url) -> do
+      let m = findModule url
+      exprs <- exportedExprs m
+      pure (map (\(k, (e, _)) -> (k, (e, findModule url))) exprs)
+  where
+    findModule url = fromJust $ lookup url ms
+    findExpr exprs i@(s :< Identifier name) = case lookup name exprs of
+      Nothing -> Left [StaticError ("not defined: " <> name) s]
+      Just e -> Right (name, e)
 
 exportedExprs :: Module Span -> Either [StaticError] (ExprBundle Span)
-exportedExprs m@(s :< Module _ (Just (_ :< Export names)) ss) = Left [StaticError "partial export is not implemented yet" s]
-exportedExprs m@(_ :< Module _ Nothing ss) = pure $ map (toPairExpr m) (pickupExpr ss)
+exportedExprs m@(s :< Module _ export ss) = case export of
+  Just (_ :< Export names) -> mapM findExpr names
+  Nothing -> pure $ map (toPairExpr m) (pickupExpr ss)
+  where
+    exprs = map (toPairExpr m) (pickupExpr ss)
+    findExpr i@(s :< Identifier name) = case lookup name exprs of
+      Nothing -> Left [StaticError ("not defined: " <> name) s]
+      Just e -> Right (name, e)
 
 toPairExpr :: Module a -> Define a -> (String, (Expr a, Module a))
 toPairExpr m (_ :< Define (_ :< Identifier name) e _) = (name, (e, m))
