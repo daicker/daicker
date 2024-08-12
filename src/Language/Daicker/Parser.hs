@@ -110,7 +110,7 @@ pDefine = do
 pTypeDefine :: Parser (Statement Span)
 pTypeDefine = do
   (WithSpan _ s) <- pToken TType
-  i <- pIdentifier
+  i <- pTypeIdentifier
   pToken TAssign
   t <- pType
   pure $ (s `union` S.span t) :< STypeDefine ((s `union` S.span t) :< TypeDefine i t)
@@ -245,7 +245,7 @@ pTypeTerm =
 
 pTRef :: Parser (AST.Type Span)
 pTRef = do
-  i <- pIdentifier
+  i <- pTypeIdentifier
   pure $ S.span i :< AST.TRef i
 
 pTObject :: Parser (AST.Type Span)
@@ -432,6 +432,13 @@ pIdentifier = token test Set.empty <?> "identifier"
   where
     test (WithSpan (TIdentifier t) s) = Just $ s :< Identifier t
     test _ = Nothing
+
+pTypeIdentifier :: Parser (Identifier Span)
+pTypeIdentifier = token test Set.empty <?> "type identifier"
+  where
+    test (WithSpan (TTypeIdentifier t) s) = Just $ s :< Identifier t
+    test _ = Nothing
+
 
 pImage :: Parser (EImage Span)
 pImage = token test Set.empty <?> "image"

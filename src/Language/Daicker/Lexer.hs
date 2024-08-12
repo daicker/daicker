@@ -34,6 +34,7 @@ data TToken
   | TBool Bool
   | TNumber Scientific
   | TString String
+  | TTypeIdentifier String
   | TIdentifier String
   | TImage String
   | TAssign
@@ -158,6 +159,7 @@ showTToken = \case
   (TBool v) -> (if v then "true" else "false")
   (TNumber v) -> show v
   (TString v) -> "\"" <> v <> "\""
+  (TTypeIdentifier v) -> v
   (TIdentifier v) -> v
   (TImage v) -> "#" <> v
   TAssign -> "="
@@ -256,7 +258,8 @@ tToken =
           TType <$ string "type" <?> "type",
           TNumber <$> L.signed sc L.scientific <?> "number",
           TString <$> (char '"' *> manyTill L.charLiteral (char '"') <?> "string"),
-          TIdentifier <$> ((:) <$> (lowerChar <|> upperChar <|> char '$' <|> char '_') <*> many (alphaNumChar <|> char '$' <|> char '_') <?> "identifier")
+          TTypeIdentifier <$> ((:) <$> upperChar <*> many (alphaNumChar <|> char '_') <?> "identifier"),
+          TIdentifier <$> ((:) <$> (lowerChar <|> char '$' <|> char '_') <*> many (alphaNumChar <|> char '$' <|> char '_') <?> "identifier")
         ]
 
 lexeme :: Lexer a -> Lexer a
