@@ -37,7 +37,9 @@ validate' fileName src = do
   tokens <- liftEither $ lexTokens fileName src
   let stream = mkTStreamWithoutComment src tokens
   m@(_ :< Module is _ _) <- liftEither $ parseModule fileName stream
-  liftEither $ validateModule m
+  mb <- loadModules is
+  eb <- liftEither $ loadExprs mb m
+  liftEither $ validateModule (Bundle mb eb m) m
   ms <- loadModules is
   void $ liftEither $ loadExprs ms m
 
@@ -52,6 +54,7 @@ run fileName funcName args = do
     Just f -> return f
   mb <- withExceptT StaticE $ loadModules is
   eb <- withExceptT StaticE $ liftEither $ loadExprs mb m
+  withExceptT StaticE $ liftEither $ validateModule (Bundle mb eb m) m
   hasStdin <- liftIO $ hReady stdin
   input <- liftIO $ if hasStdin then Just <$> B.getContents else pure Nothing
   es <- liftEither $ mapLeft StaticE $ mapM (\(i, arg) -> parseArg ("command-line-argument($" <> show i <> ")") input arg) $ zip [1 ..] args
