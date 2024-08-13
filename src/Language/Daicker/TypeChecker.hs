@@ -9,11 +9,23 @@ import Language.Daicker.Parser (parseModule)
 import Language.Daicker.Span (Span)
 
 validateModule :: Bundle Span -> Module Span -> Either [StaticError] ()
-validateModule b m@(_ :< Module _ _ ss) = case es of
+validateModule b m@(_ :< Module _ e ss) = case es of
   [] -> Right ()
   _ -> Left es
   where
-    es = join $ map (validateStatement b) ss
+    es =
+      join
+        [ join $ map (validateStatement b) ss,
+          case e of
+            Just (_ :< Export is) -> join (map (validateExport b) is)
+            Nothing -> []
+        ]
+
+validateExport :: Bundle Span -> Identifier Span -> [StaticError]
+validateExport (Bundle mb cm ss) (s :< Identifier name) =
+  case lookup name (filter (\(_, (_, m)) -> m == cm) ss) of
+    Just _ -> []
+    Nothing -> [StaticError ("not define: " <> name) s]
 
 validateStatement :: Bundle Span -> NamedStatement Span -> [StaticError]
 validateStatement
