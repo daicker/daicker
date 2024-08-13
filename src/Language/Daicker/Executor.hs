@@ -20,7 +20,7 @@ import Debug.Trace (traceShow)
 import GHC.Base (join)
 import GHC.IO.Handle (Handle, hClose, hFlush, hGetChar, hGetContents, hIsClosed, hIsEOF)
 import Language.Daicker.AST
-import Language.Daicker.Bundler (Bundle (Bundle, current, exprs, modules), ExprBundle, ModuleBundle, findExpr)
+import Language.Daicker.Bundler (Bundle (Bundle, current, modules, statements), ModuleBundle, findExpr, findExprWithBundle)
 import Language.Daicker.Error (RuntimeError (RuntimeError), StaticError (StaticError))
 import Language.Daicker.Span (Span (FixtureSpan), mkSpan, union)
 import qualified Language.Daicker.Span as S
@@ -38,7 +38,7 @@ eval bundle v = case v of
   e@(s :< EError {}) -> pure e
   s :< EArray vs -> (:<) s . EArray <$> mapM (eval bundle) vs
   s :< EObject vs -> (:<) s . EObject <$> mapM (\(k, e) -> (,) k <$> eval bundle e) vs
-  s :< ERef i -> case findExpr bundle i of
+  s :< ERef i -> case findExprWithBundle bundle i of
     Right (a, bundle) -> eval bundle a
     Left ((StaticError m s) : _) -> throwError $ RuntimeError m s (ExitFailure 1)
   s :< EApp image f args -> do
@@ -52,10 +52,10 @@ eval bundle v = case v of
         args
     f' <- eval bundle f
     case f' of
-      (s :< EFun pms e ex) -> do
+      (s :< EFun pms (s' :< e) ex) -> do
         args <- patternMatch ex pms (join args)
-        let args' = map (\(name, e) -> (name, (e, current bundle))) args
-        eval (Bundle (modules bundle) (exprs bundle <> args') (current bundle)) e
+        let args' = map (\(name, e) -> (name, (s' :< SExpr e, current bundle))) args
+        eval (Bundle (modules bundle) (current bundle) (statements bundle <> args')) (s' :< e)
       (s :< EFixtureFun pms e ex) -> do
         liftIO $ e image (join args)
       (s :< e) ->
@@ -68,9 +68,6 @@ eval bundle v = case v of
       (_ :< EObject vs) -> case find (\(s :< Identifier i2, _) -> i1 == i2) vs of
         Just (_, v) -> pure v
         Nothing -> pure $ s :< ENull
-      (_ :< ENamespace vs) -> case find (\(i2, _) -> i1 == i2) vs of
-        Just (_, v) -> pure v
-        Nothing -> throwError $ RuntimeError "Accessors can only be used on namespace" s (ExitFailure 1)
       (s :< _) -> throwError $ RuntimeError "Accessors can only be used on objects" s (ExitFailure 1)
   v -> pure v
   where

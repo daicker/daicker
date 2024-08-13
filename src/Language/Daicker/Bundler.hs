@@ -11,22 +11,19 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Language.Daicker.AST
-  ( Define,
-    Define'
-      ( Define
-      ),
-    Export' (Export),
+  ( Export' (Export),
     Expr,
-    Expr' (ENamespace, EObject),
     Identifier,
     Identifier' (Identifier),
     Import,
-    Import' (NamedImport, PartialImport, WildImport),
+    Import' (PartialImport, WildImport),
     Module,
     Module' (Module),
+    NamedStatement,
+    NamedStatement' (NamedStatement),
     Statement,
-    Statement' (SDefine, STypeDefine),
-    TypeDefine' (TypeDefine),
+    Statement' (SExpr, SType),
+    Type,
     URL,
     URL' (LocalFile),
   )
@@ -38,55 +35,61 @@ import Language.Daicker.StdLib (prelude)
 import System.Directory (doesFileExist)
 import System.IO (readFile)
 
-findDefine :: String -> [Statement a] -> Maybe (Statement a)
-findDefine n = find (\s -> isExpr s && name s == n)
-  where
-    name (_ :< SDefine (_ :< Define (_ :< Identifier n) _ _)) = n
-
-findType :: String -> [Statement a] -> Maybe (Statement a)
-findType n = find (\s -> isType s && name s == n)
-  where
-    name (_ :< STypeDefine (_ :< TypeDefine (_ :< Identifier n) _)) = n
-
 data Bundle a = Bundle
   { modules :: ModuleBundle a,
-    exprs :: ExprBundle a,
-    current :: Module a
+    current :: Module a,
+    statements :: StatementBundle a
   }
   deriving (Show, Eq)
 
-findExpr :: Bundle Span -> Identifier Span -> Either [StaticError] (Expr Span, Bundle Span)
-findExpr (Bundle ms es c) (s :< Identifier name) = case lookup name es of
-  Just (e, m) -> do
-    es' <- loadExprs ms m
-    pure (e, Bundle ms es' m)
-  Nothing -> Left [StaticError ("not defined: " <> name) s]
-
-type ExprBundle a = [(String, (Expr a, Module a))]
+type StatementBundle a = [(String, (Statement a, Module a))]
 
 type ModuleBundle a = [(String, Module a)]
 
-loadExprs :: ModuleBundle Span -> Module Span -> Either [StaticError] (ExprBundle Span)
-loadExprs ms m@(s :< Module is e ss) = do
-  let es = map (toPairExpr m) (pickupExpr ss)
-  bs <- mapM (importedExprs ms) is
-  ps <- exportedExprs prelude
-  pure $ ps <> join bs <> es
+findExpr :: String -> [NamedStatement a] -> Maybe (NamedStatement a)
+findExpr n = find (\(_ :< NamedStatement (_ :< Identifier n') s) -> isExpr s && n' == n)
 
-importedExprs :: ModuleBundle Span -> Import Span -> Either [StaticError] (ExprBundle Span)
-importedExprs ms (s :< impt) = do
+findType :: String -> [NamedStatement a] -> Maybe (NamedStatement a)
+findType n = find (\(_ :< NamedStatement (_ :< Identifier n') s) -> isType s && n' == n)
+
+findExprWithBundle :: Bundle Span -> Identifier Span -> Either [StaticError] (Expr Span, Bundle Span)
+findExprWithBundle (Bundle ms cm ss) (s :< Identifier name) = case lookup name (filter (\(_, (s, _)) -> isExpr s) ss) of
+  Just (_ :< SExpr e, m) -> do
+    ss' <- loadStatements ms m
+    pure (e, Bundle ms m ss')
+  Nothing -> Left [StaticError ("not defined: " <> name) s]
+
+loadStatements :: ModuleBundle Span -> Module Span -> Either [StaticError] (StatementBundle Span)
+loadStatements ms m@(s :< Module is e ss) = do
+  let ss' = map (toPairStatement m) ss
+  bs <- mapM (importedStatements ms) is
+  ps <- exportedStatements prelude
+  pure $ ps <> join bs <> ss'
+
+pickupType :: [Statement a] -> [Type a]
+pickupType ss = map (\(_ :< SType d) -> d) $ filter isType ss
+
+pickupExpr :: [Statement a] -> [Expr a]
+pickupExpr ss = map (\(_ :< SExpr d) -> d) $ filter isExpr ss
+
+isExpr :: Statement a -> Bool
+isExpr (_ :< SExpr {}) = True
+isExpr _ = False
+
+isType :: Statement a -> Bool
+isType (_ :< SType {}) = True
+isType _ = False
+
+importedStatements :: ModuleBundle Span -> Import Span -> Either [StaticError] (StatementBundle Span)
+importedStatements ms (s :< impt) = do
   case impt of
-    NamedImport (_ :< Identifier name) (_ :< LocalFile url) -> do
-      let m = findModule url
-      exprs <- exportedExprs m
-      pure [(name, (s :< ENamespace (map (\(k, (e, _)) -> (k, e)) exprs), findModule url))]
     PartialImport imports (_ :< LocalFile url) -> do
       let m = findModule url
-      exprs <- exportedExprs m
-      mapM (findExpr exprs) imports
+      ss <- exportedStatements m
+      mapM (findExpr ss) imports
     WildImport (_ :< LocalFile url) -> do
       let m = findModule url
-      exprs <- exportedExprs m
+      exprs <- exportedStatements m
       pure (map (\(k, (e, _)) -> (k, (e, findModule url))) exprs)
   where
     findModule url = fromJust $ lookup url ms
@@ -94,35 +97,23 @@ importedExprs ms (s :< impt) = do
       Nothing -> Left [StaticError ("not defined: " <> name) s]
       Just e -> Right (name, e)
 
-exportedExprs :: Module Span -> Either [StaticError] (ExprBundle Span)
-exportedExprs m@(s :< Module _ export ss) = case export of
+exportedStatements :: Module Span -> Either [StaticError] (StatementBundle Span)
+exportedStatements m@(s :< Module _ export ss) = case export of
   Just (_ :< Export names) -> mapM findExpr names
-  Nothing -> pure $ map (toPairExpr m) (pickupExpr ss)
+  Nothing -> pure $ map (toPairStatement m) ss
   where
-    exprs = map (toPairExpr m) (pickupExpr ss)
+    exprs = map (toPairStatement m) ss
     findExpr i@(s :< Identifier name) = case lookup name exprs of
       Nothing -> Left [StaticError ("not defined: " <> name) s]
       Just e -> Right (name, e)
 
-toPairExpr :: Module a -> Define a -> (String, (Expr a, Module a))
-toPairExpr m (_ :< Define (_ :< Identifier name) e _) = (name, (e, m))
-
-pickupExpr :: [Statement a] -> [Define a]
-pickupExpr ss = map (\(_ :< SDefine d) -> d) $ filter isExpr ss
-
-isExpr :: Statement a -> Bool
-isExpr (_ :< SDefine {}) = True
-isExpr _ = False
-
-isType :: Statement a -> Bool
-isType (_ :< STypeDefine {}) = True
-isType _ = False
+toPairStatement :: Module a -> NamedStatement a -> (String, (Statement a, Module a))
+toPairStatement m (_ :< NamedStatement (_ :< Identifier name) t) = (name, (t, m))
 
 loadModules :: [Import Span] -> ExceptT [StaticError] IO (ModuleBundle Span)
 loadModules = foldr (\i -> (<*>) ((<>) <$> importModules i)) (pure [])
 
 importModules :: Import Span -> ExceptT [StaticError] IO (ModuleBundle Span)
-importModules (s :< NamedImport _ url) = readModule url
 importModules (s :< PartialImport _ url) = readModule url
 importModules (s :< WildImport url) = readModule url
 

@@ -10,7 +10,16 @@ import Data.Text.IO (hGetLine, hPutStrLn)
 import GHC.Conc (forkIO)
 import GHC.IO.Exception (ExitCode (ExitFailure))
 import GHC.IO.Handle (Handle)
-import Language.Daicker.AST (Define' (Define), Expr, Expr' (..), Identifier' (Identifier), Module, Module' (Module), PatternMatchAssign' (PMAAnyValue), Statement' (SDefine))
+import Language.Daicker.AST
+  ( Expr,
+    Expr' (..),
+    Identifier' (Identifier),
+    Module,
+    Module' (Module),
+    NamedStatement' (NamedStatement),
+    PatternMatchAssign' (PMAAnyValue),
+    Statement' (SExpr),
+  )
 import Language.Daicker.Span (Span (FixtureSpan), union)
 import qualified Language.Daicker.Span as S
 import System.Directory (getCurrentDirectory)
@@ -28,10 +37,10 @@ prelude =
       []
       Nothing
       [ preludeSpan
-          :< SDefine
+          :< NamedStatement
+            (preludeSpan :< Identifier "$_")
             ( preludeSpan
-                :< Define
-                  (preludeSpan :< Identifier "$_")
+                :< SExpr
                   ( preludeSpan
                       :< EFixtureFun
                         [preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "args")]
@@ -51,13 +60,12 @@ prelude =
                         )
                         True
                   )
-                  Nothing
             ),
         preludeSpan
-          :< SDefine
+          :< NamedStatement
+            (preludeSpan :< Identifier "$")
             ( preludeSpan
-                :< Define
-                  (preludeSpan :< Identifier "$")
+                :< SExpr
                   ( preludeSpan
                       :< EFixtureFun
                         [preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "args")]
@@ -73,13 +81,12 @@ prelude =
                         )
                         True
                   )
-                  Nothing
             ),
         preludeSpan
-          :< SDefine
+          :< NamedStatement
+            (preludeSpan :< Identifier "$1")
             ( preludeSpan
-                :< Define
-                  (preludeSpan :< Identifier "$1")
+                :< SExpr
                   ( preludeSpan
                       :< EFixtureFun
                         [preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "args")]
@@ -95,13 +102,12 @@ prelude =
                         )
                         True
                   )
-                  Nothing
             ),
         preludeSpan
-          :< SDefine
+          :< NamedStatement
+            (preludeSpan :< Identifier "$2")
             ( preludeSpan
-                :< Define
-                  (preludeSpan :< Identifier "$2")
+                :< SExpr
                   ( preludeSpan
                       :< EFixtureFun
                         [preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "args")]
@@ -117,13 +123,12 @@ prelude =
                         )
                         True
                   )
-                  Nothing
             ),
         preludeSpan
-          :< SDefine
+          :< NamedStatement
+            (preludeSpan :< Identifier ";")
             ( preludeSpan
-                :< Define
-                  (preludeSpan :< Identifier ";")
+                :< SExpr
                   ( preludeSpan
                       :< EFixtureFun
                         [ preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "a"),
@@ -135,13 +140,12 @@ prelude =
                         )
                         False
                   )
-                  Nothing
             ),
         preludeSpan
-          :< SDefine
+          :< NamedStatement
+            (preludeSpan :< Identifier "|>")
             ( preludeSpan
-                :< Define
-                  (preludeSpan :< Identifier "|>")
+                :< SExpr
                   ( preludeSpan
                       :< EFixtureFun
                         [ preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "a"),
@@ -157,13 +161,12 @@ prelude =
                         )
                         False
                   )
-                  Nothing
             ),
         preludeSpan
-          :< SDefine
+          :< NamedStatement
+            (preludeSpan :< Identifier "+")
             ( preludeSpan
-                :< Define
-                  (preludeSpan :< Identifier "+")
+                :< SExpr
                   ( preludeSpan
                       :< EFixtureFun
                         [ preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "a"),
@@ -172,13 +175,12 @@ prelude =
                         (\_ [s1 :< ENumber a, s2 :< ENumber b] -> pure $ (s1 `union` s2) :< ENumber (a + b))
                         False
                   )
-                  Nothing
             ),
         preludeSpan
-          :< SDefine
+          :< NamedStatement
+            (preludeSpan :< Identifier "+")
             ( preludeSpan
-                :< Define
-                  (preludeSpan :< Identifier "+")
+                :< SExpr
                   ( preludeSpan
                       :< EFixtureFun
                         [ preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "a"),
@@ -187,13 +189,12 @@ prelude =
                         (\_ [s1 :< ENumber a, s2 :< ENumber b] -> pure $ (s1 `union` s2) :< ENumber (a + b))
                         False
                   )
-                  Nothing
             ),
         preludeSpan
-          :< SDefine
+          :< NamedStatement
+            (preludeSpan :< Identifier "-")
             ( preludeSpan
-                :< Define
-                  (preludeSpan :< Identifier "-")
+                :< SExpr
                   ( preludeSpan
                       :< EFixtureFun
                         [ preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "a"),
@@ -202,13 +203,12 @@ prelude =
                         (\_ [s1 :< ENumber a, s2 :< ENumber b] -> pure $ (s1 `union` s2) :< ENumber (a - b))
                         False
                   )
-                  Nothing
             ),
         preludeSpan
-          :< SDefine
+          :< NamedStatement
+            (preludeSpan :< Identifier "*")
             ( preludeSpan
-                :< Define
-                  (preludeSpan :< Identifier "*")
+                :< SExpr
                   ( preludeSpan
                       :< EFixtureFun
                         [ preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "a"),
@@ -217,13 +217,12 @@ prelude =
                         (\_ [s1 :< ENumber a, s2 :< ENumber b] -> pure $ (s1 `union` s2) :< ENumber (a * b))
                         False
                   )
-                  Nothing
             ),
         preludeSpan
-          :< SDefine
+          :< NamedStatement
+            (preludeSpan :< Identifier "/")
             ( preludeSpan
-                :< Define
-                  (preludeSpan :< Identifier "/")
+                :< SExpr
                   ( preludeSpan
                       :< EFixtureFun
                         [ preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "a"),
@@ -232,7 +231,6 @@ prelude =
                         (\_ [s1 :< ENumber a, s2 :< ENumber b] -> pure $ (s1 `union` s2) :< ENumber (a / b))
                         False
                   )
-                  Nothing
             )
       ]
   where

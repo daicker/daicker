@@ -46,10 +46,15 @@ pModule = do
   export <- optional pExport
   statements <- many pStatement
   (WithSpan _ s2) <- spanned eof
-  return $ (s1 `union` s2) :< Module imports export statements
+  return $
+    (s1 `union` s2)
+      :< Module
+        imports
+        export
+        statements
 
-pStatement :: Parser (Statement Span)
-pStatement = choice [pDefine, pTypeDefine]
+pStatement :: Parser (NamedStatement Span)
+pStatement = choice [pExprStatement, pTypeStatement]
 
 pImport :: Parser (Import Span)
 pImport = do
@@ -61,17 +66,12 @@ pImport = do
     pImport' =
       choice
         [ do
-            i@(s1 :< _) <- pIdentifier
-            pToken TFrom
-            u@(s2 :< _) <- pUrl
-            pure $ s1 `union` s2 :< NamedImport i u,
-          do
             (WithSpan is s1) <-
               spanned $
                 between
                   (pToken TLBrace)
                   (pToken TRBrace)
-                  (pIdentifier `sepBy` pToken TComma)
+                  ((pIdentifier <|> pTypeIdentifier) `sepBy` pToken TComma)
             pToken TFrom
             u@(s2 :< _) <- pUrl
             pure $ s1 `union` s2 :< PartialImport is u,
@@ -91,29 +91,38 @@ pUrl = token test Set.empty <?> "url"
 pExport :: Parser (Export Span)
 pExport = do
   (WithSpan _ s1) <- pToken TExport
-  (WithSpan is s2) <- spanned $ some pIdentifier
+  (WithSpan is s2) <- spanned $ some (pIdentifier <|> pTypeIdentifier)
   return $ (s1 `union` s2) :< Export is
 
-pDefine :: Parser (Statement Span)
-pDefine = do
+pExprStatement :: Parser (NamedStatement Span)
+pExprStatement = do
   (WithSpan _ s) <- pToken TDefine
   i <- pIdentifier
   params <- many pPatternMatchAssign
   extends <- optional $ pToken T3Dots
   pToken TAssign
   v <- pExpr
-  t <- optional (pToken TColon *> pType)
   case params of
-    [] -> return $ (s `union` S.span v) :< SDefine ((s `union` S.span v) :< Define i v t)
-    params -> return $ (s `union` S.span v) :< SDefine ((s `union` S.span v) :< Define i ((S.span (head params) `union` S.span v) :< EFun params v (isJust extends)) t)
+    [] ->
+      return $
+        (s `union` S.span v)
+          :< NamedStatement i ((s `union` S.span v) :< SExpr v)
+    params ->
+      return $
+        (s `union` S.span v)
+          :< NamedStatement
+            i
+            ( (s `union` S.span v)
+                :< SExpr ((S.span (head params) `union` S.span v) :< EFun params v (isJust extends))
+            )
 
-pTypeDefine :: Parser (Statement Span)
-pTypeDefine = do
+pTypeStatement :: Parser (NamedStatement Span)
+pTypeStatement = do
   (WithSpan _ s) <- pToken TType
   i <- pTypeIdentifier
   pToken TAssign
   t <- pType
-  pure $ (s `union` S.span t) :< STypeDefine ((s `union` S.span t) :< TypeDefine i t)
+  pure $ (s `union` S.span t) :< NamedStatement i ((s `union` S.span t) :< SType t)
 
 pPatternMatchAssign :: Parser (PatternMatchAssign Span)
 pPatternMatchAssign =
@@ -438,7 +447,6 @@ pTypeIdentifier = token test Set.empty <?> "type identifier"
   where
     test (WithSpan (TTypeIdentifier t) s) = Just $ s :< Identifier t
     test _ = Nothing
-
 
 pImage :: Parser (EImage Span)
 pImage = token test Set.empty <?> "image"

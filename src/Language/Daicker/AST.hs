@@ -24,7 +24,7 @@ import System.Exit (ExitCode)
 
 type Module ann = Cofree (Module' ann) ann
 
-data Module' ann a = Module [Import ann] (Maybe (Export ann)) [Statement ann] deriving (Show, Eq)
+data Module' ann a = Module [Import ann] (Maybe (Export ann)) [NamedStatement ann] deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Module' ann) where
   liftEq _ (Module i1 e1 s1) (Module i2 e2 s2) =
@@ -36,19 +36,16 @@ instance (Show ann) => Show1 (Module' ann) where
 type Import ann = Cofree (Import' ann) ann
 
 data Import' ann a
-  = NamedImport (Identifier ann) (URL ann)
-  | PartialImport [Identifier ann] (URL ann)
+  = PartialImport [Identifier ann] (URL ann)
   | WildImport (URL ann)
   deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Import' ann) where
-  liftEq _ (NamedImport i1 url1) (NamedImport i2 url2) = i1 == i2 && url1 == url2
   liftEq _ (PartialImport i1 url1) (PartialImport i2 url2) = i1 == i2 && url1 == url2
   liftEq _ (WildImport url1) (WildImport url2) = url1 == url2
   liftEq _ _ _ = False
 
 instance (Show ann) => Show1 (Import' ann) where
-  liftShowsPrec _ _ _ (NamedImport i url) = showString $ "NamedImport " <> show i <> show url
   liftShowsPrec _ _ _ (PartialImport is url) = showString $ "PartialImport " <> show is <> show url
   liftShowsPrec _ _ _ (WildImport url) = showString $ "WildImport " <> show url
 
@@ -78,40 +75,30 @@ instance (Eq ann) => Eq1 (Export' ann) where
 instance (Show ann) => Show1 (Export' ann) where
   liftShowsPrec _ _ _ (Export i) = showString $ show "Export " <> show i
 
+type NamedStatement ann = Cofree (NamedStatement' ann) ann
+
+data NamedStatement' ann a = NamedStatement (Identifier ann) (Statement ann) deriving (Show, Eq)
+
+instance (Eq ann) => Eq1 (NamedStatement' ann) where
+  liftEq _ (NamedStatement i1 s1) (NamedStatement i2 s2) = i1 == i2 && s1 == s2
+
+instance (Show ann) => Show1 (NamedStatement' ann) where
+  liftShowsPrec _ _ _ (NamedStatement i s) = showString $ show "NamedStatement " <> show i <> show s
+
 type Statement ann = Cofree (Statement' ann) ann
 
 data Statement' ann a
-  = SDefine (Define ann)
-  | STypeDefine (TypeDefine ann)
+  = SExpr (Expr ann)
+  | SType (Type ann)
   deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Statement' ann) where
-  liftEq _ (SDefine d1) (SDefine d2) = d1 == d2
-  liftEq _ (STypeDefine d1) (STypeDefine d2) = d1 == d2
+  liftEq _ (SExpr d1) (SExpr d2) = d1 == d2
+  liftEq _ (SType d1) (SType d2) = d1 == d2
 
 instance (Show ann) => Show1 (Statement' ann) where
-  liftShowsPrec _ _ _ (SDefine d) = showString $ show "SDefine " <> show d
-  liftShowsPrec _ _ _ (STypeDefine d) = showString $ show "STypeDefine " <> show d
-
-type Define ann = Cofree (Define' ann) ann
-
-data Define' ann a = Define (Identifier ann) (Expr ann) (Maybe (Type ann)) deriving (Show, Eq)
-
-instance (Eq ann) => Eq1 (Define' ann) where
-  liftEq _ (Define i1 e1 t1) (Define i2 e2 t2) = i1 == i2 && e1 == e2 && t1 == t2
-
-instance (Show ann) => Show1 (Define' ann) where
-  liftShowsPrec _ _ _ (Define i e t) = showString $ show "Define " <> show i <> show e <> show t
-
-type TypeDefine ann = Cofree (TypeDefine' ann) ann
-
-data TypeDefine' ann a = TypeDefine (Identifier ann) (Type ann) deriving (Show, Eq)
-
-instance (Eq ann) => Eq1 (TypeDefine' ann) where
-  liftEq _ (TypeDefine i1 t1) (TypeDefine i2 t2) = i1 == i2 && t1 == t2
-
-instance (Show ann) => Show1 (TypeDefine' ann) where
-  liftShowsPrec _ _ _ (TypeDefine i t) = showString $ show "TypeDefine " <> show i <> show t
+  liftShowsPrec _ _ _ (SExpr d) = showString $ show "SExpr " <> show d
+  liftShowsPrec _ _ _ (SType d) = showString $ show "SType " <> show d
 
 type Type ann = Cofree (Type' ann) ann
 
@@ -177,7 +164,6 @@ data Expr' ann a
   | ENamedExpr (Identifier ann) a
   | EError String ExitCode
   | EFixtureFun [PatternMatchAssign ann] (Maybe (EImage ann) -> [a] -> IO a) Expansion
-  | ENamespace [(String, a)]
   deriving (Show, Eq)
 
 instance Show (Maybe (EImage ann) -> [a] -> IO a) where
