@@ -12,22 +12,33 @@ module Language.Daicker.DLS where
 
 import Colog.Core (LogAction (..), Severity (..), WithSeverity (..), (<&))
 import qualified Colog.Core as L
+import Control.Comonad.Cofree (Cofree ((:<)))
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TChan
-import Control.Lens hiding (Iso)
+import Control.Lens hiding (Iso, (:<))
 import Control.Monad (forever)
 import Control.Monad.Except (runExceptT)
 import Control.Monad.IO.Class
 import qualified Data.Aeson as J
 import Data.Either (fromLeft)
 import qualified Data.List.NonEmpty as NEL
-import Data.Maybe (catMaybes, isJust)
+import Data.Maybe (catMaybes, fromJust, isJust)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Void (Void)
 import GHC.Generics (Generic)
-import Language.Daicker.Entry (validate')
+import Language.Daicker.AST
+  ( Identifier' (Identifier),
+    Module,
+    Module' (Module),
+    NamedStatement,
+    NamedStatement' (NamedStatement),
+    Statement,
+    Statement' (SExpr, SType),
+  )
+import Language.Daicker.Bundler (Bundle)
+import Language.Daicker.Entry (statements', validate')
 import Language.Daicker.Error (CodeError (), StaticError (StaticError))
 import Language.Daicker.Lexer
 import Language.Daicker.Span (Span (Span), WithSpan (WithSpan), toRange)
@@ -122,7 +133,29 @@ handle logger =
               Right ts -> responder $ Right $ LSP.InL ts
               Left t -> responder $ Left $ LSP.ResponseError (LSP.InR LSP.ErrorCodes_InternalError) t Nothing
           Nothing -> responder $ Left $ LSP.ResponseError (LSP.InR LSP.ErrorCodes_InternalError) "cannot get virtual file" Nothing,
-      notificationHandler LSP.SMethod_WorkspaceDidChangeConfiguration $ \_ -> pure () -- Nothing to do
+      notificationHandler LSP.SMethod_WorkspaceDidChangeConfiguration $ \_ -> pure (), -- Nothing to do
+      requestHandler LSP.SMethod_TextDocumentCompletion $ \req responder -> do
+        let doc =
+              req
+                ^. LSP.params
+                  . LSP.textDocument
+                  . LSP.uri
+                  . to LSP.toNormalizedUri
+        file <- getVirtualFile doc
+        let (NormalizedUri _ path) = doc
+        ss <- liftIO $ runExceptT $ statements' (T.unpack path) (virtualFileText $ fromJust file)
+        case ss of
+          Right ss ->
+            responder $
+              Right $
+                LSP.InR $
+                  LSP.InL
+                    CompletionList
+                      { _isIncomplete = False,
+                        _itemDefaults = Nothing,
+                        _items = map completions ss
+                      }
+          Left _ -> responder $ Left $ LSP.ResponseError (LSP.InR LSP.ErrorCodes_InternalError) "syntax error" Nothing
     ]
 
 newtype ReactorInput = ReactorAction (IO ())
@@ -167,7 +200,9 @@ lspOptions :: Options
 lspOptions =
   defaultOptions
     { optTextDocumentSync = Just syncOptions,
-      optExecuteCommandCommands = Just ["lsp-hello-command"]
+      optExecuteCommandCommands = Just ["lsp-hello-command"],
+      optCompletionTriggerCharacters = Just [' '],
+      optCompletionAllCommitCharacters = Just [' ']
     }
 
 lspHandlers :: (m ~ LspM Config) => L.LogAction m (WithSeverity T.Text) -> TChan ReactorInput -> Handlers m
@@ -224,3 +259,49 @@ lexSemanticTokens fileName src =
       TImage _ -> Just SemanticTokenTypes_Macro
       TComment -> Just SemanticTokenTypes_Comment
       _ -> Nothing
+
+completions :: (String, (Statement a, Module a)) -> CompletionItem
+completions (name, (_ :< SExpr _, _)) =
+  CompletionItem
+    { _label = T.pack name,
+      _labelDetails = Nothing,
+      _kind = Just CompletionItemKind_Variable,
+      _tags = Nothing,
+      _detail = Nothing,
+      _documentation = Nothing,
+      _deprecated = Nothing,
+      _preselect = Nothing,
+      _sortText = Nothing,
+      _filterText = Nothing,
+      _insertText = Nothing,
+      _insertTextFormat = Nothing,
+      _insertTextMode = Nothing,
+      _textEdit = Nothing,
+      _textEditText = Nothing,
+      _additionalTextEdits = Nothing,
+      _commitCharacters = Nothing,
+      _command = Nothing,
+      _data_ = Nothing
+    }
+completions (name, (_ :< SType _, _)) =
+  CompletionItem
+    { _label = T.pack name,
+      _labelDetails = Nothing,
+      _kind = Just CompletionItemKind_TypeParameter,
+      _tags = Nothing,
+      _detail = Nothing,
+      _documentation = Nothing,
+      _deprecated = Nothing,
+      _preselect = Nothing,
+      _sortText = Nothing,
+      _filterText = Nothing,
+      _insertText = Nothing,
+      _insertTextFormat = Nothing,
+      _insertTextMode = Nothing,
+      _textEdit = Nothing,
+      _textEditText = Nothing,
+      _additionalTextEdits = Nothing,
+      _commitCharacters = Nothing,
+      _command = Nothing,
+      _data_ = Nothing
+    }

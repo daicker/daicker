@@ -15,8 +15,8 @@ import qualified Data.ByteString.Lazy.Char8 as B
 import Data.Sequence (mapWithIndex)
 import Data.Text (Text)
 import qualified Data.Text.IO as T
-import Language.Daicker.AST (Expr, Expr' (EArray, EFun), Identifier, Module, Module' (..), NamedStatement' (NamedStatement), Statement' (SExpr), switchAnn)
-import Language.Daicker.Bundler (Bundle (Bundle), findExpr, loadModules, loadStatements)
+import Language.Daicker.AST (Expr, Expr' (EArray, EFun), Identifier, Module, Module' (..), NamedStatement, NamedStatement' (NamedStatement), Statement' (SExpr), switchAnn)
+import Language.Daicker.Bundler (Bundle (Bundle), StatementBundle, findExpr, loadModules, loadStatements)
 import Language.Daicker.CmdArgParser (parseArg)
 import Language.Daicker.Error (CodeError (RuntimeE, StaticE), RuntimeError (RuntimeError), StaticError, codeErrorPretty)
 import Language.Daicker.Executor (execDefine)
@@ -42,6 +42,14 @@ validate' fileName src = do
   liftEither $ validateModule (Bundle mb m ss) m
   ms <- loadModules is
   void $ liftEither $ loadStatements ms m
+
+statements' :: String -> Text -> ExceptT [StaticError] IO (StatementBundle Span)
+statements' fileName src = do
+  tokens <- liftEither $ lexTokens fileName src
+  let stream = mkTStreamWithoutComment src tokens
+  m@(_ :< Module is _ _) <- liftEither $ parseModule fileName stream
+  mb <- loadModules is
+  liftEither $ loadStatements mb m
 
 run :: String -> String -> [Text] -> ExceptT CodeError IO (Expr Span)
 run fileName funcName args = do
