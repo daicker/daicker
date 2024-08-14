@@ -178,20 +178,6 @@ prelude =
             ),
         preludeSpan
           :< NamedStatement
-            (preludeSpan :< Identifier "+")
-            ( preludeSpan
-                :< SExpr
-                  ( preludeSpan
-                      :< EFixtureFun
-                        [ preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "a"),
-                          preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "b")
-                        ]
-                        (\_ [s1 :< ENumber a, s2 :< ENumber b] -> pure $ (s1 `union` s2) :< ENumber (a + b))
-                        False
-                  )
-            ),
-        preludeSpan
-          :< NamedStatement
             (preludeSpan :< Identifier "-")
             ( preludeSpan
                 :< SExpr
