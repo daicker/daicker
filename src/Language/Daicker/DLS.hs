@@ -155,7 +155,7 @@ handle logger =
                         _itemDefaults = Nothing,
                         _items = map completions ss
                       }
-          Left _ -> responder $ Left $ LSP.ResponseError (LSP.InR LSP.ErrorCodes_InternalError) "syntax error" Nothing
+          Left _ -> responder $ Right $ LSP.InR $ LSP.InR LSP.Null
     ]
 
 newtype ReactorInput = ReactorAction (IO ())
