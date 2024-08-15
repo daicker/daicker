@@ -90,15 +90,30 @@ type Statement ann = Cofree (Statement' ann) ann
 data Statement' ann a
   = SExpr (Expr ann)
   | SType (Type ann)
+  | SData (Data ann)
   deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Statement' ann) where
   liftEq _ (SExpr d1) (SExpr d2) = d1 == d2
   liftEq _ (SType d1) (SType d2) = d1 == d2
+  liftEq _ (SData d1) (SData d2) = d1 == d2
 
 instance (Show ann) => Show1 (Statement' ann) where
   liftShowsPrec _ _ _ (SExpr d) = showString $ show "SExpr " <> show d
   liftShowsPrec _ _ _ (SType d) = showString $ show "SType " <> show d
+  liftShowsPrec _ _ _ (SData d) = showString $ show "SData " <> show d
+
+type Data ann = Cofree (Data' ann) ann
+
+newtype Data' ann a
+  = LocalState (Identifier ann) -- save data to .daicker/state.json in current directory
+  deriving (Show, Eq)
+
+instance (Eq ann) => Eq1 (Data' ann) where
+  liftEq _ (LocalState i1) (LocalState i2) = i1 == i2
+
+instance (Show ann) => Show1 (Data' ann) where
+  liftShowsPrec _ _ _ (LocalState i) = showString $ show "LocalState " <> show i
 
 type Type ann = Cofree (Type' ann) ann
 

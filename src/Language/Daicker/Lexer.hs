@@ -43,6 +43,8 @@ data TToken
   | TDefine
   | TFrom
   | TType
+  | TData
+  | TState
   | TLParenthesis
   | TRParenthesis
   | TLBracket
@@ -168,6 +170,8 @@ showTToken = \case
   TDefine -> "define"
   TFrom -> "from"
   TType -> "type"
+  TData -> "data"
+  TState -> "state"
   TLParenthesis -> "("
   TRParenthesis -> ")"
   TLBracket -> "["
@@ -256,6 +260,8 @@ tToken =
           TDefine <$ string "define" <?> "define",
           TFrom <$ string "from" <?> "from",
           TType <$ string "type" <?> "type",
+          TData <$ string "data" <?> "data",
+          TState <$ string "state" <?> "state",
           TNumber <$> L.signed sc L.scientific <?> "number",
           TString <$> (char '"' *> manyTill L.charLiteral (char '"') <?> "string"),
           TTypeIdentifier <$> ((:) <$> upperChar <*> many (alphaNumChar <|> char '_') <?> "identifier"),
