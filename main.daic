@@ -1,11 +1,11 @@
-define test =
+func test =
   $ "stack" "test"
 
-define install =
+func install =
   $ "stack" "--local-bin-path" "/usr/local/bin/" "install"
 
-define uninstall =
+func uninstall =
   $ "rm" "/usr/local/bin/daicker"
 
-define count =
+func count =
   $ "cloc" "." "--vcs=git"
