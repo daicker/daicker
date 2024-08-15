@@ -251,7 +251,7 @@ lexSemanticTokens fileName src =
       TString _ -> Just SemanticTokenTypes_String
       TImport -> Just SemanticTokenTypes_Keyword
       TExport -> Just SemanticTokenTypes_Keyword
-      TDefine -> Just SemanticTokenTypes_Keyword
+      TFunc -> Just SemanticTokenTypes_Keyword
       TFrom -> Just SemanticTokenTypes_Keyword
       TType -> Just SemanticTokenTypes_Keyword
       TData -> Just SemanticTokenTypes_Keyword

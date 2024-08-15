@@ -40,7 +40,7 @@ data TToken
   | TAssign
   | TImport
   | TExport
-  | TDefine
+  | TFunc
   | TFrom
   | TType
   | TData
@@ -167,7 +167,7 @@ showTToken = \case
   TAssign -> "="
   TImport -> "import"
   TExport -> "export"
-  TDefine -> "define"
+  TFunc -> "func"
   TFrom -> "from"
   TType -> "type"
   TData -> "data"
@@ -257,7 +257,7 @@ tToken =
           TImage <$> ((:) <$> char '#' *> many (alphaNumChar <|> char '/' <|> char ':' <|> char '.' <|> char '-' <|> char '_') <?> "image"),
           TImport <$ string "import" <?> "import",
           TExport <$ string "export" <?> "export",
-          TDefine <$ string "define" <?> "define",
+          TFunc <$ string "func" <?> "func",
           TFrom <$ string "from" <?> "from",
           TType <$ string "type" <?> "type",
           TData <$ string "data" <?> "data",

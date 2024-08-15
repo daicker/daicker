@@ -96,7 +96,7 @@ pExport = do
 
 pExprStatement :: Parser (NamedStatement Span)
 pExprStatement = do
-  (WithSpan _ s) <- pToken TDefine
+  (WithSpan _ s) <- pToken TFunc
   i <- pIdentifier
   params <- many pPatternMatchAssign
   extends <- optional $ pToken T3Dots
