@@ -7,7 +7,7 @@ import Data.Text (Text)
 import Language.Daicker.AST
 import Language.Daicker.Error (codeErrorPretty, staticErrorListPretty)
 import Language.Daicker.Lexer (lexTokens, mkTStreamWithoutComment)
-import Language.Daicker.Parser (Parser, pDefine, pExpr, pImport, pModule)
+import Language.Daicker.Parser (Parser, pExpr, pExprStatement, pImport, pModule)
 import Language.Daicker.Span (mkSpan)
 import Test.Hspec
 import Text.Megaparsec hiding (parseTest)
@@ -15,48 +15,45 @@ import Text.Megaparsec hiding (parseTest)
 spec :: Spec
 spec = do
   describe "import" $ do
-    it "import a from \"test.daic\"" $
-      parseTest pImport "test" "import a from \"test.daic\""
+    it "import * from \"test.daic\"" $
+      parseTest pImport "test" "import * from \"test.daic\""
         `shouldBe` Right
           ( mkSpan "test" 1 1 1 26
-              :< NamedImport
-                (mkSpan "test" 1 8 1 9 :< Identifier "a")
+              :< WildImport
                 (mkSpan "test" 1 15 1 26 :< LocalFile "test.daic")
           )
   describe "define" $ do
-    it "define a = 1" $
-      parseTest pDefine "test" "define a = 1"
+    it "func a = 1" $
+      parseTest pExprStatement "test" "func a = 1"
         `shouldBe` Right
-          ( mkSpan "test" 1 1 1 13
-              :< SDefine
-                ( mkSpan "test" 1 1 1 13
-                    :< Define
-                      (mkSpan "test" 1 8 1 9 :< Identifier "a")
-                      (mkSpan "test" 1 12 1 13 :< ENumber 1)
-                      Nothing
+          ( mkSpan "test" 1 1 1 11
+              :< NamedStatement
+                (mkSpan "test" 1 6 1 7 :< Identifier "a")
+                ( mkSpan "test" 1 1 1 11
+                    :< SExpr
+                      (mkSpan "test" 1 10 1 11 :< ENumber 1)
                 )
           )
-    it "define f a = a" $
-      parseTest pDefine "test" "define f a = a"
+    it "func f a = a" $
+      parseTest pExprStatement "test" "func f a = a"
         `shouldBe` Right
-          ( mkSpan "test" 1 1 1 15
-              :< SDefine
-                ( mkSpan "test" 1 1 1 15
-                    :< Define
-                      (mkSpan "test" 1 8 1 9 :< Identifier "f")
-                      ( mkSpan "test" 1 10 1 15
+          ( mkSpan "test" 1 1 1 13
+              :< NamedStatement
+                (mkSpan "test" 1 6 1 7 :< Identifier "f")
+                ( mkSpan "test" 1 1 1 13
+                    :< SExpr
+                      ( mkSpan "test" 1 8 1 13
                           :< EFun
-                            [ mkSpan "test" 1 10 1 11
+                            [ mkSpan "test" 1 8 1 9
                                 :< PMAAnyValue
-                                  ( mkSpan "test" 1 10 1 11
+                                  ( mkSpan "test" 1 8 1 9
                                       :< Identifier
                                         "a"
                                   )
                             ]
-                            (mkSpan "test" 1 14 1 15 :< ERef (mkSpan "test" 1 14 1 15 :< Identifier "a"))
+                            (mkSpan "test" 1 12 1 13 :< ERef (mkSpan "test" 1 12 1 13 :< Identifier "a"))
                             False
                       )
-                      Nothing
                 )
           )
   describe "value parser" $ do
