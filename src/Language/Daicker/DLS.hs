@@ -134,6 +134,7 @@ handle logger =
               Left t -> responder $ Left $ LSP.ResponseError (LSP.InR LSP.ErrorCodes_InternalError) t Nothing
           Nothing -> responder $ Left $ LSP.ResponseError (LSP.InR LSP.ErrorCodes_InternalError) "cannot get virtual file" Nothing,
       notificationHandler LSP.SMethod_WorkspaceDidChangeConfiguration $ \_ -> pure (), -- Nothing to do
+      notificationHandler LSP.SMethod_TextDocumentDidClose $ \_ -> pure (), -- Nothing to do
       requestHandler LSP.SMethod_TextDocumentCompletion $ \req responder -> do
         let doc =
               req
