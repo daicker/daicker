@@ -7,7 +7,7 @@ import Data.Text (Text)
 import Language.Daicker.AST
 import Language.Daicker.Error (codeErrorPretty, staticErrorListPretty)
 import Language.Daicker.Lexer (lexTokens, mkTStreamWithoutComment)
-import Language.Daicker.Parser (Parser, pExpr, pExprStatement, pImport, pModule)
+import Language.Daicker.Parser (Parser, pExpr, pExprOrExprTypeStatement, pImport, pModule)
 import Language.Daicker.Span (mkSpan)
 import Test.Hspec
 import Text.Megaparsec hiding (parseTest)
@@ -24,7 +24,7 @@ spec = do
           )
   describe "define" $ do
     it "func a = 1" $
-      parseTest pExprStatement "test" "func a = 1"
+      parseTest pExprOrExprTypeStatement "test" "func a = 1"
         `shouldBe` Right
           ( mkSpan "test" 1 1 1 11
               :< NamedStatement
@@ -35,7 +35,7 @@ spec = do
                 )
           )
     it "func f a = a" $
-      parseTest pExprStatement "test" "func f a = a"
+      parseTest pExprOrExprTypeStatement "test" "func f a = a"
         `shouldBe` Right
           ( mkSpan "test" 1 1 1 13
               :< NamedStatement
