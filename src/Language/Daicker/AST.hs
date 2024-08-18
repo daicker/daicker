@@ -89,17 +89,21 @@ type Statement ann = Cofree (Statement' ann) ann
 
 data Statement' ann a
   = SExpr (Expr ann)
+  | SExprType (ExprType ann)
   | SType (Type ann)
   | SData (Data ann)
   deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Statement' ann) where
   liftEq _ (SExpr d1) (SExpr d2) = d1 == d2
+  liftEq _ (SExprType d1) (SExprType d2) = d1 == d2
   liftEq _ (SType d1) (SType d2) = d1 == d2
   liftEq _ (SData d1) (SData d2) = d1 == d2
+  liftEq _ _ _ = False
 
 instance (Show ann) => Show1 (Statement' ann) where
   liftShowsPrec _ _ _ (SExpr d) = showString $ show "SExpr " <> show d
+  liftShowsPrec _ _ _ (SExprType d) = showString $ show "SExprType " <> show d
   liftShowsPrec _ _ _ (SType d) = showString $ show "SType " <> show d
   liftShowsPrec _ _ _ (SData d) = showString $ show "SData " <> show d
 
@@ -143,6 +147,7 @@ instance (Eq ann) => Eq1 (Type' ann) where
   liftEq f (TMap a) (TMap b) = f a b
   liftEq f (TFun f1 a1) (TFun f2 a2) = f f1 f2 && f a1 a2
   liftEq _ (TRef n1) (TRef n2) = n1 == n2
+  liftEq _ _ _ = False
 
 instance (Show ann) => Show1 (Type' ann) where
   liftShowsPrec _ _ _ TVoid = showString "TVoid"
@@ -161,6 +166,16 @@ instance (Show ann) => Show1 (Type' ann) where
   liftShowsPrec f _ n (TMap a) = showString "TMap " <> f n a
   liftShowsPrec f _ n (TFun a b) = showString "TFun " <> f n a <> f n b
   liftShowsPrec f _ n (TRef name) = showString $ "TRef " <> show name
+
+type ExprType ann = Cofree (ExprType' ann) ann
+
+newtype ExprType' ann a = ExprType (Type ann) deriving (Show, Eq)
+
+instance (Eq ann) => Eq1 (ExprType' ann) where
+  liftEq _ (ExprType t1) (ExprType t2) = t1 == t2
+
+instance (Show ann) => Show1 (ExprType' ann) where
+  liftShowsPrec _ _ _ (ExprType t) = showString $ "ExprType " <> show t
 
 type Expr ann = Cofree (Expr' ann) ann
 

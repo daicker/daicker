@@ -4,7 +4,7 @@ import Control.Comonad.Cofree
 import Control.Monad (void)
 import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
 import Data.Functor.Identity (Identity)
-import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty (NonEmpty (..), some1)
 import Data.Maybe (fromJust, fromMaybe, isJust)
 import Data.Scientific (toRealFloat)
 import qualified Data.Set as Set
@@ -54,7 +54,7 @@ pModule = do
         statements
 
 pStatement :: Parser (NamedStatement Span)
-pStatement = choice [pExprStatement, pTypeStatement, pDataStatement]
+pStatement = choice [pExprOrExprTypeStatement, pTypeStatement, pDataStatement]
 
 pImport :: Parser (Import Span)
 pImport = do
@@ -94,27 +94,35 @@ pExport = do
   (WithSpan is s2) <- spanned $ some (pIdentifier <|> pTypeIdentifier)
   return $ (s1 `union` s2) :< Export is
 
-pExprStatement :: Parser (NamedStatement Span)
-pExprStatement = do
+pExprOrExprTypeStatement :: Parser (NamedStatement Span)
+pExprOrExprTypeStatement = do
   (WithSpan _ s) <- pToken TFunc
   i <- pIdentifier
-  params <- many pPatternMatchAssign
-  extends <- optional $ pToken T3Dots
-  pToken TAssign
-  v <- pExpr
-  case params of
-    [] ->
-      return $
-        (s `union` S.span v)
-          :< NamedStatement i ((s `union` S.span v) :< SExpr v)
-    params ->
-      return $
-        (s `union` S.span v)
-          :< NamedStatement
-            i
-            ( (s `union` S.span v)
-                :< SExpr ((S.span (head params) `union` S.span v) :< EFun params v (isJust extends))
-            )
+  isTypeDefine <- optional $ pToken T2Colons
+  case isTypeDefine of
+    Just _ -> do
+      t <- pType
+      pure $
+        (s `union` S.span t)
+          :< NamedStatement i (S.span t :< SExprType (S.span t :< ExprType t))
+    Nothing -> do
+      params <- many pPatternMatchAssign
+      extends <- optional $ pToken T3Dots
+      pToken TAssign
+      v <- pExpr
+      case params of
+        [] ->
+          return $
+            (s `union` S.span v)
+              :< NamedStatement i ((s `union` S.span v) :< SExpr v)
+        params ->
+          return $
+            (s `union` S.span v)
+              :< NamedStatement
+                i
+                ( (s `union` S.span v)
+                    :< SExpr ((S.span (head params) `union` S.span v) :< EFun params v (isJust extends))
+                )
 
 pTypeStatement :: Parser (NamedStatement Span)
 pTypeStatement = do

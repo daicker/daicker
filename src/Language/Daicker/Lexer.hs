@@ -55,6 +55,7 @@ data TToken
   | TComma
   | T3Dots
   | TDot
+  | T2Colons
   | TColon
   | TNot
   | TOr
@@ -182,6 +183,7 @@ showTToken = \case
   TComma -> ","
   T3Dots -> "..."
   TDot -> "."
+  T2Colons -> "::"
   TColon -> ":"
   TNot -> "!"
   TOr -> "||"
@@ -233,6 +235,7 @@ tToken =
           TComma <$ char ',' <?> ",",
           T3Dots <$ string "..." <?> "...",
           TDot <$ char '.' <?> ".",
+          T2Colons <$ string "::" <?> "::",
           TColon <$ char ':' <?> ":",
           TBackslash <$ char '\\' <?> "\\",
           TNull <$ string "null" <?> "null",
