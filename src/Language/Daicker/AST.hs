@@ -131,7 +131,7 @@ data Type' ann a
   | TArray a
   | TObject [(EKey ann, a)]
   | TMap a
-  | TFun a a
+  | TFun [a] a Expansion
   | TRef (Identifier ann)
   deriving (Show, Eq)
 
@@ -145,7 +145,7 @@ instance (Eq ann) => Eq1 (Type' ann) where
   liftEq f (TArray a) (TArray b) = f a b
   liftEq f (TObject as) (TObject bs) = length as == length bs && all (\((ka, va), (kb, vb)) -> ka == kb && f va vb) (zip as bs)
   liftEq f (TMap a) (TMap b) = f a b
-  liftEq f (TFun f1 a1) (TFun f2 a2) = f f1 f2 && f a1 a2
+  liftEq f (TFun f1 a1 e1) (TFun f2 a2 e2) = length f1 == length f2 && all (uncurry f) (zip f1 f2) && f a1 a2 && e1 == e2
   liftEq _ (TRef n1) (TRef n2) = n1 == n2
   liftEq _ _ _ = False
 
@@ -164,7 +164,7 @@ instance (Show ann) => Show1 (Type' ann) where
         (map (\(i, a) -> showString "(" <> showString (show i) <> showString ", " <> f n a <> showString ")") as)
       <> showString "]"
   liftShowsPrec f _ n (TMap a) = showString "TMap " <> f n a
-  liftShowsPrec f _ n (TFun a b) = showString "TFun " <> f n a <> f n b
+  liftShowsPrec f f' n (TFun a b e) = showString "TFun " <> f' a <> f n b <> showString (show e)
   liftShowsPrec f _ n (TRef name) = showString $ "TRef " <> show name
 
 type ExprType ann = Cofree (ExprType' ann) ann

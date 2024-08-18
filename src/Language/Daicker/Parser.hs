@@ -248,18 +248,15 @@ postfix token = Postfix (f <$> pToken token)
           [(a, False)]
 
 typeOperatorTable :: [[Operator Parser (AST.Type Span)]]
-typeOperatorTable =
-  [ [ tBinary TArrow
-    ]
-  ]
+typeOperatorTable = []
 
-tBinary :: TToken -> Operator Parser (AST.Type Span)
-tBinary token = InfixL (f <$> pToken token)
-  where
-    f :: WithSpan TToken -> AST.Type Span -> AST.Type Span -> AST.Type Span
-    f (WithSpan op s) a b =
-      (S.span a `union` S.span b)
-        :< AST.TFun a b
+-- tBinary :: TToken -> Operator Parser (AST.Type Span)
+-- tBinary token = InfixL (f <$> pToken token)
+--   where
+--     f :: WithSpan TToken -> AST.Type Span -> AST.Type Span -> AST.Type Span
+--     f (WithSpan op s) a b =
+--       (S.span a `union` S.span b)
+--         :< AST.TFun a b
 
 pType :: Parser (AST.Type Span)
 pType = makeExprParser pTypeTerm typeOperatorTable
@@ -274,8 +271,18 @@ pTypeTerm =
       pTString,
       pTArrayOrTuple,
       pTObject,
-      pTRef
+      pTRef,
+      pTFun
     ]
+
+pTFun :: Parser (AST.Type Span)
+pTFun = do
+  (WithSpan _ s) <- pToken TBackslash
+  args <- many pType
+  extends <- optional $ pToken T3Dots
+  pToken TArrow
+  v <- pType
+  return $ (s `union` S.span v) :< AST.TFun args v (isJust extends)
 
 pTRef :: Parser (AST.Type Span)
 pTRef = do
