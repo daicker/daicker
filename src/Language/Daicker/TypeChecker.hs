@@ -31,6 +31,23 @@ validateStatement :: Bundle Span -> NamedStatement Span -> [StaticError]
 validateStatement
   (Bundle mb cm ss)
   (_ :< NamedStatement (sp :< Identifier name) s) =
-    case lookup name (filter (\(name', (s', _)) -> name' == name && s' /= s) ss) of
+    case lookup
+      name
+      ( filter
+          ( \(name', (s', _)) ->
+              name' == name
+                && s' /= s
+                && statementKind s' == statementKind s
+          )
+          ss
+      ) of
       Nothing -> []
       Just _ -> [StaticError ("duplicated name: " <> name) sp]
+
+data StatementKind = KExpr | KExprType | KType | KData deriving (Eq)
+
+statementKind :: Statement a -> StatementKind
+statementKind (_ :< SExpr _) = KExpr
+statementKind (_ :< SExprType _) = KExprType
+statementKind (_ :< SType _) = KType
+statementKind (_ :< SData _) = KData
