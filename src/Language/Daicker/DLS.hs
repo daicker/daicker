@@ -134,29 +134,32 @@ handle logger =
               Left t -> responder $ Left $ LSP.ResponseError (LSP.InR LSP.ErrorCodes_InternalError) t Nothing
           Nothing -> responder $ Left $ LSP.ResponseError (LSP.InR LSP.ErrorCodes_InternalError) "cannot get virtual file" Nothing,
       notificationHandler LSP.SMethod_WorkspaceDidChangeConfiguration $ \_ -> pure (), -- Nothing to do
-      notificationHandler LSP.SMethod_TextDocumentDidClose $ \_ -> pure (), -- Nothing to do
-      requestHandler LSP.SMethod_TextDocumentCompletion $ \req responder -> do
-        let doc =
-              req
-                ^. LSP.params
-                  . LSP.textDocument
-                  . LSP.uri
-                  . to LSP.toNormalizedUri
-        file <- getVirtualFile doc
-        let (NormalizedUri _ path) = doc
-        ss <- liftIO $ runExceptT $ statements' (T.unpack path) (virtualFileText $ fromJust file)
-        case ss of
-          Right ss ->
-            responder $
-              Right $
-                LSP.InR $
-                  LSP.InL
-                    CompletionList
-                      { _isIncomplete = False,
-                        _itemDefaults = Nothing,
-                        _items = map completions ss
-                      }
-          Left _ -> responder $ Right $ LSP.InR $ LSP.InR LSP.Null
+      notificationHandler LSP.SMethod_TextDocumentDidClose $ \_ -> pure () -- Nothing to do
+      -- requestHandler LSP.SMethod_TextDocumentCompletion $ \req responder -> do
+      --   let doc =
+      --         req
+      --           ^. LSP.params
+      --             . LSP.textDocument
+      --             . LSP.uri
+      --             . to LSP.toNormalizedUri
+      --   file <- getVirtualFile doc
+      --   let (NormalizedUri _ path) = doc
+      --   case file of
+      --     Just file -> do
+      --       ss <- liftIO $ runExceptT $ statements' (T.unpack path) (virtualFileText file)
+      --       case ss of
+      --         Right ss ->
+      --           responder $
+      --             Right $
+      --               LSP.InR $
+      --                 LSP.InL
+      --                   CompletionList
+      --                     { _isIncomplete = False,
+      --                       _itemDefaults = Nothing,
+      --                       _items = map completions ss
+      --                     }
+      --         Left _ -> responder $ Right $ LSP.InR $ LSP.InR LSP.Null
+      --     Nothing -> responder $ Right $ LSP.InR $ LSP.InR LSP.Null
     ]
 
 newtype ReactorInput = ReactorAction (IO ())
