@@ -54,7 +54,12 @@ pModule = do
         statements
 
 pStatement :: Parser (NamedStatement Span)
-pStatement = choice [pExprOrExprTypeStatement, pTypeStatement, pDataStatement]
+pStatement =
+  choice
+    [ pExprOrExprTypeStatement,
+      pDataOrDataTypeStatement,
+      pTypeStatement
+    ]
 
 pImport :: Parser (Import Span)
 pImport = do
@@ -132,13 +137,21 @@ pTypeStatement = do
   t <- pType
   pure $ (s `union` S.span t) :< NamedStatement i ((s `union` S.span t) :< SType t)
 
-pDataStatement :: Parser (NamedStatement Span)
-pDataStatement = do
+pDataOrDataTypeStatement :: Parser (NamedStatement Span)
+pDataOrDataTypeStatement = do
   (WithSpan _ s) <- pToken TData
   i <- pIdentifier
-  pToken TAssign
-  d <- pData
-  pure $ (s `union` S.span i) :< NamedStatement i ((s `union` S.span i) :< SData d)
+  isTypeDefine <- optional $ pToken T2Colons
+  case isTypeDefine of
+    Just _ -> do
+      t <- pType
+      pure $
+        (s `union` S.span t)
+          :< NamedStatement i (S.span t :< SDataType (S.span t :< DataType t))
+    Nothing -> do
+      pToken TAssign
+      d <- pData
+      pure $ (s `union` S.span i) :< NamedStatement i ((s `union` S.span i) :< SData d)
 
 pData :: Parser (Data Span)
 pData = pLocalState

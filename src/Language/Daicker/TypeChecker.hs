@@ -6,7 +6,7 @@ import Language.Daicker.AST
 import Language.Daicker.Bundler (Bundle (Bundle))
 import Language.Daicker.Error (StaticError (StaticError))
 import Language.Daicker.Parser (parseModule)
-import Language.Daicker.Span (Span)
+import Language.Daicker.Span (Span, spanPretty)
 
 validateModule :: Bundle Span -> Module Span -> Either [StaticError] ()
 validateModule b m@(_ :< Module _ e ss) = case es of
@@ -42,12 +42,13 @@ validateStatement
           ss
       ) of
       Nothing -> []
-      Just _ -> [StaticError ("duplicated name: " <> name) sp]
+      Just _ -> [StaticError ("duplicated name: " <> name <> " with at " <> spanPretty sp) sp]
 
-data StatementKind = KExpr | KExprType | KType | KData deriving (Eq)
+data StatementKind = KExpr | KExprType | KData | KDataType | KType deriving (Eq)
 
 statementKind :: Statement a -> StatementKind
 statementKind (_ :< SExpr _) = KExpr
 statementKind (_ :< SExprType _) = KExprType
-statementKind (_ :< SType _) = KType
 statementKind (_ :< SData _) = KData
+statementKind (_ :< SDataType _) = KDataType
+statementKind (_ :< SType _) = KType

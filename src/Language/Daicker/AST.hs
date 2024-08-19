@@ -90,15 +90,17 @@ type Statement ann = Cofree (Statement' ann) ann
 data Statement' ann a
   = SExpr (Expr ann)
   | SExprType (ExprType ann)
-  | SType (Type ann)
   | SData (Data ann)
+  | SDataType (DataType ann)
+  | SType (Type ann)
   deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Statement' ann) where
   liftEq _ (SExpr d1) (SExpr d2) = d1 == d2
   liftEq _ (SExprType d1) (SExprType d2) = d1 == d2
-  liftEq _ (SType d1) (SType d2) = d1 == d2
   liftEq _ (SData d1) (SData d2) = d1 == d2
+  liftEq _ (SDataType d1) (SDataType d2) = d1 == d2
+  liftEq _ (SType d1) (SType d2) = d1 == d2
   liftEq _ _ _ = False
 
 instance (Show ann) => Show1 (Statement' ann) where
@@ -106,6 +108,16 @@ instance (Show ann) => Show1 (Statement' ann) where
   liftShowsPrec _ _ _ (SExprType d) = showString $ show "SExprType " <> show d
   liftShowsPrec _ _ _ (SType d) = showString $ show "SType " <> show d
   liftShowsPrec _ _ _ (SData d) = showString $ show "SData " <> show d
+
+type DataType ann = Cofree (DataType' ann) ann
+
+newtype DataType' ann a = DataType (Type ann) deriving (Show, Eq)
+
+instance (Eq ann) => Eq1 (DataType' ann) where
+  liftEq _ (DataType t1) (DataType t2) = t1 == t2
+
+instance (Show ann) => Show1 (DataType' ann) where
+  liftShowsPrec _ _ _ (DataType t) = showString $ "DataType " <> show t
 
 type Data ann = Cofree (Data' ann) ann
 
