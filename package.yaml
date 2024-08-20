@@ -58,9 +58,18 @@ executables:
       - daicker
 
 tests:
-  daicker-test:
+  daicker-unit-test:
     main: Spec.hs
-    source-dirs: test
+    source-dirs: test/unit
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - daicker
+  daicker-e2e-test:
+    main: Spec.hs
+    source-dirs: test/e2e
     ghc-options:
       - -threaded
       - -rtsopts
