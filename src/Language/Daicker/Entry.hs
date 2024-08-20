@@ -15,14 +15,14 @@ import qualified Data.ByteString.Lazy.Char8 as B
 import Data.Sequence (mapWithIndex)
 import Data.Text (Text)
 import qualified Data.Text.IO as T
-import Language.Daicker.AST (Expr, Expr' (EArray, EFun), Identifier, Module, Module' (..), NamedStatement, NamedStatement' (NamedStatement), Statement' (SExpr), switchAnn)
+import Language.Daicker.AST (Expr, Expr' (EArray, EError, EFun), Identifier, Module, Module' (..), NamedStatement, NamedStatement' (NamedStatement), Statement' (SExpr), switchAnn)
 import Language.Daicker.Bundler (Bundle (Bundle), StatementBundle, findExpr, loadModules, loadStatements)
 import Language.Daicker.CmdArgParser (parseArg)
 import Language.Daicker.Error (CodeError (RuntimeE, StaticE), RuntimeError (RuntimeError), StaticError, codeErrorPretty)
 import Language.Daicker.Executor (execDefine)
 import Language.Daicker.Lexer (lexTokens, mkTStreamWithoutComment)
 import Language.Daicker.Parser (parseModule)
-import Language.Daicker.Span (Span, mkSpan)
+import Language.Daicker.Span (Span, mkSpan, spanPretty)
 import Language.Daicker.TypeChecker (validateModule)
 import System.Exit (ExitCode (ExitFailure, ExitSuccess), exitFailure, exitSuccess, exitWith)
 import System.IO (Handle, IOMode (..), hClose, hGetContents, hPutStrLn, hReady, openFile, stdin)
@@ -81,10 +81,15 @@ hExitWithRuntimeError h e@(RuntimeE (RuntimeError m s n)) = do
   hPutStrLn h $ codeErrorPretty e
   exitWith n
 
-hExitWithExpr :: Handle -> Expr a -> IO ()
+hExitWithExpr :: Handle -> Expr Span -> IO ()
 hExitWithExpr h e = do
-  hPutStrLn h (unpack $ encode e)
-  exitSuccess
+  case e of
+    (s :< EError m code) -> do
+      hPutStrLn h $ spanPretty s <> ": " <> m
+      exitWith code
+    e -> do
+      hPutStrLn h (unpack $ encode e)
+      exitSuccess
 
 withDevNull :: (Handle -> IO a) -> IO a
 withDevNull f = do
