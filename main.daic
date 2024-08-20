@@ -1,6 +1,12 @@
 func test =
   $ "stack" "test"
 
+func ut =
+  $ "stack" "test" ":daicker-unit-test"
+
+func e2e =
+  $ "stack" "test" ":daicker-e2e-test"
+
 func install =
   $ "stack" "--local-bin-path" "/usr/local/bin/" "install"
 
