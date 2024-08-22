@@ -32,6 +32,7 @@ import Text.Megaparsec.Char
     upperChar,
   )
 import qualified Text.Megaparsec.Char.Lexer as L
+import Text.ParserCombinators.ReadP (many1)
 
 type Parser = Parsec Void TStream
 
@@ -260,19 +261,23 @@ postfix token = Postfix (f <$> pToken token)
           (s :< ERef (s :< Identifier (showTToken op)))
           [(a, False)]
 
-typeOperatorTable :: [[Operator Parser (AST.Type Span)]]
-typeOperatorTable = []
-
--- tBinary :: TToken -> Operator Parser (AST.Type Span)
--- tBinary token = InfixL (f <$> pToken token)
---   where
---     f :: WithSpan TToken -> AST.Type Span -> AST.Type Span -> AST.Type Span
---     f (WithSpan op s) a b =
---       (S.span a `union` S.span b)
---         :< AST.TFun a b
-
 pType :: Parser (AST.Type Span)
-pType = makeExprParser pTypeTerm typeOperatorTable
+pType = do
+  args@(a1 : _) <- some pTypeTerm
+  hasExtends <- isJust <$> optional (pToken T3Dots)
+  hasArrow <- isJust <$> optional (pToken TArrow)
+  if hasArrow
+    then do
+      v <- pType
+      return $ (S.span (head args) `union` S.span v) :< AST.TFun args v hasExtends
+    else
+      if hasExtends
+        then
+          fail "'...' (variable length arguments) are only available for function types."
+        else
+          if length args == 1
+            then pure a1
+            else fail "Listing multiple types is available for functions."
 
 pTypeTerm :: Parser (AST.Type Span)
 pTypeTerm =
@@ -285,17 +290,8 @@ pTypeTerm =
       pTArrayOrTuple,
       pTObject,
       pTRef,
-      pTFun
+      pToken TLParenthesis *> pType <* pToken TRParenthesis
     ]
-
-pTFun :: Parser (AST.Type Span)
-pTFun = do
-  (WithSpan _ s) <- pToken TBackslash
-  args <- many pType
-  extends <- optional $ pToken T3Dots
-  pToken TArrow
-  v <- pType
-  return $ (s `union` S.span v) :< AST.TFun args v (isJust extends)
 
 pTRef :: Parser (AST.Type Span)
 pTRef = do
