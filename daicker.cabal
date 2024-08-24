@@ -33,6 +33,7 @@ library
       Language.Daicker.Parser
       Language.Daicker.Span
       Language.Daicker.StdLib
+      Language.Daicker.Storage
       Language.Daicker.TypeChecker
   other-modules:
       Paths_daicker
@@ -46,6 +47,7 @@ library
     , containers >=0.6.0 && <0.7
     , directory >=1.3.0 && <1.4
     , exceptions >=0.10.0 && <0.11
+    , filepath >=1.4.0 && <1.5
     , free >=5.0 && <6
     , hspec >=2.11 && <3
     , hspec-core >=2.11 && <3
@@ -83,6 +85,7 @@ executable daicker
     , daicker
     , directory >=1.3.0 && <1.4
     , exceptions >=0.10.0 && <0.11
+    , filepath >=1.4.0 && <1.5
     , free >=5.0 && <6
     , hspec >=2.11 && <3
     , hspec-core >=2.11 && <3
@@ -121,6 +124,7 @@ test-suite daicker-e2e-test
     , daicker
     , directory >=1.3.0 && <1.4
     , exceptions >=0.10.0 && <0.11
+    , filepath >=1.4.0 && <1.5
     , free >=5.0 && <6
     , hspec >=2.11 && <3
     , hspec-core >=2.11 && <3
@@ -160,6 +164,7 @@ test-suite daicker-unit-test
     , daicker
     , directory >=1.3.0 && <1.4
     , exceptions >=0.10.0 && <0.11
+    , filepath >=1.4.0 && <1.5
     , free >=5.0 && <6
     , hspec >=2.11 && <3
     , hspec-core >=2.11 && <3
