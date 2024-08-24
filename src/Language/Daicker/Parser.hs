@@ -392,6 +392,7 @@ pValue =
       pAccess,
       pRef,
       pFunc,
+      pAssign,
       pExpr'
     ]
 
@@ -476,6 +477,14 @@ pFunc = do
   pToken TArrow
   v <- pExpr
   return $ (s `union` S.span v) :< EFun args v (isJust extends)
+
+pAssign :: Parser (Expr Span)
+pAssign = do
+  (WithSpan _ s) <- pToken TVar
+  i <- pIdentifier
+  pToken TAssign
+  v <- pTerm
+  return $ (s `union` S.span v) :< EAssign i v
 
 pIdentifier :: Parser (Identifier Span)
 pIdentifier = token test Set.empty <?> "identifier"

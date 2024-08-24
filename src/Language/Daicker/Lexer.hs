@@ -45,6 +45,7 @@ data TToken
   | TType
   | TData
   | TState
+  | TVar
   | TLParenthesis
   | TRParenthesis
   | TLBracket
@@ -173,6 +174,7 @@ showTToken = \case
   TType -> "type"
   TData -> "data"
   TState -> "state"
+  TVar -> "var"
   TLParenthesis -> "("
   TRParenthesis -> ")"
   TLBracket -> "["
@@ -265,6 +267,7 @@ tToken =
           TType <$ string "type" <?> "type",
           TData <$ string "data" <?> "data",
           TState <$ string "state" <?> "state",
+          TVar <$ string "var" <?> "var",
           TNumber <$> L.signed sc L.scientific <?> "number",
           TString <$> (char '"' *> manyTill L.charLiteral (char '"') <?> "string"),
           TTypeIdentifier <$> ((:) <$> upperChar <*> many (alphaNumChar <|> char '_') <?> "identifier"),

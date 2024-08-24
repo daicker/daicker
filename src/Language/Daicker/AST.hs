@@ -206,6 +206,7 @@ data Expr' ann a
   | ENamedExpr (Identifier ann) a
   | EError String ExitCode
   | EFixtureFun [PatternMatchAssign ann] (Maybe (EImage ann) -> [a] -> IO a) Expansion
+  | EAssign (Identifier ann) a
   deriving (Show, Eq)
 
 instance Show (Maybe (EImage ann) -> [a] -> IO a) where

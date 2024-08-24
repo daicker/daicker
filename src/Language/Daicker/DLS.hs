@@ -259,6 +259,7 @@ lexSemanticTokens fileName src =
       TFrom -> Just SemanticTokenTypes_Keyword
       TType -> Just SemanticTokenTypes_Keyword
       TData -> Just SemanticTokenTypes_Keyword
+      TVar -> Just SemanticTokenTypes_Keyword
       TState -> Just SemanticTokenTypes_Struct
       TTypeIdentifier _ -> Just SemanticTokenTypes_Type
       TIdentifier _ -> Just SemanticTokenTypes_Variable
