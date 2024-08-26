@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 -- cf. https://markkarpov.com/tutorial/megaparsec.html#working-with-custom-input-streams
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -26,7 +27,7 @@ import Language.Daicker.Span
   )
 import qualified Language.Daicker.Span as S
 import Text.Megaparsec
-import Text.Megaparsec.Char (alphaNumChar, char, lowerChar, newline, space1, string, upperChar)
+import Text.Megaparsec.Char (alphaNumChar, char, lowerChar, newline, space, space1, string, upperChar)
 import qualified Text.Megaparsec.Char.Lexer as L
 
 data TToken
@@ -240,9 +241,9 @@ tToken =
           T2Colons <$ string "::" <?> "::",
           TColon <$ char ':' <?> ":",
           TBackslash <$ char '\\' <?> "\\",
-          TNull <$ string "null" <?> "null",
-          TBool True <$ string "true" <?> "bool",
-          TBool False <$ string "false" <?> "bool",
+          TNull <$ keyword "null" <?> "null",
+          TBool True <$ keyword "true" <?> "bool",
+          TBool False <$ keyword "false" <?> "bool",
           TNot <$ char '!' <?> "!",
           TAnd <$ string "&&" <?> "&&",
           TOr <$ string "||" <?> "||",
@@ -260,19 +261,22 @@ tToken =
           TSemicolon <$ char ';' <?> ";",
           TRight <$ string "|>" <?> "|>",
           TImage <$> ((:) <$> char '#' *> many (alphaNumChar <|> char '/' <|> char ':' <|> char '.' <|> char '-' <|> char '_') <?> "image"),
-          TImport <$ string "import" <?> "import",
-          TExport <$ string "export" <?> "export",
-          TFunc <$ string "func" <?> "func",
-          TFrom <$ string "from" <?> "from",
-          TType <$ string "type" <?> "type",
-          TData <$ string "data" <?> "data",
-          TState <$ string "state" <?> "state",
-          TVar <$ string "var" <?> "var",
+          TImport <$ keyword "import" <?> "import",
+          TExport <$ keyword "export" <?> "export",
+          TFunc <$ keyword "func" <?> "func",
+          TFrom <$ keyword "from" <?> "from",
+          TType <$ keyword "type" <?> "type",
+          TData <$ keyword "data" <?> "data",
+          TState <$ keyword "state" <?> "state",
+          TVar <$ keyword "var" <?> "var",
           TNumber <$> L.signed sc L.scientific <?> "number",
           TString <$> (char '"' *> manyTill L.charLiteral (char '"') <?> "string"),
           TTypeIdentifier <$> ((:) <$> upperChar <*> many (alphaNumChar <|> char '_') <?> "identifier"),
           TIdentifier <$> ((:) <$> (lowerChar <|> char '$' <|> char '_') <*> many (alphaNumChar <|> char '$' <|> char '_') <?> "identifier")
         ]
+
+keyword :: Text -> Lexer Text
+keyword k = try $ string k <* notFollowedBy alphaNumChar
 
 lexeme :: Lexer a -> Lexer a
 lexeme = L.lexeme sc
