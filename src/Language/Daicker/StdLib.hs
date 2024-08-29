@@ -7,7 +7,7 @@ import Control.Monad.IO.Class (liftIO)
 import Data.List (intercalate)
 import qualified Data.Text as T
 import Data.Text.IO (hGetLine, hPutStrLn)
-import GHC.Conc (forkIO)
+import GHC.Conc (forkIO, par)
 import GHC.IO.Exception (ExitCode (ExitFailure))
 import GHC.IO.Handle (Handle)
 import Language.Daicker.AST
@@ -22,6 +22,7 @@ import Language.Daicker.AST
   )
 import Language.Daicker.Span (Span (FixtureSpan), union)
 import qualified Language.Daicker.Span as S
+import Network.HTTP.Client
 import System.Directory (getCurrentDirectory)
 import System.Directory.Internal.Prelude (hClose)
 import System.Exit (ExitCode (ExitSuccess))
@@ -160,6 +161,25 @@ prelude =
                                   [(e2, False)]
                         )
                         False
+                  )
+            ),
+        preludeSpan
+          :< NamedStatement
+            (preludeSpan :< Identifier "get")
+            ( preludeSpan
+                :< SExpr
+                  ( preludeSpan
+                      :< EFixtureFun
+                        [ preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "url")
+                        ]
+                        ( \_ [s :< EString url] -> do
+                            manager <- newManager defaultManagerSettings
+                            request <- parseRequest url
+                            response <- httpLbs request manager
+                            let body = show $ responseBody response
+                            pure $ s :< EString body
+                        )
+                        True
                   )
             ),
         preludeSpan
