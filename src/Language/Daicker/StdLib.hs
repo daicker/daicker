@@ -1,9 +1,12 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Language.Daicker.StdLib where
 
 import Control.Comonad.Cofree (Cofree ((:<)))
 import Control.Concurrent (putMVar, readMVar)
 import Control.Concurrent.MVar (newEmptyMVar)
 import Control.Monad.IO.Class (liftIO)
+import qualified Data.ByteString.Lazy.Char8 as B
 import Data.List (intercalate)
 import qualified Data.Text as T
 import Data.Text.IO (hGetLine, hPutStrLn)
@@ -23,6 +26,7 @@ import Language.Daicker.AST
 import Language.Daicker.Span (Span (FixtureSpan), union)
 import qualified Language.Daicker.Span as S
 import Network.HTTP.Client
+import Network.HTTP.Client.TLS (tlsManagerSettings)
 import System.Directory (getCurrentDirectory)
 import System.Directory.Internal.Prelude (hClose)
 import System.Exit (ExitCode (ExitSuccess))
@@ -173,11 +177,11 @@ prelude =
                         [ preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "url")
                         ]
                         ( \_ [s :< EString url] -> do
-                            manager <- newManager defaultManagerSettings
+                            manager <- newManager tlsManagerSettings
                             request <- parseRequest url
                             response <- httpLbs request manager
-                            let body = show $ responseBody response
-                            pure $ s :< EString body
+                            let body = responseBody response
+                            pure $ s :< EString (B.unpack body)
                         )
                         True
                   )

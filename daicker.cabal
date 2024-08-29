@@ -53,6 +53,7 @@ library
     , hspec-core >=2.11 && <3
     , hspec-megaparsec >=2.2 && <3
     , http-client >=0.7.0 && <0.8
+    , http-client-tls >=0.3.6.0 && <0.4
     , http-types >=0.12.0 && <0.13
     , lens >=5.0 && <6
     , lsp >=2.6 && <3
@@ -91,6 +92,7 @@ executable daicker
     , hspec-core >=2.11 && <3
     , hspec-megaparsec >=2.2 && <3
     , http-client >=0.7.0 && <0.8
+    , http-client-tls >=0.3.6.0 && <0.4
     , http-types >=0.12.0 && <0.13
     , lens >=5.0 && <6
     , lsp >=2.6 && <3
@@ -130,6 +132,7 @@ test-suite daicker-e2e-test
     , hspec-core >=2.11 && <3
     , hspec-megaparsec >=2.2 && <3
     , http-client >=0.7.0 && <0.8
+    , http-client-tls >=0.3.6.0 && <0.4
     , http-types >=0.12.0 && <0.13
     , lens >=5.0 && <6
     , lsp >=2.6 && <3
@@ -170,6 +173,7 @@ test-suite daicker-unit-test
     , hspec-core >=2.11 && <3
     , hspec-megaparsec >=2.2 && <3
     , http-client >=0.7.0 && <0.8
+    , http-client-tls >=0.3.6.0 && <0.4
     , http-types >=0.12.0 && <0.13
     , lens >=5.0 && <6
     , lsp >=2.6 && <3
