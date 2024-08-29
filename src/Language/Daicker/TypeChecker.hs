@@ -37,7 +37,7 @@ validateStatement
           ( \(name', (s', _)) ->
               name' == name
                 && s' /= s
-                && statementKind s' == statementKind s
+                && s' ~= s
           )
           ss
       ) of

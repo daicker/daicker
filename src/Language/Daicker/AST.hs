@@ -109,6 +109,14 @@ instance (Show ann) => Show1 (Statement' ann) where
   liftShowsPrec _ _ _ (SType d) = showString $ show "SType " <> show d
   liftShowsPrec _ _ _ (SData d) = showString $ show "SData " <> show d
 
+(~=) :: Statement a -> Statement a -> Bool
+(_ :< SExpr _) ~= (_ :< SExpr _) = True
+(_ :< SExprType _) ~= (_ :< SExprType _) = True
+(_ :< SData _) ~= (_ :< SData _) = True
+(_ :< SDataType _) ~= (_ :< SDataType _) = True
+(_ :< SType _) ~= (_ :< SType _) = True
+_ ~= _ = False
+
 type DataType ann = Cofree (DataType' ann) ann
 
 newtype DataType' ann a = DataType (Type ann) deriving (Show, Eq)
