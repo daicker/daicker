@@ -169,25 +169,6 @@ prelude =
             ),
         preludeSpan
           :< NamedStatement
-            (preludeSpan :< Identifier "get")
-            ( preludeSpan
-                :< SExpr
-                  ( preludeSpan
-                      :< EFixtureFun
-                        [ preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "url")
-                        ]
-                        ( \_ [s :< EString url] -> do
-                            manager <- newManager tlsManagerSettings
-                            request <- parseRequest url
-                            response <- httpLbs request manager
-                            let body = responseBody response
-                            pure $ s :< EString (B.unpack body)
-                        )
-                        True
-                  )
-            ),
-        preludeSpan
-          :< NamedStatement
             (preludeSpan :< Identifier "+")
             ( preludeSpan
                 :< SExpr
@@ -250,6 +231,39 @@ prelude =
       ExitFailure i -> i
     preludeSpan :: Span
     preludeSpan = FixtureSpan "prelude"
+
+stdlib :: [(String, Module Span)]
+stdlib = [("http", http)]
+
+http :: Module Span
+http =
+  httpSpan
+    :< Module
+      []
+      Nothing
+      [ httpSpan
+          :< NamedStatement
+            (httpSpan :< Identifier "get")
+            ( httpSpan
+                :< SExpr
+                  ( httpSpan
+                      :< EFixtureFun
+                        [ httpSpan :< PMAAnyValue (httpSpan :< Identifier "url")
+                        ]
+                        ( \_ [s :< EString url] -> do
+                            manager <- newManager tlsManagerSettings
+                            request <- parseRequest url
+                            response <- httpLbs request manager
+                            let body = responseBody response
+                            pure $ s :< EString (B.unpack body)
+                        )
+                        False
+                  )
+            )
+      ]
+  where
+    httpSpan :: Span
+    httpSpan = FixtureSpan "http"
 
 data CommandResult = CommandResult {exitCode :: ExitCode, stdout :: String, stderr :: String}
 

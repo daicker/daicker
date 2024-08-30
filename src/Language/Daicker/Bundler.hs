@@ -31,7 +31,7 @@ import Language.Daicker.Error (RuntimeError, StaticError (StaticError))
 import Language.Daicker.Lexer (lexTokens, mkTStreamWithoutComment)
 import Language.Daicker.Parser (parseModule)
 import Language.Daicker.Span (Span)
-import Language.Daicker.StdLib (prelude)
+import Language.Daicker.StdLib (prelude, stdlib)
 import System.Directory (doesFileExist)
 import System.IO (readFile)
 
@@ -119,11 +119,14 @@ importModules (s :< WildImport url) = readModule url
 
 readModule :: URL Span -> ExceptT [StaticError] IO (ModuleBundle Span)
 readModule (s :< LocalFile fileName) = do
-  src <- withExceptT (\e -> [StaticError e s]) $ safeReadFile fileName
-  tokens <- liftEither $ lexTokens fileName src
-  let stream = mkTStreamWithoutComment src tokens
-  m@(_ :< Module is _ _) <- liftEither $ parseModule fileName stream
-  (<>) [(fileName, m)] <$> loadModules is
+  case lookup fileName stdlib of
+    Just m -> pure [(fileName, m)]
+    Nothing -> do
+      src <- withExceptT (\e -> [StaticError e s]) $ safeReadFile fileName
+      tokens <- liftEither $ lexTokens fileName src
+      let stream = mkTStreamWithoutComment src tokens
+      m@(_ :< Module is _ _) <- liftEither $ parseModule fileName stream
+      (<>) [(fileName, m)] <$> loadModules is
 
 safeReadFile :: FilePath -> ExceptT String IO Text
 safeReadFile filePath = do
