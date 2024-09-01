@@ -18,6 +18,7 @@ import Data.Text (pack)
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import Language.Daicker.Error (RuntimeError)
+import Language.Daicker.Lexer (TToken (TOr))
 import Language.Daicker.Span (Span, Spanned, mkSpan, span)
 import Language.LSP.Protocol.Types (Uri)
 import System.Exit (ExitCode)
@@ -153,6 +154,8 @@ data Type' ann a
   | TMap a
   | TFun [a] a Expansion
   | TRef (Identifier ann)
+  | TOr a a
+  | TAny
   deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Type' ann) where

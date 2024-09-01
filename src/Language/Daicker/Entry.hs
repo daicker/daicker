@@ -24,8 +24,15 @@ import Language.Daicker.Lexer (lexTokens, mkTStreamWithoutComment)
 import Language.Daicker.Parser (parseModule)
 import Language.Daicker.Span (Span, mkSpan, spanPretty)
 import Language.Daicker.TypeChecker (validateModule)
+import System.Directory (createDirectoryIfMissing)
 import System.Exit (ExitCode (ExitFailure, ExitSuccess), exitFailure, exitSuccess, exitWith)
+import System.FilePath ((</>))
 import System.IO (Handle, IOMode (..), hClose, hGetContents, hPutStrLn, hReady, openFile, stdin)
+
+initialize :: IO ()
+initialize = do
+  createDirectoryIfMissing True ".daicker"
+  createDirectoryIfMissing True (".daicker" </> "state")
 
 validate :: String -> ExceptT [StaticError] IO ()
 validate fileName = do
