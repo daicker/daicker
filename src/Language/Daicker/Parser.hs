@@ -57,8 +57,8 @@ pModule = do
 pStatement :: Parser (NamedStatement Span)
 pStatement =
   choice
-    [ pExprOrExprTypeStatement,
-      pDataOrDataTypeStatement,
+    [ pDataOrDataTypeStatement,
+      pExprOrExprTypeStatement,
       pTypeStatement
     ]
 
@@ -102,12 +102,12 @@ pExport = do
 
 pExprOrExprTypeStatement :: Parser (NamedStatement Span)
 pExprOrExprTypeStatement = do
-  (WithSpan _ s) <- pToken TFunc
-  i <- pIdentifier
+  i@(s :< _) <- pIdentifier
   isTypeDefine <- optional $ pToken T2Colons
   case isTypeDefine of
     Just _ -> do
       t <- pType
+      pToken TSemicolon
       pure $
         (s `union` S.span t)
           :< NamedStatement i (S.span t :< SExprType (S.span t :< ExprType t))
@@ -116,6 +116,7 @@ pExprOrExprTypeStatement = do
       extends <- optional $ pToken T3Dots
       pToken TAssign
       v <- pExpr
+      pToken TSemicolon
       case params of
         [] ->
           return $
@@ -223,8 +224,7 @@ termOperatorTable =
 
 exprOperatorTable :: [[Operator Parser (Expr Span)]]
 exprOperatorTable =
-  [ [ binary TSemicolon,
-      binary TRight
+  [ [ binary TRight
     ]
   ]
 

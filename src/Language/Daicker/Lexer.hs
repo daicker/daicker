@@ -41,7 +41,6 @@ data TToken
   | TAssign
   | TImport
   | TExport
-  | TFunc
   | TFrom
   | TType
   | TData
@@ -170,7 +169,6 @@ showTToken = \case
   TAssign -> "="
   TImport -> "import"
   TExport -> "export"
-  TFunc -> "func"
   TFrom -> "from"
   TType -> "type"
   TData -> "data"
@@ -263,7 +261,6 @@ tToken =
           TImage <$> ((:) <$> char '#' *> many (alphaNumChar <|> char '/' <|> char ':' <|> char '.' <|> char '-' <|> char '_') <?> "image"),
           TImport <$ keyword "import" <?> "import",
           TExport <$ keyword "export" <?> "export",
-          TFunc <$ keyword "func" <?> "func",
           TFrom <$ keyword "from" <?> "from",
           TType <$ keyword "type" <?> "type",
           TData <$ keyword "data" <?> "data",

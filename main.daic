@@ -1,17 +1,6 @@
-func test =
-  $ "stack" "test"
-
-func ut =
-  $ "stack" "test" ":daicker-unit-test"
-
-func e2e =
-  $ "stack" "test" ":daicker-e2e-test"
-
-func install =
-  $ "stack" "--local-bin-path" "/usr/local/bin/" "install"
-
-func uninstall =
-  $ "rm" "/usr/local/bin/daicker"
-
-func count =
-  $ "cloc" "." "--vcs=git"
+test = $ "stack" "test";
+ut = $ "stack" "test" ":daicker-unit-test";
+e2e = $ "stack" "test" ":daicker-e2e-test";
+install = $ "stack" "--local-bin-path" "/usr/local/bin/" "install";
+uninstall = $ "rm" "/usr/local/bin/daicker";
+count = $ "cloc" "." "--vcs=git";
