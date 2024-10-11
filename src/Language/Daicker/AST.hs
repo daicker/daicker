@@ -197,10 +197,10 @@ data Expr' ann a
   | EProperty a (Identifier ann)
   | EElement a (Index ann)
   | EApp (Maybe (EImage ann)) a [(a, Expansion)]
-  | EFun [PatternMatchAssign ann] a Expansion
+  | EFun [Argument ann] a Expansion
   | ENamedExpr (Identifier ann) a
   | EError String ExitCode
-  | EFixtureFun [PatternMatchAssign ann] (Maybe (EImage ann) -> [a] -> IO a) Expansion
+  | EFixtureFun [Argument ann] (Maybe (EImage ann) -> [a] -> IO a)
   | EAssign (Identifier ann) a
   deriving (Show, Eq)
 
@@ -243,6 +243,30 @@ instance (Show ann) => Show1 (Expr' ann) where
   liftShowsPrec f f' n (EApp img a as) = showString "EApp " <> showString (show img) <> f n a <> f' (map fst as)
   liftShowsPrec f _ n (EProperty a i) = showString "EProperty " <> f n a <> showString (show i)
   liftShowsPrec f _ n (EFun pma e ex) = showString "EFun " <> showString (show pma) <> f n e <> showString (show ex)
+
+type Argument ann = Cofree (Argument' ann) ann
+
+data Argument' ann a
+  = PositionedArgument (PatternMatchAssign ann) IsOptional (Maybe (Type ann)) (Maybe (Expr ann))
+  | KeywordArgument (PatternMatchAssign ann) IsOptional (Maybe (Type ann)) (Maybe (Expr ann))
+  | RestPositionedArgument (Identifier ann) (Maybe (Type ann)) (Maybe (Expr ann))
+  | RestKeywordArgument (Identifier ann) (Maybe (Type ann)) (Maybe (Expr ann))
+  deriving (Show, Eq)
+
+type IsOptional = Bool
+
+instance (Eq ann) => Eq1 (Argument' ann) where
+  liftEq _ (PositionedArgument p1 o1 t1 e1) (PositionedArgument p2 o2 t2 e2) = p1 == p2 && o1 == o2 && t1 == t2 && e1 == e2
+  liftEq _ (KeywordArgument p1 o1 t1 e1) (KeywordArgument p2 o2 t2 e2) = p1 == p2 && o1 == o2 && t1 == t2 && e1 == e2
+  liftEq _ (RestPositionedArgument i1 t1 e1) (RestPositionedArgument i2 t2 e2) = i1 == i2 && t1 == t2 && e1 == e2
+  liftEq _ (RestKeywordArgument i1 t1 e1) (RestKeywordArgument i2 t2 e2) = i1 == i2 && t1 == t2 && e1 == e2
+  liftEq _ _ _ = False
+
+instance (Show ann) => Show1 (Argument' ann) where
+  liftShowsPrec f _ n (PositionedArgument p o t e) = showString "PositionedArgument " <> showString (show p) <> showString (show o) <> showString (show t) <> showString (show e)
+  liftShowsPrec f _ n (KeywordArgument p o t e) = showString "KeywordArgument " <> showString (show p) <> showString (show o) <> showString (show t) <> showString (show e)
+  liftShowsPrec _ _ n (RestPositionedArgument i t e) = showString "RestPositionedArgument " <> showString (show i) <> showString (show t) <> showString (show e)
+  liftShowsPrec _ _ n (RestKeywordArgument i t e) = showString "RestKeywordArgument " <> showString (show i) <> showString (show t) <> showString (show e)
 
 type PatternMatchAssign ann = Cofree (PatternMatchAssign' ann) ann
 
