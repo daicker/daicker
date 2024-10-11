@@ -143,27 +143,16 @@ instance (Show ann) => Show1 (Data' ann) where
 type Type ann = Cofree (Type' ann) ann
 
 data Type' ann a
-  = TVoid
-  | TNull
-  | TBool
-  | TNumber
-  | TString
-  | TTuple [a]
+  = TTuple [a]
   | TArray a
   | TObject [(EKey ann, a)]
   | TMap a
   | TFun [a] a Expansion
   | TRef (Identifier ann)
   | TOr a a
-  | TAny
   deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Type' ann) where
-  liftEq _ TVoid TVoid = True
-  liftEq _ TNull TNull = True
-  liftEq _ TBool TBool = True
-  liftEq _ TNumber TNumber = True
-  liftEq _ TString TString = True
   liftEq f (TTuple as) (TTuple bs) = length as == length bs && all (uncurry f) (zip as bs)
   liftEq f (TArray a) (TArray b) = f a b
   liftEq f (TObject as) (TObject bs) = length as == length bs && all (\((ka, va), (kb, vb)) -> ka == kb && f va vb) (zip as bs)
@@ -173,11 +162,6 @@ instance (Eq ann) => Eq1 (Type' ann) where
   liftEq _ _ _ = False
 
 instance (Show ann) => Show1 (Type' ann) where
-  liftShowsPrec _ _ _ TVoid = showString "TVoid"
-  liftShowsPrec _ _ _ TNull = showString "TNull"
-  liftShowsPrec _ _ _ TBool = showString "TBool"
-  liftShowsPrec _ _ _ TNumber = showString "TNumber"
-  liftShowsPrec _ _ _ TString = showString "TString"
   liftShowsPrec _ f _ (TTuple ts) = showString "TTuple " <> f ts
   liftShowsPrec f _ n (TArray a) = showString "TArray " <> f n a
   liftShowsPrec f _ n (TObject as) =
