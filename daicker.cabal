@@ -29,7 +29,6 @@ library
       Language.Daicker.Entry
       Language.Daicker.Error
       Language.Daicker.Executor
-      Language.Daicker.Lexer
       Language.Daicker.Parser
       Language.Daicker.Span
       Language.Daicker.StdLib

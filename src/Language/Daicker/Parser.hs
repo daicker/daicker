@@ -3,6 +3,7 @@
 module Language.Daicker.Parser where
 
 import Control.Comonad.Cofree
+import Control.Lens (op)
 import Control.Monad (void)
 import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
 import Data.Functor.Identity (Identity)
@@ -16,7 +17,6 @@ import Data.Void (Void)
 import GHC.Conc (par)
 import Language.Daicker.AST hiding (Type, Type' (..))
 import qualified Language.Daicker.AST as AST
-import Language.Daicker.CmdArgParser (pBool, pNull, pNumber, pString)
 import Language.Daicker.Error (StaticError (StaticError), fromParseErrorBundle)
 import Language.Daicker.Span (Span (..), WithSpan (..), union)
 import qualified Language.Daicker.Span as S
@@ -68,26 +68,80 @@ data TokenKind
 
 type Parser = Parsec Void Text
 
+opTable :: [[Operator Parser (Expr MetaNode)]]
+opTable =
+  [ [ binary "*",
+      binary "/"
+    ],
+    [ binary "+",
+      binary "-"
+    ]
+  ]
+
+binary :: Text -> Operator Parser (Expr MetaNode)
+binary name = do
+  InfixL (f <$> pOp name)
+  where
+    f :: Expr MetaNode -> Expr MetaNode -> Expr MetaNode -> Expr MetaNode
+    f op@(op' :< _) a@(a' :< _) b@(b' :< _) =
+      MetaNode (nodeSpan a' `union` nodeSpan b') (concatMap nodeMetaTokens [a', op', b'])
+        :< EApp Nothing op [(a, False), (b, False)]
+
+pOp :: Text -> Parser (Expr MetaNode)
+pOp name = do
+  Token m op <- tOp name
+  pure $ singleTokenMetaNode m :< ERef (singleTokenMetaNode m :< Identifier op)
+
+pExpr :: Parser (Expr MetaNode)
+pExpr = makeExprParser pTerm opTable
+
+pTerm :: Parser (Expr MetaNode)
+pTerm = choice [pString, pNumber, pBool, pNull]
+
+pArray :: Parser (Expr MetaNode)
+pArray = do
+  (Token s _) <- lexeme $ token TKOp $ char '['
+  elements <- pExpr `sepBy` lexeme (char ',') -- TODO: Add trailing comma support and collect comma tokens.
+  let elementTokens = concatMap (\(m :< _) -> nodeMetaTokens m) elements
+  (Token e _) <- lexeme $ token TKOp $ char ']'
+  pure $
+    MetaNode
+      (tokenSpan s `union` tokenSpan e)
+      (concat [[s], elementTokens, [e]])
+      :< EArray elements
+
 pString :: Parser (Expr MetaNode)
-pString = singleValueExprNode <$> tString <*> pure EString
+pString = lexeme $ singleTokenNode <$> tString <*> pure EString
 
 pNumber :: Parser (Expr MetaNode)
-pNumber = singleValueExprNode <$> tNumber <*> pure ENumber
+pNumber = lexeme $ singleTokenNode <$> tNumber <*> pure ENumber
 
 pBool :: Parser (Expr MetaNode)
-pBool = singleValueExprNode <$> tBool <*> pure EBool
+pBool = lexeme $ singleTokenNode <$> tBool <*> pure EBool
 
 pNull :: Parser (Expr MetaNode)
-pNull = (:< ENull) . singleTokenMetaNode . tokenMeta <$> tNull
+pNull = lexeme $ (:< ENull) . singleTokenMetaNode . tokenMeta <$> tNull
 
-singleValueExprNode :: Token t -> (t -> f (Cofree f MetaNode)) -> Cofree f MetaNode
-singleValueExprNode (Token m v) f = singleTokenMetaNode m :< f v
+singleTokenNode ::
+  Token t ->
+  (t -> f (Cofree f MetaNode)) ->
+  Cofree f MetaNode
+singleTokenNode (Token m v) f = singleTokenMetaNode m :< f v
 
 singleTokenMetaNode :: MetaToken -> MetaNode
 singleTokenMetaNode m = MetaNode (tokenSpan m) [m]
 
 tExprIdentifier :: TokenKind -> Parser (Token String)
-tExprIdentifier kind = token kind ((:) <$> (lowerChar <|> char '_') <*> many (alphaNumChar <|> char '_' <|> char '-'))
+tExprIdentifier kind =
+  token
+    kind
+    ( (:)
+        <$> (lowerChar <|> char '_')
+        <*> many (alphaNumChar <|> char '_' <|> char '-')
+    )
+
+tOp :: Text -> Parser (Token String)
+tOp name = token TKOp (T.unpack <$> string name)
 
 tString :: Parser (Token String)
 tString = token TKString $ char '"' *> manyTill L.charLiteral (char '"')
@@ -108,6 +162,9 @@ token kind p = do
 
 keyword :: Text -> Parser ()
 keyword k = try $ void (string k) <* notFollowedBy alphaNumChar
+
+lexeme :: Parser a -> Parser a
+lexeme = L.lexeme sc
 
 sc :: Parser ()
 sc = L.space space1 lineComment blockComment
