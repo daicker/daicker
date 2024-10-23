@@ -54,6 +54,7 @@ data TokenKind
   | TKString
   | TKSep
   | TKComment
+  | TKParameter
   deriving (Show, Eq)
 
 type Parser = StateT [Token] (Parsec Void Text)
@@ -75,20 +76,97 @@ binary name = do
     f :: Expr Span -> Expr Span -> Expr Span -> Expr Span
     f op a@(a' :< _) b@(b' :< _) =
       (a' `union` b')
-        :< EApp Nothing op [(a, False), (b, False)]
+        :< ECall op [a' :< PositionedArgument a, b' :< PositionedArgument b]
 
 pOp :: Text -> Parser (Expr Span)
 pOp name = do
   (s, op) <- spanned $ tOp name
-  pure $ s :< ERef (s :< Identifier op)
+  pure $ s :< EVar (s :< Identifier op)
+  where
+    tOp name = token TKOp (T.unpack <$> string name)
 
 pExpr :: Parser (Expr Span)
 pExpr = makeExprParser pTerm opTable
 
 pTerm :: Parser (Expr Span)
-pTerm =
+pTerm = do
+  v <- pPrimary
   choice
-    [ pObject,
+    [ pCall v,
+      pBracketAccessor v,
+      pDotAccessor v,
+      pure v
+    ]
+  where
+    pCall :: Expr Span -> Parser (Expr Span)
+    pCall f@(s1 :< _) = do
+      (s2, es) <-
+        spanned
+          $ between
+            (lexeme $ token TKOp $ char '(')
+            (lexeme $ token TKOp $ char ')')
+          $ pArgument `sepBy` lexeme (token TKSep (char ','))
+      pure $ s1 `union` s2 :< ECall f es
+    pDotAccessor :: Expr Span -> Parser (Expr Span)
+    pDotAccessor v@(s1 :< _) = do
+      _ <- lexeme $ token TKOp $ char '.'
+      key@(s2 :< _) <- tupleToCofree Identifier <$> spanned (tExprIdentifier TKVar)
+      pure $ s1 `union` s2 :< EAccessor v (s2 :< EVar key)
+    pBracketAccessor :: Expr Span -> Parser (Expr Span)
+    pBracketAccessor v@(s1 :< _) = do
+      (s2, key) <-
+        spanned $
+          between
+            (lexeme $ token TKOp $ char '[')
+            (lexeme $ token TKOp $ char ']')
+            pExpr
+      pure $ s1 `union` s2 :< EAccessor v key
+
+pArgument :: Parser (Argument Span)
+pArgument = do
+  undefined
+  where
+    positionedArgument :: Parser (Argument Span)
+    positionedArgument = do
+      (s1, value) <- spanned pExpr
+      pure $ s1 :< PositionedArgument value
+    keywordArgument :: Parser (Argument Span)
+    keywordArgument = do
+      key@(s1 :< _) <- tupleToCofree Identifier <$> spanned (tExprIdentifier TKParameter)
+      _ <- lexeme $ token TKOp $ char '='
+      (s2, value) <- spanned pExpr
+      pure $ s1 `union` s2 :< KeywordArgument key value
+
+pParameter :: Parser (Parameter Span)
+pParameter = do
+  undefined
+  where
+    positionedParameter :: Parser (Parameter Span)
+    positionedParameter = do
+      (s, p) <- spanned $ do
+        name@(s1 :< _) <- tupleToCofree Identifier <$> spanned (tExprIdentifier TKParameter)
+        isOptional <- isJust <$> optional (token TKOp $ char '?')
+        isRest <- isJust <$> optional (lexeme $ token TKOp $ string "...")
+        defaultExpr <- optional $ lexeme (token TKOp $ char '=') *> pExpr
+        pure $ PositionedParameter name isRest isOptional Nothing defaultExpr
+      pure $ s :< p
+    keywordParameter :: Parser (Parameter Span)
+    keywordParameter = do
+      (s, p) <- spanned $ do
+        optional $ token TKOp $ char '-'
+        name@(s1 :< _) <- tupleToCofree Identifier <$> spanned (tExprIdentifier TKVar)
+        isOptional <- isJust <$> optional (token TKOp $ char '?')
+        isRest <- isJust <$> optional (token TKOp $ string "...")
+        defaultExpr <- optional $ token TKOp $ char '=' *> pExpr
+        pure $ KeywordParameter name isOptional isRest Nothing defaultExpr
+      pure $ s :< p
+
+pPrimary :: Parser (Expr Span)
+pPrimary =
+  choice
+    [ pLambda,
+      pVar,
+      pObject,
       pArray,
       pString,
       pNumber,
@@ -96,8 +174,27 @@ pTerm =
       pNull
     ]
 
+pLambda :: Parser (Expr Span)
+pLambda = do
+  (s1, _) <- spanned $ lexeme $ token TKSep $ string' "\\"
+  params <-
+    between
+      (lexeme $ token TKOp $ char '(')
+      (lexeme $ token TKOp $ char ')')
+      $ pParameter `sepBy` lexeme (token TKSep (char ','))
+  _ <- lexeme $ token TKOp $ string' "->"
+  body@(s2 :< _) <- pExpr
+  pure $ s1 `union` s2 :< ELambda params body
+
 pVar :: Parser (Expr Span)
-pVar = lexeme $ tupleToCofree EVar <$> spanned (tExprIdentifier TKVar)
+pVar =
+  lexeme $
+    tupleToCofree EVar
+      <$> spanned
+        ( tupleToCofree
+            Identifier
+            <$> spanned (tExprIdentifier TKVar)
+        )
 
 pObject :: Parser (Expr Span)
 pObject = do
@@ -128,15 +225,23 @@ pArray =
 
 pString :: Parser (Expr Span)
 pString = lexeme $ tupleToCofree EString <$> spanned tString
+  where
+    tString = token TKString $ char '"' *> manyTill L.charLiteral (char '"')
 
 pNumber :: Parser (Expr Span)
 pNumber = lexeme $ tupleToCofree ENumber <$> spanned tNumber
+  where
+    tNumber = token TKNumber $ L.signed sc L.scientific
 
 pBool :: Parser (Expr Span)
 pBool = lexeme $ tupleToCofree EBool <$> spanned tBool
+  where
+    tBool = token TKKeyword $ (True <$ keyword "true") <|> (False <$ keyword "false")
 
 pNull :: Parser (Expr Span)
 pNull = lexeme $ (:< ENull) . fst <$> spanned tNull
+  where
+    tNull = token TKKeyword $ keyword "null"
 
 tupleToCofree :: (t -> f (Cofree f a)) -> (a, t) -> Cofree f a
 tupleToCofree f (s, v) = s :< f v
@@ -149,21 +254,6 @@ tExprIdentifier kind =
         <$> (lowerChar <|> char '_')
         <*> many (alphaNumChar <|> char '_' <|> char '-')
     )
-
-tOp :: Text -> Parser String
-tOp name = token TKOp (T.unpack <$> string name)
-
-tString :: Parser String
-tString = token TKString $ char '"' *> manyTill L.charLiteral (char '"')
-
-tNumber :: Parser Scientific
-tNumber = token TKNumber $ L.signed sc L.scientific
-
-tBool :: Parser Bool
-tBool = token TKKeyword $ (True <$ keyword "true") <|> (False <$ keyword "false")
-
-tNull :: Parser ()
-tNull = token TKKeyword $ keyword "null"
 
 token :: TokenKind -> Parser a -> Parser a
 token kind p = do

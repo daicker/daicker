@@ -18,7 +18,6 @@ import Data.Text (pack)
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import Language.Daicker.Error (RuntimeError)
-import Language.Daicker.Lexer (TToken (TOr))
 import Language.Daicker.Span (Span, Spanned, mkSpan, span)
 import Language.LSP.Protocol.Types (Uri)
 import System.Exit (ExitCode)
@@ -90,75 +89,43 @@ type Statement ann = Cofree (Statement' ann) ann
 
 data Statement' ann a
   = SExpr (Expr ann)
-  | SExprType (ExprType ann)
-  | SData (Data ann)
-  | SDataType (DataType ann)
   | SType (Type ann)
   deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Statement' ann) where
   liftEq _ (SExpr d1) (SExpr d2) = d1 == d2
-  liftEq _ (SExprType d1) (SExprType d2) = d1 == d2
-  liftEq _ (SData d1) (SData d2) = d1 == d2
-  liftEq _ (SDataType d1) (SDataType d2) = d1 == d2
   liftEq _ (SType d1) (SType d2) = d1 == d2
   liftEq _ _ _ = False
 
 instance (Show ann) => Show1 (Statement' ann) where
   liftShowsPrec _ _ _ (SExpr d) = showString $ show "SExpr " <> show d
-  liftShowsPrec _ _ _ (SExprType d) = showString $ show "SExprType " <> show d
   liftShowsPrec _ _ _ (SType d) = showString $ show "SType " <> show d
-  liftShowsPrec _ _ _ (SData d) = showString $ show "SData " <> show d
 
 (~=) :: Statement a -> Statement a -> Bool
 (_ :< SExpr _) ~= (_ :< SExpr _) = True
-(_ :< SExprType _) ~= (_ :< SExprType _) = True
-(_ :< SData _) ~= (_ :< SData _) = True
-(_ :< SDataType _) ~= (_ :< SDataType _) = True
 (_ :< SType _) ~= (_ :< SType _) = True
 _ ~= _ = False
-
-type DataType ann = Cofree (DataType' ann) ann
-
-newtype DataType' ann a = DataType (Type ann) deriving (Show, Eq)
-
-instance (Eq ann) => Eq1 (DataType' ann) where
-  liftEq _ (DataType t1) (DataType t2) = t1 == t2
-
-instance (Show ann) => Show1 (DataType' ann) where
-  liftShowsPrec _ _ _ (DataType t) = showString $ "DataType " <> show t
-
-type Data ann = Cofree (Data' ann) ann
-
-newtype Data' ann a
-  = LocalState (Identifier ann) -- save data to .daicker/state.json in current directory
-  deriving (Show, Eq)
-
-instance (Eq ann) => Eq1 (Data' ann) where
-  liftEq _ (LocalState i1) (LocalState i2) = i1 == i2
-
-instance (Show ann) => Show1 (Data' ann) where
-  liftShowsPrec _ _ _ (LocalState i) = showString $ show "LocalState " <> show i
 
 type Type ann = Cofree (Type' ann) ann
 
 data Type' ann a
   = TTuple [a]
   | TArray a
-  | TObject [(EKey ann, a)]
+  | TObject [(a, a)]
   | TMap a
-  | TFun [a] a Expansion
-  | TRef (Identifier ann)
-  | TOr a a
+  | TLambda [a] a
+  | TVar (Identifier ann)
+  | TCall a [a]
   deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Type' ann) where
   liftEq f (TTuple as) (TTuple bs) = length as == length bs && all (uncurry f) (zip as bs)
   liftEq f (TArray a) (TArray b) = f a b
-  liftEq f (TObject as) (TObject bs) = length as == length bs && all (\((ka, va), (kb, vb)) -> ka == kb && f va vb) (zip as bs)
+  liftEq f (TObject as) (TObject bs) = length as == length bs && all (\((ka, va), (kb, vb)) -> f ka kb && f va vb) (zip as bs)
   liftEq f (TMap a) (TMap b) = f a b
-  liftEq f (TFun f1 a1 e1) (TFun f2 a2 e2) = length f1 == length f2 && all (uncurry f) (zip f1 f2) && f a1 a2 && e1 == e2
-  liftEq _ (TRef n1) (TRef n2) = n1 == n2
+  liftEq f (TLambda f1 a1) (TLambda f2 a2) = length f1 == length f2 && all (uncurry f) (zip f1 f2) && f a1 a2
+  liftEq _ (TVar n1) (TVar n2) = n1 == n2
+  liftEq f (TCall f1 a1) (TCall f2 a2) = f f1 f2 && length a1 == length a2 && all (uncurry f) (zip a1 a2)
   liftEq _ _ _ = False
 
 instance (Show ann) => Show1 (Type' ann) where
@@ -168,21 +135,12 @@ instance (Show ann) => Show1 (Type' ann) where
     showString "TObject ["
       <> foldl1
         (\a b -> a <> showString ", " <> b)
-        (map (\(i, a) -> showString "(" <> showString (show i) <> showString ", " <> f n a <> showString ")") as)
+        (map (\(i, a) -> showString "(" <> f n i <> showString ", " <> f n a <> showString ")") as)
       <> showString "]"
   liftShowsPrec f _ n (TMap a) = showString "TMap " <> f n a
-  liftShowsPrec f f' n (TFun a b e) = showString "TFun " <> f' a <> f n b <> showString (show e)
-  liftShowsPrec f _ n (TRef name) = showString $ "TRef " <> show name
-
-type ExprType ann = Cofree (ExprType' ann) ann
-
-newtype ExprType' ann a = ExprType (Type ann) deriving (Show, Eq)
-
-instance (Eq ann) => Eq1 (ExprType' ann) where
-  liftEq _ (ExprType t1) (ExprType t2) = t1 == t2
-
-instance (Show ann) => Show1 (ExprType' ann) where
-  liftShowsPrec _ _ _ (ExprType t) = showString $ "ExprType " <> show t
+  liftShowsPrec f f' n (TLambda args ret) = showString "TLambda " <> f' args <> f n ret
+  liftShowsPrec f _ n (TVar name) = showString $ "TVar " <> show name
+  liftShowsPrec f f' n (TCall tf args) = showString "TCall " <> f n tf <> f' args
 
 type Expr ann = Cofree (Expr' ann) ann
 
@@ -192,16 +150,13 @@ data Expr' ann a
   | ENumber Scientific
   | EString String
   | EArray [a]
-  | EObject [(EKey ann, a)]
-  | ERef (Identifier ann)
-  | EProperty a (Identifier ann)
-  | EElement a (Index ann)
-  | EApp (Maybe (EImage ann)) a [(a, Expansion)]
-  | EFun [Argument ann] a Expansion
-  | ENamedExpr (Identifier ann) a
+  | EObject [(a, a)]
+  | EVar (Identifier ann)
+  | EAccessor a a
+  | ECall a [Argument ann]
+  | ELambda [Parameter ann] a
   | EError String ExitCode
-  | EFixtureFun [Argument ann] (Maybe (EImage ann) -> [a] -> IO a)
-  | EAssign (Identifier ann) a
+  | EFixtureFun [Parameter ann] (Maybe (EImage ann) -> [a] -> IO a)
   deriving (Show, Eq)
 
 instance Show (Maybe (EImage ann) -> [a] -> IO a) where
@@ -212,19 +167,18 @@ instance Eq (Maybe (EImage ann) -> [a] -> IO a) where
   (==) :: (Maybe (EImage ann) -> [a] -> IO a) -> (Maybe (EImage ann) -> [a] -> IO a) -> Bool
   _ == _ = undefined
 
-type Expansion = Bool
-
 instance (Eq ann) => Eq1 (Expr' ann) where
   liftEq _ ENull ENull = True
   liftEq _ (EBool a) (EBool b) = a == b
   liftEq _ (ENumber a) (ENumber b) = a == b
   liftEq _ (EString a) (EString b) = a == b
   liftEq f (EArray a) (EArray b) = length a == length b && all (uncurry f) (zip a b)
-  liftEq f (EObject a) (EObject b) = length a == length b && all (\((ka, va), (kb, vb)) -> ka == kb && f va vb) (zip a b)
-  liftEq _ (ERef a) (ERef b) = a == b
-  liftEq f (EProperty a1 i1) (EProperty a2 i2) = f a1 a2 && i1 == i2
-  liftEq f (EApp c1 f1 a1) (EApp c2 f2 a2) = c1 == c2 && f f1 f2 && length a1 == length a2 && all (\((a1', e1), (a2', e2)) -> f a1' a2' && e1 == e2) (zip a1 a2)
-  liftEq f (EFun arg1 e1 ex1) (EFun arg2 e2 ex2) = arg1 == arg2 && f e1 e2 && ex1 == ex2
+  liftEq f (EObject a) (EObject b) = length a == length b && all (\((ka, va), (kb, vb)) -> f ka kb && f va vb) (zip a b)
+  liftEq _ (EVar a) (EVar b) = a == b
+  liftEq f (EAccessor a1 i1) (EAccessor a2 i2) = f a1 a2 && f i1 i2
+  liftEq f (ECall f1 a1) (ECall f2 a2) = f f1 f2 && length a1 == length a2 && all (uncurry (==)) (zip a1 a2)
+  liftEq f (ELambda p1 e1) (ELambda p2 e2) = p1 == p2 && f e1 e2
+  liftEq f (EError s1 c1) (EError s2 c2) = s1 == s2 && c1 == c2
   liftEq _ _ _ = False
 
 instance (Show ann) => Show1 (Expr' ann) where
@@ -237,60 +191,49 @@ instance (Show ann) => Show1 (Expr' ann) where
     showString "EObject ["
       <> foldl1
         (\a b -> a <> showString ", " <> b)
-        (map (\(i, a) -> showString "(" <> showString (show i) <> showString ", " <> f n a <> showString ")") vs)
+        (map (\(i, a) -> showString "(" <> f n i <> showString ", " <> f n a <> showString ")") vs)
       <> showString "]"
-  liftShowsPrec _ _ _ (ERef i) = showString "ERef " <> showString (show i)
-  liftShowsPrec f f' n (EApp img a as) = showString "EApp " <> showString (show img) <> f n a <> f' (map fst as)
-  liftShowsPrec f _ n (EProperty a i) = showString "EProperty " <> f n a <> showString (show i)
-  liftShowsPrec f _ n (EFun pma e ex) = showString "EFun " <> showString (show pma) <> f n e <> showString (show ex)
+  liftShowsPrec _ _ _ (EVar i) = showString "EVar " <> showString (show i)
+  liftShowsPrec f f' n (ECall a as) = showString "ECall " <> f n a <> showString (show as)
+  liftShowsPrec f _ n (EAccessor a i) = showString "EAccessor " <> f n a <> f n i
+  liftShowsPrec f _ n (ELambda pma e) = showString "ELambda " <> showString (show pma) <> f n e
+  liftShowsPrec _ _ _ (EError s c) = showString $ "EError " <> s <> show c
+
+type Parameter ann = Cofree (Parameter' ann) ann
+
+data Parameter' ann a
+  = PositionedParameter (Identifier ann) IsRest IsOptional (Maybe (Type ann)) (Maybe (Expr ann))
+  | KeywordParameter (Identifier ann) IsRest IsOptional (Maybe (Type ann)) (Maybe (Expr ann))
+  deriving (Show, Eq)
+
+type IsRest = Bool -- Rest Parameter
+
+type IsOptional = Bool -- Optional Parameter
+
+instance (Eq ann) => Eq1 (Parameter' ann) where
+  liftEq _ (PositionedParameter p1 r1 o1 t1 e1) (PositionedParameter p2 r2 o2 t2 e2) = p1 == p2 && r1 == r2 && o1 == o2 && t1 == t2 && e1 == e2
+  liftEq _ (KeywordParameter i1 r1 o1 t1 e1) (KeywordParameter i2 r2 o2 t2 e2) = i1 == i2 && r1 == r2 && o1 == o2 && t1 == t2 && e1 == e2
+  liftEq _ _ _ = False
+
+instance (Show ann) => Show1 (Parameter' ann) where
+  liftShowsPrec f _ n (PositionedParameter p r o t e) = showString "PositionedParameter " <> showString (show p) <> showString (show o) <> showString (show t) <> showString (show e)
+  liftShowsPrec f _ n (KeywordParameter i r o t e) = showString "KeywordParameter " <> showString (show i) <> showString (show o) <> showString (show t) <> showString (show e)
 
 type Argument ann = Cofree (Argument' ann) ann
 
 data Argument' ann a
-  = PositionedArgument (PatternMatchAssign ann) IsOptional (Maybe (Type ann)) (Maybe (Expr ann))
-  | KeywordArgument (PatternMatchAssign ann) IsOptional (Maybe (Type ann)) (Maybe (Expr ann))
-  | RestPositionedArgument (Identifier ann) (Maybe (Type ann)) (Maybe (Expr ann))
-  | RestKeywordArgument (Identifier ann) (Maybe (Type ann)) (Maybe (Expr ann))
+  = PositionedArgument (Expr ann)
+  | KeywordArgument (Identifier ann) (Expr ann)
   deriving (Show, Eq)
 
-type IsOptional = Bool
-
 instance (Eq ann) => Eq1 (Argument' ann) where
-  liftEq _ (PositionedArgument p1 o1 t1 e1) (PositionedArgument p2 o2 t2 e2) = p1 == p2 && o1 == o2 && t1 == t2 && e1 == e2
-  liftEq _ (KeywordArgument p1 o1 t1 e1) (KeywordArgument p2 o2 t2 e2) = p1 == p2 && o1 == o2 && t1 == t2 && e1 == e2
-  liftEq _ (RestPositionedArgument i1 t1 e1) (RestPositionedArgument i2 t2 e2) = i1 == i2 && t1 == t2 && e1 == e2
-  liftEq _ (RestKeywordArgument i1 t1 e1) (RestKeywordArgument i2 t2 e2) = i1 == i2 && t1 == t2 && e1 == e2
+  liftEq f (PositionedArgument a1) (PositionedArgument a2) = a1 == a2
+  liftEq f (KeywordArgument i1 a1) (KeywordArgument i2 a2) = i1 == i2 && a1 == a2
   liftEq _ _ _ = False
 
 instance (Show ann) => Show1 (Argument' ann) where
-  liftShowsPrec f _ n (PositionedArgument p o t e) = showString "PositionedArgument " <> showString (show p) <> showString (show o) <> showString (show t) <> showString (show e)
-  liftShowsPrec f _ n (KeywordArgument p o t e) = showString "KeywordArgument " <> showString (show p) <> showString (show o) <> showString (show t) <> showString (show e)
-  liftShowsPrec _ _ n (RestPositionedArgument i t e) = showString "RestPositionedArgument " <> showString (show i) <> showString (show t) <> showString (show e)
-  liftShowsPrec _ _ n (RestKeywordArgument i t e) = showString "RestKeywordArgument " <> showString (show i) <> showString (show t) <> showString (show e)
-
-type PatternMatchAssign ann = Cofree (PatternMatchAssign' ann) ann
-
-data PatternMatchAssign' ann a
-  = PMAAnyValue (Identifier ann)
-  | PMAArray [a]
-  | PMAObject [(EKey ann, a)]
-  deriving (Show, Eq)
-
-instance (Eq ann) => Eq1 (PatternMatchAssign' ann) where
-  liftEq _ (PMAAnyValue a) (PMAAnyValue b) = a == b
-  liftEq f (PMAArray as) (PMAArray bs) = length as == length bs && all (uncurry f) (zip as bs)
-  liftEq f (PMAObject as) (PMAObject bs) = length as == length bs && all (\((k1, v1), (k2, v2)) -> k1 == k2 && f v1 v2) (zip as bs)
-  liftEq _ _ _ = False
-
-instance (Show ann) => Show1 (PatternMatchAssign' ann) where
-  liftShowsPrec _ _ _ (PMAAnyValue i) = showString $ "PMAAnyValue " <> show i
-  liftShowsPrec _ f _ (PMAArray vs) = showString "PMAArray " <> f vs
-  liftShowsPrec f _ n (PMAObject vs) =
-    showString "PMAObject ["
-      <> foldl1
-        (\a b -> a <> showString ", " <> b)
-        (map (\(i, a) -> showString "(" <> showString (show i) <> showString ", " <> f n a <> showString ")") vs)
-      <> showString "]"
+  liftShowsPrec f _ n (PositionedArgument a) = showString "PositionedArgument " <> showString (show a)
+  liftShowsPrec f _ n (KeywordArgument i a) = showString "KeywordArgument " <> showString (show i) <> showString (show a)
 
 type EKey ann = Identifier ann
 
@@ -326,10 +269,6 @@ instance Spanned (Expr Span) where
   span :: Expr Span -> Span
   span (s :< _) = s
 
-instance Spanned (PatternMatchAssign Span) where
-  span :: PatternMatchAssign Span -> Span
-  span (s :< _) = s
-
 instance Spanned (Identifier Span) where
   span :: Identifier Span -> Span
   span (s :< Identifier _) = s
@@ -342,7 +281,7 @@ instance ToJSON (Expr a) where
     (_ :< ENumber v) -> Number v
     (_ :< EString v) -> String (pack v)
     (_ :< EArray vs) -> Array $ V.fromList $ map toJSON vs
-    (_ :< EObject vs) -> Object $ KM.fromList $ map (\(s :< Identifier i, v) -> (K.fromText (pack i), toJSON v)) vs
+    (_ :< EObject vs) -> Object $ KM.fromList $ map (\(s :< EString i, v) -> (K.fromText (pack i), toJSON v)) vs
     (_ :< v) -> String (pack "not value")
 
 instance FromJSON (Expr ()) where
@@ -356,7 +295,7 @@ instance FromJSON (Expr ()) where
     Object vs ->
       (() :<) . EObject
         <$> mapM
-          (\(k, v) -> (,) (() :< Identifier (K.toString k)) <$> parseJSON v)
+          (\(k, v) -> (,) (() :< EString (K.toString k)) <$> parseJSON v)
           (KM.toList vs)
 
 switchAnn :: (a -> b) -> Expr a -> Expr b
@@ -366,4 +305,4 @@ switchAnn f e = case e of
   (ann :< ENumber v) -> f ann :< ENumber v
   (ann :< EString v) -> f ann :< EString v
   (ann :< EArray es) -> f ann :< EArray (map (switchAnn f) es)
-  (ann :< EObject es) -> f ann :< EObject (map (\(ann1 :< Identifier i, e) -> (f ann1 :< Identifier i, switchAnn f e)) es)
+  (ann :< EObject es) -> f ann :< EObject (map (\(ann1 :< EString i, e) -> (f ann1 :< EString i, switchAnn f e)) es)
