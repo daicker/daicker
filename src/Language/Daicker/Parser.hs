@@ -8,6 +8,7 @@ import Control.Monad (void)
 import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
 import Control.Monad.State (StateT)
 import Control.Monad.State.Class (get, put)
+import Control.Monad.State.Lazy (StateT (runStateT))
 import Data.Functor.Identity (Identity)
 import Data.List.NonEmpty (NonEmpty (..), some1)
 import Data.Maybe (fromJust, fromMaybe, isJust)
@@ -17,12 +18,13 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Void (Void)
 import GHC.Conc (par)
+import GHC.Event.TimeOut (TimeoutKey (TK))
 import Language.Daicker.AST hiding (Type, Type' (..))
 import qualified Language.Daicker.AST as AST
 import Language.Daicker.Error (StaticError (StaticError), fromParseErrorBundle)
 import Language.Daicker.Span (Span (..), WithSpan (..), union)
 import qualified Language.Daicker.Span as S
-import Language.LSP.Protocol.Lens (HasIdentifier (identifier))
+import Language.LSP.Protocol.Lens (HasCh (ch), HasIdentifier (identifier))
 import Language.LSP.Protocol.Types
 import Text.Megaparsec hiding (Token, token)
 import Text.Megaparsec.Byte.Lexer (float)
@@ -50,6 +52,8 @@ data TokenKind
   | TKFun
   | TKVar
   | TKKeyword
+  | TKNull
+  | TKBool
   | TKNumber
   | TKString
   | TKSep
@@ -58,6 +62,9 @@ data TokenKind
   deriving (Show, Eq)
 
 type Parser = StateT [Token] (Parsec Void Text)
+
+parse :: Parser a -> String -> Text -> Either (ParseErrorBundle Text Void) (a, [Token])
+parse parser = runParser (runStateT parser [])
 
 opTable :: [[Operator Parser (Expr Span)]]
 opTable =
@@ -123,8 +130,11 @@ pTerm = do
       pure $ s1 `union` s2 :< EAccessor v key
 
 pArgument :: Parser (Argument Span)
-pArgument = do
-  undefined
+pArgument =
+  choice
+    [ positionedArgument,
+      keywordArgument
+    ]
   where
     positionedArgument :: Parser (Argument Span)
     positionedArgument = do
@@ -138,8 +148,11 @@ pArgument = do
       pure $ s1 `union` s2 :< KeywordArgument key value
 
 pParameter :: Parser (Parameter Span)
-pParameter = do
-  undefined
+pParameter =
+  choice
+    [ positionedParameter,
+      keywordParameter
+    ]
   where
     positionedParameter :: Parser (Parameter Span)
     positionedParameter = do
@@ -147,6 +160,7 @@ pParameter = do
         name@(s1 :< _) <- tupleToCofree Identifier <$> spanned (tExprIdentifier TKParameter)
         isOptional <- isJust <$> optional (token TKOp $ char '?')
         isRest <- isJust <$> optional (lexeme $ token TKOp $ string "...")
+        sc
         defaultExpr <- optional $ lexeme (token TKOp $ char '=') *> pExpr
         pure $ PositionedParameter name isRest isOptional Nothing defaultExpr
       pure $ s :< p
@@ -165,13 +179,13 @@ pPrimary :: Parser (Expr Span)
 pPrimary =
   choice
     [ pLambda,
-      pVar,
       pObject,
       pArray,
       pString,
       pNumber,
       pBool,
-      pNull
+      pNull,
+      pVar
     ]
 
 pLambda :: Parser (Expr Span)
@@ -179,10 +193,10 @@ pLambda = do
   (s1, _) <- spanned $ lexeme $ token TKSep $ string' "\\"
   params <-
     between
-      (lexeme $ token TKOp $ char '(')
-      (lexeme $ token TKOp $ char ')')
+      (lexeme $ token TKSep $ char '(')
+      (lexeme $ token TKSep $ char ')')
       $ pParameter `sepBy` lexeme (token TKSep (char ','))
-  _ <- lexeme $ token TKOp $ string' "->"
+  _ <- lexeme $ token TKSep $ string' "->"
   body@(s2 :< _) <- pExpr
   pure $ s1 `union` s2 :< ELambda params body
 
@@ -209,7 +223,7 @@ pObject = do
     pPair :: Parser (Expr Span, Expr Span)
     pPair = do
       key <- pExpr
-      _ <- lexeme $ token TKOp $ char ':'
+      _ <- lexeme $ token TKSep $ char ':'
       value <- pExpr
       pure (key, value)
 
@@ -236,12 +250,12 @@ pNumber = lexeme $ tupleToCofree ENumber <$> spanned tNumber
 pBool :: Parser (Expr Span)
 pBool = lexeme $ tupleToCofree EBool <$> spanned tBool
   where
-    tBool = token TKKeyword $ (True <$ keyword "true") <|> (False <$ keyword "false")
+    tBool = token TKBool $ (True <$ keyword "true") <|> (False <$ keyword "false")
 
 pNull :: Parser (Expr Span)
 pNull = lexeme $ (:< ENull) . fst <$> spanned tNull
   where
-    tNull = token TKKeyword $ keyword "null"
+    tNull = token TKNull $ keyword "null"
 
 tupleToCofree :: (t -> f (Cofree f a)) -> (a, t) -> Cofree f a
 tupleToCofree f (s, v) = s :< f v
@@ -279,7 +293,7 @@ sc :: Parser ()
 sc = L.space space1 lineComment blockComment
 
 lineComment :: Parser ()
-lineComment = L.skipLineComment "//"
+lineComment = token TKComment $ L.skipLineComment "//"
 
 blockComment :: Parser ()
 blockComment = token TKComment $ L.skipBlockComment "/*" "*/"
