@@ -199,6 +199,134 @@ spec = do
               Token TKVar (mkSpan "test" 1 13 1 14)
             ]
           )
+    it "lambda with rest parameter" $ do
+      parse pExpr "test" "\\(a...) -> a"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 13
+              :< ELambda
+                [ mkSpan "test" 1 3 1 7
+                    :< PositionedParameter
+                      (mkSpan "test" 1 3 1 4 :< Identifier "a")
+                      True
+                      False
+                      Nothing
+                      Nothing
+                ]
+                (mkSpan "test" 1 12 1 13 :< EVar (mkSpan "test" 1 12 1 13 :< Identifier "a")),
+            [ Token TKSep (mkSpan "test" 1 1 1 2),
+              Token TKSep (mkSpan "test" 1 2 1 3),
+              Token TKParameter (mkSpan "test" 1 3 1 4),
+              Token TKOp (mkSpan "test" 1 4 1 7),
+              Token TKSep (mkSpan "test" 1 7 1 8),
+              Token TKSep (mkSpan "test" 1 9 1 11),
+              Token TKVar (mkSpan "test" 1 12 1 13)
+            ]
+          )
+    it "lambda with optional parameter" $ do
+      parse pExpr "test" "\\(a?) -> a"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 11
+              :< ELambda
+                [ mkSpan "test" 1 3 1 5
+                    :< PositionedParameter
+                      (mkSpan "test" 1 3 1 4 :< Identifier "a")
+                      False
+                      True
+                      Nothing
+                      Nothing
+                ]
+                (mkSpan "test" 1 10 1 11 :< EVar (mkSpan "test" 1 10 1 11 :< Identifier "a")),
+            [ Token TKSep (mkSpan "test" 1 1 1 2),
+              Token TKSep (mkSpan "test" 1 2 1 3),
+              Token TKParameter (mkSpan "test" 1 3 1 4),
+              Token TKOp (mkSpan "test" 1 4 1 5),
+              Token TKSep (mkSpan "test" 1 5 1 6),
+              Token TKSep (mkSpan "test" 1 7 1 9),
+              Token TKVar (mkSpan "test" 1 10 1 11)
+            ]
+          )
+    it "call with positioned argument" $ do
+      parse pExpr "test" "f(1)"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 5
+              :< ECall
+                (mkSpan "test" 1 1 1 2 :< EVar (mkSpan "test" 1 1 1 2 :< Identifier "f"))
+                [mkSpan "test" 1 3 1 4 :< PositionedArgument (mkSpan "test" 1 3 1 4 :< ENumber 1)],
+            [ Token TKVar (mkSpan "test" 1 1 1 2),
+              Token TKSep (mkSpan "test" 1 2 1 3),
+              Token TKNumber (mkSpan "test" 1 3 1 4),
+              Token TKSep (mkSpan "test" 1 4 1 5)
+            ]
+          )
+    it "call with keyword argument" $ do
+      parse pExpr "test" "f(a = 1)"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 9
+              :< ECall
+                (mkSpan "test" 1 1 1 2 :< EVar (mkSpan "test" 1 1 1 2 :< Identifier "f"))
+                [ mkSpan "test" 1 3 1 8
+                    :< KeywordArgument
+                      (mkSpan "test" 1 3 1 4 :< Identifier "a")
+                      (mkSpan "test" 1 7 1 8 :< ENumber 1)
+                ],
+            [ Token TKVar (mkSpan "test" 1 1 1 2),
+              Token TKSep (mkSpan "test" 1 2 1 3),
+              Token TKParameter (mkSpan "test" 1 3 1 4),
+              Token TKSep (mkSpan "test" 1 5 1 6),
+              Token TKNumber (mkSpan "test" 1 7 1 8),
+              Token TKSep (mkSpan "test" 1 8 1 9)
+            ]
+          )
+    it "call with variable positioned argument" $ do
+      parse pExpr "test" "f(a)"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 5
+              :< ECall
+                (mkSpan "test" 1 1 1 2 :< EVar (mkSpan "test" 1 1 1 2 :< Identifier "f"))
+                [mkSpan "test" 1 3 1 4 :< PositionedArgument (mkSpan "test" 1 3 1 4 :< EVar (mkSpan "test" 1 3 1 4 :< Identifier "a"))],
+            [ Token TKVar (mkSpan "test" 1 1 1 2),
+              Token TKSep (mkSpan "test" 1 2 1 3),
+              Token TKVar (mkSpan "test" 1 3 1 4),
+              Token TKSep (mkSpan "test" 1 4 1 5)
+            ]
+          )
+    it "call with positioned and keyword argument" $ do
+      parse pExpr "test" "f(1, a = 2)"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 12
+              :< ECall
+                (mkSpan "test" 1 1 1 2 :< EVar (mkSpan "test" 1 1 1 2 :< Identifier "f"))
+                [ mkSpan "test" 1 3 1 4
+                    :< PositionedArgument (mkSpan "test" 1 3 1 4 :< ENumber 1),
+                  mkSpan "test" 1 6 1 11
+                    :< KeywordArgument
+                      (mkSpan "test" 1 6 1 7 :< Identifier "a")
+                      (mkSpan "test" 1 10 1 11 :< ENumber 2)
+                ],
+            [ Token TKVar (mkSpan "test" 1 1 1 2),
+              Token TKSep (mkSpan "test" 1 2 1 3),
+              Token TKNumber (mkSpan "test" 1 3 1 4),
+              Token TKSep (mkSpan "test" 1 4 1 5),
+              Token TKParameter (mkSpan "test" 1 6 1 7),
+              Token TKSep (mkSpan "test" 1 8 1 9),
+              Token TKNumber (mkSpan "test" 1 10 1 11),
+              Token TKSep (mkSpan "test" 1 11 1 12)
+            ]
+          )
+    it "binary expr" $ do
+      parse pExpr "test" "1 + 2"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 6
+              :< ECall
+                (mkSpan "test" 1 3 1 4 :< EVar (mkSpan "test" 1 3 1 4 :< Identifier "+"))
+                [ mkSpan "test" 1 1 1 2 :< PositionedArgument (mkSpan "test" 1 1 1 2 :< ENumber 1),
+                  mkSpan "test" 1 5 1 6 :< PositionedArgument (mkSpan "test" 1 5 1 6 :< ENumber 2)
+                ],
+            [ Token TKNumber (mkSpan "test" 1 1 1 2),
+              Token TKOp (mkSpan "test" 1 3 1 4),
+              Token TKNumber (mkSpan "test" 1 5 1 6)
+            ]
+          )
 
 -- describe "import" $ do
 --   it "import * from \"test.daic\"" $

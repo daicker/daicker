@@ -66,6 +66,9 @@ type Parser = StateT [Token] (Parsec Void Text)
 parse :: Parser a -> String -> Text -> Either (ParseErrorBundle Text Void) (a, [Token])
 parse parser = runParser (runStateT parser [])
 
+pExpr :: Parser (Expr Span)
+pExpr = makeExprParser pTerm opTable
+
 opTable :: [[Operator Parser (Expr Span)]]
 opTable =
   [ [ binary "*",
@@ -87,13 +90,10 @@ binary name = do
 
 pOp :: Text -> Parser (Expr Span)
 pOp name = do
-  (s, op) <- spanned $ tOp name
+  (s, op) <- lexeme (spanned $ tOp name)
   pure $ s :< EVar (s :< Identifier op)
   where
     tOp name = token TKOp (T.unpack <$> string name)
-
-pExpr :: Parser (Expr Span)
-pExpr = makeExprParser pTerm opTable
 
 pTerm :: Parser (Expr Span)
 pTerm = do
@@ -110,13 +110,13 @@ pTerm = do
       (s2, es) <-
         spanned
           $ between
-            (lexeme $ token TKOp $ char '(')
-            (lexeme $ token TKOp $ char ')')
+            (lexeme $ token TKSep $ char '(')
+            (lexeme $ token TKSep $ char ')')
           $ pArgument `sepBy` lexeme (token TKSep (char ','))
       pure $ s1 `union` s2 :< ECall f es
     pDotAccessor :: Expr Span -> Parser (Expr Span)
     pDotAccessor v@(s1 :< _) = do
-      _ <- lexeme $ token TKOp $ char '.'
+      _ <- lexeme $ token TKSep $ char '.'
       key@(s2 :< _) <- tupleToCofree Identifier <$> spanned (tExprIdentifier TKVar)
       pure $ s1 `union` s2 :< EAccessor v (s2 :< EVar key)
     pBracketAccessor :: Expr Span -> Parser (Expr Span)
@@ -124,16 +124,16 @@ pTerm = do
       (s2, key) <-
         spanned $
           between
-            (lexeme $ token TKOp $ char '[')
-            (lexeme $ token TKOp $ char ']')
+            (lexeme $ token TKSep $ char '[')
+            (lexeme $ token TKSep $ char ']')
             pExpr
       pure $ s1 `union` s2 :< EAccessor v key
 
 pArgument :: Parser (Argument Span)
 pArgument =
   choice
-    [ positionedArgument,
-      keywordArgument
+    [ try keywordArgument,
+      positionedArgument
     ]
   where
     positionedArgument :: Parser (Argument Span)
@@ -142,8 +142,8 @@ pArgument =
       pure $ s1 :< PositionedArgument value
     keywordArgument :: Parser (Argument Span)
     keywordArgument = do
-      key@(s1 :< _) <- tupleToCofree Identifier <$> spanned (tExprIdentifier TKParameter)
-      _ <- lexeme $ token TKOp $ char '='
+      key@(s1 :< _) <- tupleToCofree Identifier <$> lexeme (spanned (tExprIdentifier TKParameter))
+      _ <- lexeme $ token TKSep $ char '='
       (s2, value) <- spanned pExpr
       pure $ s1 `union` s2 :< KeywordArgument key value
 
