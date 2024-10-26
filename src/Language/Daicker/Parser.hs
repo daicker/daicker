@@ -72,13 +72,23 @@ pExpr = makeExprParser pTerm opTable
 
 opTable :: [[Operator Parser (Expr Span)]]
 opTable =
-  [ [ binary "*",
+  [ [ unary "!"
+    ],
+    [ binary "*",
       binary "/"
     ],
     [ binary "+",
       binary "-"
     ]
   ]
+
+unary :: Text -> Operator Parser (Expr Span)
+unary name = Prefix (f <$> pOp name)
+  where
+    f :: Expr Span -> Expr Span -> Expr Span
+    f op@(op' :< _) v@(v' :< _) =
+      (op' `union` v')
+        :< ECall op [v' :< PositionedArgument v]
 
 binary :: Text -> Operator Parser (Expr Span)
 binary name = do
