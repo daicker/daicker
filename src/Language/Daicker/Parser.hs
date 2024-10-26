@@ -79,6 +79,16 @@ opTable =
     ],
     [ binary "+",
       binary "-"
+    ],
+    [ binary "==",
+      binary "!=",
+      binary "<",
+      binary "<=",
+      binary ">",
+      binary ">="
+    ],
+    [ binary "&&",
+      binary "||"
     ]
   ]
 
