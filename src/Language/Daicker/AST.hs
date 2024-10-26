@@ -151,20 +151,21 @@ data Expr' ann a
   | EString String
   | EArray [a]
   | EObject [(a, a)]
+  | EImage (Identifier ann)
   | EVar (Identifier ann)
   | EAccessor a a
   | ECall a [Argument ann]
   | ELambda [Parameter ann] a
   | EError String ExitCode
-  | EFixtureFun [Parameter ann] (Maybe (EImage ann) -> [a] -> IO a)
+  | EFixtureFun [Parameter ann] ([a] -> IO a)
   deriving (Show, Eq)
 
-instance Show (Maybe (EImage ann) -> [a] -> IO a) where
-  show :: (Maybe (EImage ann) -> [a] -> IO a) -> String
+instance Show ([a] -> IO a) where
+  show :: ([a] -> IO a) -> String
   show f = undefined
 
-instance Eq (Maybe (EImage ann) -> [a] -> IO a) where
-  (==) :: (Maybe (EImage ann) -> [a] -> IO a) -> (Maybe (EImage ann) -> [a] -> IO a) -> Bool
+instance Eq ([a] -> IO a) where
+  (==) :: ([a] -> IO a) -> ([a] -> IO a) -> Bool
   _ == _ = undefined
 
 instance (Eq ann) => Eq1 (Expr' ann) where
@@ -174,6 +175,7 @@ instance (Eq ann) => Eq1 (Expr' ann) where
   liftEq _ (EString a) (EString b) = a == b
   liftEq f (EArray a) (EArray b) = length a == length b && all (uncurry f) (zip a b)
   liftEq f (EObject a) (EObject b) = length a == length b && all (\((ka, va), (kb, vb)) -> f ka kb && f va vb) (zip a b)
+  liftEq _ (EImage a) (EImage b) = a == b
   liftEq _ (EVar a) (EVar b) = a == b
   liftEq f (EAccessor a1 i1) (EAccessor a2 i2) = f a1 a2 && f i1 i2
   liftEq f (ECall f1 a1) (ECall f2 a2) = f f1 f2 && length a1 == length a2 && all (uncurry (==)) (zip a1 a2)
@@ -193,6 +195,7 @@ instance (Show ann) => Show1 (Expr' ann) where
         (\a b -> a <> showString ", " <> b)
         (map (\(i, a) -> showString "(" <> f n i <> showString ", " <> f n a <> showString ")") vs)
       <> showString "]"
+  liftShowsPrec _ _ _ (EImage i) = showString "EImage " <> showString (show i)
   liftShowsPrec _ _ _ (EVar i) = showString "EVar " <> showString (show i)
   liftShowsPrec f f' n (ECall a as) = showString "ECall " <> f n a <> showString (show as)
   liftShowsPrec f _ n (EAccessor a i) = showString "EAccessor " <> f n a <> f n i

@@ -132,6 +132,13 @@ spec = do
               Token TKSep (mkSpan "test" 1 16 1 17)
             ]
           )
+    it "image" $ do
+      parse pExpr "test" "#alpine:3.12"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 13
+              :< EImage (mkSpan "test" 1 1 1 13 :< Identifier "alpine:3.12"),
+            [Token TKImage (mkSpan "test" 1 1 1 13)]
+          )
     it "single alphabet var" $ do
       parse pExpr "test" "a"
         `shouldBe` Right
@@ -325,6 +332,39 @@ spec = do
             [ Token TKNumber (mkSpan "test" 1 1 1 2),
               Token TKOp (mkSpan "test" 1 3 1 4),
               Token TKNumber (mkSpan "test" 1 5 1 6)
+            ]
+          )
+    it "command sugar syntax" $ do
+      parse pExpr "test" "$ echo hello;;"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 15
+              :< ECall
+                (mkSpan "test" 1 1 1 2 :< EVar (mkSpan "test" 1 1 1 2 :< Identifier "$"))
+                [ mkSpan "test" 1 3 1 15
+                    :< PositionedArgument (mkSpan "test" 1 3 1 15 :< EString "echo hello")
+                ],
+            [ Token TKVar (mkSpan "test" 1 1 1 2),
+              Token TKString (mkSpan "test" 1 3 1 15)
+            ]
+          )
+    it "command sugar syntax with image tag" $ do
+      parse pExpr "test" "$[#alpine:3.12] echo hello;;"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 29
+              :< ECall
+                (mkSpan "test" 1 1 1 2 :< EVar (mkSpan "test" 1 1 1 2 :< Identifier "$"))
+                [ mkSpan "test" 1 2 1 16
+                    :< KeywordArgument
+                      (mkSpan "test" 1 2 1 16 :< Identifier "image")
+                      (mkSpan "test" 1 3 1 15 :< EImage (mkSpan "test" 1 3 1 15 :< Identifier "alpine:3.12")),
+                  mkSpan "test" 1 17 1 29
+                    :< PositionedArgument (mkSpan "test" 1 17 1 29 :< EString "echo hello")
+                ],
+            [ Token TKVar (mkSpan "test" 1 1 1 2),
+              Token TKSep (mkSpan "test" 1 2 1 3),
+              Token TKImage (mkSpan "test" 1 3 1 15),
+              Token TKSep (mkSpan "test" 1 15 1 16),
+              Token TKString (mkSpan "test" 1 17 1 29)
             ]
           )
 

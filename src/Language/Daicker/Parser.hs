@@ -11,7 +11,7 @@ import Control.Monad.State.Class (get, put)
 import Control.Monad.State.Lazy (StateT (runStateT))
 import Data.Functor.Identity (Identity)
 import Data.List.NonEmpty (NonEmpty (..), some1)
-import Data.Maybe (fromJust, fromMaybe, isJust)
+import Data.Maybe (catMaybes, isJust)
 import Data.Scientific (Scientific, toRealFloat)
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -60,6 +60,7 @@ data TokenKind
   | TKComment
   | TKParameter
   | TKProperty
+  | TKImage
   deriving (Show, Eq)
 
 type Parser = StateT [Token] (Parsec Void Text)
@@ -200,6 +201,8 @@ pPrimary :: Parser (Expr Span)
 pPrimary =
   choice
     [ pLambda,
+      pCommand,
+      pImage,
       pObject,
       pArray,
       pString,
@@ -208,6 +211,30 @@ pPrimary =
       pNull,
       pVar
     ]
+
+-- command sugar syntax
+pCommand :: Parser (Expr Span)
+pCommand = do
+  (s, command) <- lexeme $ spanned $ do
+    (name', name) <- lexeme $ spanned $ token TKVar $ ("$" ++) <$> (char '$' *> many (alphaNumChar <|> char '_'))
+    image <-
+      optional $
+        spanned
+          ( between
+              (lexeme $ token TKSep $ char '[')
+              (lexeme $ token TKSep $ char ']')
+              pImage
+          )
+    (cmd', cmd) <- lexeme $ spanned $ token TKString $ manyTill L.charLiteral (string ";;")
+    pure $
+      ECall
+        (name' :< EVar (name' :< Identifier name))
+        ( catMaybes
+            [ fmap (\(image', image) -> image' :< KeywordArgument (image' :< Identifier "image") image) image,
+              Just $ cmd' :< PositionedArgument (cmd' :< EString cmd)
+            ]
+        )
+  pure $ s :< command
 
 pLambda :: Parser (Expr Span)
 pLambda = do
@@ -230,6 +257,15 @@ pVar =
             Identifier
             <$> spanned (tExprIdentifier TKVar)
         )
+
+pImage :: Parser (Expr Span)
+pImage = do
+  (s, image) <-
+    lexeme $
+      spanned $
+        token TKImage $
+          (:) <$> char '#' *> many (alphaNumChar <|> char '/' <|> char ':' <|> char '.' <|> char '-' <|> char '_')
+  pure $ s :< EImage (s :< Identifier image)
 
 pObject :: Parser (Expr Span)
 pObject = do
