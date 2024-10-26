@@ -59,6 +59,7 @@ data TokenKind
   | TKSep
   | TKComment
   | TKParameter
+  | TKProperty
   deriving (Show, Eq)
 
 type Parser = StateT [Token] (Parsec Void Text)
@@ -117,8 +118,8 @@ pTerm = do
     pDotAccessor :: Expr Span -> Parser (Expr Span)
     pDotAccessor v@(s1 :< _) = do
       _ <- lexeme $ token TKSep $ char '.'
-      key@(s2 :< _) <- tupleToCofree Identifier <$> spanned (tExprIdentifier TKVar)
-      pure $ s1 `union` s2 :< EAccessor v (s2 :< EVar key)
+      key@(s2 :< _) <- tupleToCofree EString <$> spanned (tExprIdentifier TKProperty)
+      pure $ s1 `union` s2 :< EAccessor v key
     pBracketAccessor :: Expr Span -> Parser (Expr Span)
     pBracketAccessor v@(s1 :< _) = do
       (s2, key) <-
