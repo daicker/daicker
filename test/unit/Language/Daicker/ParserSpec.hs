@@ -320,6 +320,31 @@ spec = do
               Token TKSep (mkSpan "test" 1 11 1 12)
             ]
           )
+    it "dot accessor" $ do
+      parse pExpr "test" "a.b"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 4
+              :< EAccessor
+                (mkSpan "test" 1 1 1 2 :< EVar (mkSpan "test" 1 1 1 2 :< Identifier "a"))
+                (mkSpan "test" 1 3 1 4 :< EString "b"),
+            [ Token TKVar (mkSpan "test" 1 1 1 2),
+              Token TKSep (mkSpan "test" 1 2 1 3),
+              Token TKProperty (mkSpan "test" 1 3 1 4)
+            ]
+          )
+    it "bracket accessor" $ do
+      parse pExpr "test" "a[\"b\"]"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 7
+              :< EAccessor
+                (mkSpan "test" 1 1 1 2 :< EVar (mkSpan "test" 1 1 1 2 :< Identifier "a"))
+                (mkSpan "test" 1 3 1 6 :< EString "b"),
+            [ Token TKVar (mkSpan "test" 1 1 1 2),
+              Token TKSep (mkSpan "test" 1 2 1 3),
+              Token TKString (mkSpan "test" 1 3 1 6),
+              Token TKSep (mkSpan "test" 1 6 1 7)
+            ]
+          )
     it "binary expr" $ do
       parse pExpr "test" "1 + 2"
         `shouldBe` Right
