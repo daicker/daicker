@@ -19,7 +19,7 @@ import qualified Data.Text as T
 import Data.Void (Void)
 import GHC.Conc (par)
 import GHC.Event.TimeOut (TimeoutKey (TK))
-import Language.Daicker.AST hiding (Type, Type' (..))
+import Language.Daicker.AST
 import qualified Language.Daicker.AST as AST
 import Language.Daicker.Error (StaticError (StaticError), fromParseErrorBundle)
 import Language.Daicker.Span (Span (..), WithSpan (..), union)
@@ -59,6 +59,7 @@ data TokenKind
   | TKSep
   | TKComment
   | TKParameter
+  | TKTypeParameter
   | TKProperty
   | TKImage
   deriving (Show, Eq)
@@ -67,6 +68,135 @@ type Parser = StateT [Token] (Parsec Void Text)
 
 parse :: Parser a -> String -> Text -> Either (ParseErrorBundle Text Void) (a, [Token])
 parse parser = runParser (runStateT parser [])
+
+pType :: Parser (Type Span)
+pType = undefined
+
+typeOpTable :: [[Operator Parser (Type Span)]]
+typeOpTable =
+  [ [ typeBinary "&&",
+      typeBinary "||"
+    ]
+  ]
+
+typeBinary :: Text -> Operator Parser (Type Span)
+typeBinary name = InfixL (f <$> pTypeOp name)
+  where
+    f :: Type Span -> Type Span -> Type Span -> Type Span
+    f op a@(a' :< _) b@(b' :< _) =
+      (a' `union` b')
+        :< TCall op [a, b]
+
+pTypeOp :: Text -> Parser (Type Span)
+pTypeOp name = do
+  (s, op) <- lexeme (spanned $ tOp name)
+  pure $ s :< TVar (s :< Identifier op)
+  where
+    tOp name = token TKOp (T.unpack <$> string name)
+
+pTTerm :: Parser (Type Span)
+pTTerm = do
+  v <- pTPrimary
+  choice
+    [ pTCall v,
+      pure v
+    ]
+  where
+    pTCall :: Type Span -> Parser (Type Span)
+    pTCall f@(s1 :< _) = do
+      (s2, ts) <-
+        spanned $
+          between
+            (lexeme $ token TKSep $ char '(')
+            (lexeme $ token TKSep $ char ')')
+            (pType `sepBy` lexeme (token TKSep (char ',')))
+      pure $ s1 `union` s2 :< TCall f ts
+
+pTLambda :: Parser (Type Span)
+pTLambda = do
+  (s1, _) <- spanned $ lexeme $ token TKSep $ string' "\\"
+  params <-
+    between
+      (lexeme $ token TKSep $ char '[')
+      (lexeme $ token TKSep $ char ']')
+      $ (tupleToCofree Identifier <$> lexeme (spanned $ tTypeIdentifier TKTypeParameter))
+        `sepBy` lexeme (token TKSep (char ','))
+  _ <- lexeme $ token TKSep $ string' "->"
+  body@(s2 :< _) <- pType
+  pure $ s1 `union` s2 :< TLambda params body
+
+pTPrimary :: Parser (Type Span)
+pTPrimary =
+  choice
+    [ pTVar,
+      pTArrayOrTuple,
+      pTObject,
+      pTStringLiteral,
+      pTNumberLiteral,
+      pTBoolLiteral,
+      pTNullLiteral
+    ]
+
+pTVar :: Parser (Type Span)
+pTVar =
+  lexeme $
+    tupleToCofree TVar
+      <$> spanned
+        ( tupleToCofree
+            Identifier
+            <$> spanned (tTypeIdentifier TKVar)
+        )
+
+-- array and tuple type sugar syntax
+pTArrayOrTuple :: Parser (Type Span)
+pTArrayOrTuple = do
+  (s, ts) <-
+    spanned $
+      between
+        (lexeme $ token TKSep $ char '[')
+        (lexeme $ token TKSep $ char ']')
+        (pType `sepBy` lexeme (token TKSep (char ',')))
+  case ts of
+    [] -> fail "type"
+    [t] -> pure $ s :< TCall (s :< TVar (s :< Identifier "Array")) [t]
+    _ -> pure $ s :< TCall (s :< TVar (s :< Identifier "Tuple")) ts
+
+pTObject :: Parser (Type Span)
+pTObject = do
+  (s, obj) <-
+    spanned $
+      between
+        (lexeme $ token TKSep $ char '{')
+        (lexeme $ token TKSep $ char '}')
+        (pair `sepBy` lexeme (token TKSep (char ',')))
+  pure $ s :< TObject obj
+  where
+    pair :: Parser (Type Span, Type Span)
+    pair = do
+      key <- pType
+      _ <- lexeme $ token TKSep $ char ':'
+      val <- pType
+      pure (key, val)
+
+pTStringLiteral :: Parser (Type Span)
+pTStringLiteral = lexeme $ tupleToCofree TStringLiteral <$> spanned tString
+  where
+    tString = token TKString $ char '"' *> manyTill L.charLiteral (char '"')
+
+pTNumberLiteral :: Parser (Type Span)
+pTNumberLiteral = lexeme $ tupleToCofree TNumberLiteral <$> spanned tNumber
+  where
+    tNumber = token TKNumber $ L.signed sc L.scientific
+
+pTBoolLiteral :: Parser (Type Span)
+pTBoolLiteral = lexeme $ tupleToCofree TBoolLiteral <$> spanned tBool
+  where
+    tBool = token TKBool $ (True <$ keyword "true") <|> (False <$ keyword "false")
+
+pTNullLiteral :: Parser (Type Span)
+pTNullLiteral = lexeme $ (:< TNullLiteral) . fst <$> spanned tNull
+  where
+    tNull = token TKNull $ keyword "null"
 
 pExpr :: Parser (Expr Span)
 pExpr = makeExprParser pTerm opTable
@@ -316,6 +446,15 @@ pNull = lexeme $ (:< ENull) . fst <$> spanned tNull
 
 tupleToCofree :: (t -> f (Cofree f a)) -> (a, t) -> Cofree f a
 tupleToCofree f (s, v) = s :< f v
+
+tTypeIdentifier :: TokenKind -> Parser String
+tTypeIdentifier kind =
+  token
+    kind
+    ( (:)
+        <$> (upperChar <|> char '_')
+        <*> many (alphaNumChar <|> char '_')
+    )
 
 tExprIdentifier :: TokenKind -> Parser String
 tExprIdentifier kind =

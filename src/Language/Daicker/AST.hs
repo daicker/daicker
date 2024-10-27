@@ -109,38 +109,43 @@ _ ~= _ = False
 type Type ann = Cofree (Type' ann) ann
 
 data Type' ann a
-  = TTuple [a]
-  | TArray a
+  = TVar (Identifier ann)
   | TObject [(a, a)]
-  | TMap a
-  | TLambda [a] a
-  | TVar (Identifier ann)
+  | TLambda [TypeParameter ann] a
   | TCall a [a]
+  | TStringLiteral String
+  | TNumberLiteral Scientific
+  | TBoolLiteral Bool
+  | TNullLiteral
   deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Type' ann) where
-  liftEq f (TTuple as) (TTuple bs) = length as == length bs && all (uncurry f) (zip as bs)
-  liftEq f (TArray a) (TArray b) = f a b
   liftEq f (TObject as) (TObject bs) = length as == length bs && all (\((ka, va), (kb, vb)) -> f ka kb && f va vb) (zip as bs)
-  liftEq f (TMap a) (TMap b) = f a b
-  liftEq f (TLambda f1 a1) (TLambda f2 a2) = length f1 == length f2 && all (uncurry f) (zip f1 f2) && f a1 a2
+  liftEq f (TLambda f1 a1) (TLambda f2 a2) = length f1 == length f2 && all (uncurry (==)) (zip f1 f2) && f a1 a2
   liftEq _ (TVar n1) (TVar n2) = n1 == n2
   liftEq f (TCall f1 a1) (TCall f2 a2) = f f1 f2 && length a1 == length a2 && all (uncurry f) (zip a1 a2)
+  liftEq _ (TStringLiteral s1) (TStringLiteral s2) = s1 == s2
+  liftEq _ (TNumberLiteral n1) (TNumberLiteral n2) = n1 == n2
+  liftEq _ (TBoolLiteral b1) (TBoolLiteral b2) = b1 == b2
+  liftEq _ TNullLiteral TNullLiteral = True
   liftEq _ _ _ = False
 
 instance (Show ann) => Show1 (Type' ann) where
-  liftShowsPrec _ f _ (TTuple ts) = showString "TTuple " <> f ts
-  liftShowsPrec f _ n (TArray a) = showString "TArray " <> f n a
   liftShowsPrec f _ n (TObject as) =
     showString "TObject ["
       <> foldl1
         (\a b -> a <> showString ", " <> b)
         (map (\(i, a) -> showString "(" <> f n i <> showString ", " <> f n a <> showString ")") as)
       <> showString "]"
-  liftShowsPrec f _ n (TMap a) = showString "TMap " <> f n a
-  liftShowsPrec f f' n (TLambda args ret) = showString "TLambda " <> f' args <> f n ret
+  liftShowsPrec f f' n (TLambda args ret) = showString "TLambda " <> showString (show args) <> f n ret
   liftShowsPrec f _ n (TVar name) = showString $ "TVar " <> show name
   liftShowsPrec f f' n (TCall tf args) = showString "TCall " <> f n tf <> f' args
+  liftShowsPrec _ _ _ (TStringLiteral s) = showString $ "TStringLiteral " <> s
+  liftShowsPrec _ _ _ (TNumberLiteral n) = showString $ "TNumberLiteral " <> show n
+  liftShowsPrec _ _ _ (TBoolLiteral b) = showString $ "TBoolLiteral " <> show b
+  liftShowsPrec _ _ _ TNullLiteral = showString "TNullLiteral"
+
+type TypeParameter ann = Identifier ann
 
 type Expr ann = Cofree (Expr' ann) ann
 
