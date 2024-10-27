@@ -70,7 +70,7 @@ parse :: Parser a -> String -> Text -> Either (ParseErrorBundle Text Void) (a, [
 parse parser = runParser (runStateT parser [])
 
 pType :: Parser (Type Span)
-pType = undefined
+pType = makeExprParser pTTerm typeOpTable
 
 typeOpTable :: [[Operator Parser (Type Span)]]
 typeOpTable =
@@ -85,7 +85,7 @@ typeBinary name = InfixL (f <$> pTypeOp name)
     f :: Type Span -> Type Span -> Type Span -> Type Span
     f op a@(a' :< _) b@(b' :< _) =
       (a' `union` b')
-        :< TCall op [a, b]
+        :< TParameterized op [a, b]
 
 pTypeOp :: Text -> Parser (Type Span)
 pTypeOp name = do
@@ -98,22 +98,22 @@ pTTerm :: Parser (Type Span)
 pTTerm = do
   v <- pTPrimary
   choice
-    [ pTCall v,
+    [ pTParameterized v,
       pure v
     ]
   where
-    pTCall :: Type Span -> Parser (Type Span)
-    pTCall f@(s1 :< _) = do
+    pTParameterized :: Type Span -> Parser (Type Span)
+    pTParameterized f@(s1 :< _) = do
       (s2, ts) <-
         spanned $
           between
-            (lexeme $ token TKSep $ char '(')
-            (lexeme $ token TKSep $ char ')')
+            (lexeme $ token TKSep $ char '[')
+            (lexeme $ token TKSep $ char ']')
             (pType `sepBy` lexeme (token TKSep (char ',')))
-      pure $ s1 `union` s2 :< TCall f ts
+      pure $ s1 `union` s2 :< TParameterized f ts
 
-pTLambda :: Parser (Type Span)
-pTLambda = do
+pTGeneric :: Parser (Type Span)
+pTGeneric = do
   (s1, _) <- spanned $ lexeme $ token TKSep $ string' "\\"
   params <-
     between
@@ -123,7 +123,7 @@ pTLambda = do
         `sepBy` lexeme (token TKSep (char ','))
   _ <- lexeme $ token TKSep $ string' "->"
   body@(s2 :< _) <- pType
-  pure $ s1 `union` s2 :< TLambda params body
+  pure $ s1 `union` s2 :< TGeneric params body
 
 pTPrimary :: Parser (Type Span)
 pTPrimary =
@@ -144,7 +144,7 @@ pTVar =
       <$> spanned
         ( tupleToCofree
             Identifier
-            <$> spanned (tTypeIdentifier TKVar)
+            <$> spanned (tTypeIdentifier TKTypeParameter)
         )
 
 -- array and tuple type sugar syntax
@@ -158,8 +158,8 @@ pTArrayOrTuple = do
         (pType `sepBy` lexeme (token TKSep (char ',')))
   case ts of
     [] -> fail "type"
-    [t] -> pure $ s :< TCall (s :< TVar (s :< Identifier "Array")) [t]
-    _ -> pure $ s :< TCall (s :< TVar (s :< Identifier "Tuple")) ts
+    [t] -> pure $ s :< TParameterized (s :< TVar (s :< Identifier "Array")) [t]
+    _ -> pure $ s :< TParameterized (s :< TVar (s :< Identifier "Tuple")) ts
 
 pTObject :: Parser (Type Span)
 pTObject = do

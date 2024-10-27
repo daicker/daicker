@@ -392,6 +392,93 @@ spec = do
               Token TKString (mkSpan "test" 1 17 1 29)
             ]
           )
+  describe "type" $ do
+    it "type variable" $ do
+      parse pType "test" "Void"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 5
+              :< TVar (mkSpan "test" 1 1 1 5 :< Identifier "Void"),
+            [Token TKTypeParameter (mkSpan "test" 1 1 1 5)]
+          )
+    it "null literal type" $ do
+      parse pType "test" "null"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 5
+              :< TNullLiteral,
+            [Token TKNull (mkSpan "test" 1 1 1 5)]
+          )
+    it "boolean type" $ do
+      parse pType "test" "true"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 5
+              :< TBoolLiteral True,
+            [Token TKBool (mkSpan "test" 1 1 1 5)]
+          )
+    it "number type" $ do
+      parse pType "test" "1"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 2
+              :< TNumberLiteral 1,
+            [Token TKNumber (mkSpan "test" 1 1 1 2)]
+          )
+    it "string type" $ do
+      parse pType "test" "\"abc\""
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 6
+              :< TStringLiteral "abc",
+            [Token TKString (mkSpan "test" 1 1 1 6)]
+          )
+    it "array type" $ do
+      parse pType "test" "[String]"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 9
+              :< TParameterized
+                (mkSpan "test" 1 1 1 9 :< TVar (mkSpan "test" 1 1 1 9 :< Identifier "Array"))
+                [mkSpan "test" 1 2 1 8 :< TVar (mkSpan "test" 1 2 1 8 :< Identifier "String")],
+            [ Token TKSep (mkSpan "test" 1 1 1 2),
+              Token TKTypeParameter (mkSpan "test" 1 2 1 8),
+              Token TKSep (mkSpan "test" 1 8 1 9)
+            ]
+          )
+    it "tuple type" $ do
+      parse pType "test" "[String, Number]"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 17
+              :< TParameterized
+                (mkSpan "test" 1 1 1 17 :< TVar (mkSpan "test" 1 1 1 17 :< Identifier "Tuple"))
+                [ mkSpan "test" 1 2 1 8 :< TVar (mkSpan "test" 1 2 1 8 :< Identifier "String"),
+                  mkSpan "test" 1 10 1 16 :< TVar (mkSpan "test" 1 10 1 16 :< Identifier "Number")
+                ],
+            [ Token TKSep (mkSpan "test" 1 1 1 2),
+              Token TKTypeParameter (mkSpan "test" 1 2 1 8),
+              Token TKSep (mkSpan "test" 1 8 1 9),
+              Token TKTypeParameter (mkSpan "test" 1 10 1 16),
+              Token TKSep (mkSpan "test" 1 16 1 17)
+            ]
+          )
+    it "object type" $ do
+      parse pType "test" "{\"a\": String, \"b\": Number}"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 27
+              :< TObject
+                [ ( mkSpan "test" 1 2 1 5 :< TStringLiteral "a",
+                    mkSpan "test" 1 7 1 13 :< TVar (mkSpan "test" 1 7 1 13 :< Identifier "String")
+                  ),
+                  ( mkSpan "test" 1 15 1 18 :< TStringLiteral "b",
+                    mkSpan "test" 1 20 1 26 :< TVar (mkSpan "test" 1 20 1 26 :< Identifier "Number")
+                  )
+                ],
+            [ Token TKSep (mkSpan "test" 1 1 1 2),
+              Token TKString (mkSpan "test" 1 2 1 5),
+              Token TKSep (mkSpan "test" 1 5 1 6),
+              Token TKTypeParameter (mkSpan "test" 1 7 1 13),
+              Token TKSep (mkSpan "test" 1 13 1 14),
+              Token TKString (mkSpan "test" 1 15 1 18),
+              Token TKSep (mkSpan "test" 1 18 1 19),
+              Token TKTypeParameter (mkSpan "test" 1 20 1 26),
+              Token TKSep (mkSpan "test" 1 26 1 27)
+            ]
+          )
 
 -- describe "import" $ do
 --   it "import * from \"test.daic\"" $

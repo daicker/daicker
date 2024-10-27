@@ -111,8 +111,8 @@ type Type ann = Cofree (Type' ann) ann
 data Type' ann a
   = TVar (Identifier ann)
   | TObject [(a, a)]
-  | TLambda [TypeParameter ann] a
-  | TCall a [a]
+  | TGeneric [TypeParameter ann] a
+  | TParameterized a [a]
   | TStringLiteral String
   | TNumberLiteral Scientific
   | TBoolLiteral Bool
@@ -121,9 +121,9 @@ data Type' ann a
 
 instance (Eq ann) => Eq1 (Type' ann) where
   liftEq f (TObject as) (TObject bs) = length as == length bs && all (\((ka, va), (kb, vb)) -> f ka kb && f va vb) (zip as bs)
-  liftEq f (TLambda f1 a1) (TLambda f2 a2) = length f1 == length f2 && all (uncurry (==)) (zip f1 f2) && f a1 a2
+  liftEq f (TGeneric f1 a1) (TGeneric f2 a2) = length f1 == length f2 && all (uncurry (==)) (zip f1 f2) && f a1 a2
   liftEq _ (TVar n1) (TVar n2) = n1 == n2
-  liftEq f (TCall f1 a1) (TCall f2 a2) = f f1 f2 && length a1 == length a2 && all (uncurry f) (zip a1 a2)
+  liftEq f (TParameterized f1 a1) (TParameterized f2 a2) = f f1 f2 && length a1 == length a2 && all (uncurry f) (zip a1 a2)
   liftEq _ (TStringLiteral s1) (TStringLiteral s2) = s1 == s2
   liftEq _ (TNumberLiteral n1) (TNumberLiteral n2) = n1 == n2
   liftEq _ (TBoolLiteral b1) (TBoolLiteral b2) = b1 == b2
@@ -137,9 +137,9 @@ instance (Show ann) => Show1 (Type' ann) where
         (\a b -> a <> showString ", " <> b)
         (map (\(i, a) -> showString "(" <> f n i <> showString ", " <> f n a <> showString ")") as)
       <> showString "]"
-  liftShowsPrec f f' n (TLambda args ret) = showString "TLambda " <> showString (show args) <> f n ret
+  liftShowsPrec f f' n (TGeneric args ret) = showString "TLambda " <> showString (show args) <> f n ret
   liftShowsPrec f _ n (TVar name) = showString $ "TVar " <> show name
-  liftShowsPrec f f' n (TCall tf args) = showString "TCall " <> f n tf <> f' args
+  liftShowsPrec f f' n (TParameterized tf args) = showString "TCall " <> f n tf <> f' args
   liftShowsPrec _ _ _ (TStringLiteral s) = showString $ "TStringLiteral " <> s
   liftShowsPrec _ _ _ (TNumberLiteral n) = showString $ "TNumberLiteral " <> show n
   liftShowsPrec _ _ _ (TBoolLiteral b) = showString $ "TBoolLiteral " <> show b
