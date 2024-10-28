@@ -479,6 +479,20 @@ spec = do
               Token TKSep (mkSpan "test" 1 26 1 27)
             ]
           )
+    it "union type" $ do
+      parse pType "test" "String | Number"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 16
+              :< TParameterized
+                (mkSpan "test" 1 8 1 9 :< TVar (mkSpan "test" 1 8 1 9 :< Identifier "|"))
+                [ mkSpan "test" 1 1 1 7 :< TVar (mkSpan "test" 1 1 1 7 :< Identifier "String"),
+                  mkSpan "test" 1 10 1 16 :< TVar (mkSpan "test" 1 10 1 16 :< Identifier "Number")
+                ],
+            [ Token TKTypeParameter (mkSpan "test" 1 1 1 7),
+              Token TKOp (mkSpan "test" 1 8 1 9),
+              Token TKTypeParameter (mkSpan "test" 1 10 1 16)
+            ]
+          )
 
 -- describe "import" $ do
 --   it "import * from \"test.daic\"" $

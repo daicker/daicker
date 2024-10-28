@@ -74,8 +74,8 @@ pType = makeExprParser pTTerm typeOpTable
 
 typeOpTable :: [[Operator Parser (Type Span)]]
 typeOpTable =
-  [ [ typeBinary "&&",
-      typeBinary "||"
+  [ [ typeBinary "&",
+      typeBinary "|"
     ]
   ]
 
@@ -112,19 +112,6 @@ pTTerm = do
             (pType `sepBy` lexeme (token TKSep (char ',')))
       pure $ s1 `union` s2 :< TParameterized f ts
 
-pTGeneric :: Parser (Type Span)
-pTGeneric = do
-  (s1, _) <- spanned $ lexeme $ token TKSep $ string' "\\"
-  params <-
-    between
-      (lexeme $ token TKSep $ char '[')
-      (lexeme $ token TKSep $ char ']')
-      $ (tupleToCofree Identifier <$> lexeme (spanned $ tTypeIdentifier TKTypeParameter))
-        `sepBy` lexeme (token TKSep (char ','))
-  _ <- lexeme $ token TKSep $ string' "->"
-  body@(s2 :< _) <- pType
-  pure $ s1 `union` s2 :< TGeneric params body
-
 pTPrimary :: Parser (Type Span)
 pTPrimary =
   choice
@@ -144,7 +131,7 @@ pTVar =
       <$> spanned
         ( tupleToCofree
             Identifier
-            <$> spanned (tTypeIdentifier TKTypeParameter)
+            <$> lexeme (spanned (tTypeIdentifier TKTypeParameter))
         )
 
 -- array and tuple type sugar syntax
