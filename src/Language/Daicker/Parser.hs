@@ -236,7 +236,7 @@ pTVar =
       <$> spanned
         ( tupleToCofree
             Identifier
-            <$> lexeme (spanned (tTypeIdentifier TKTypeParameter))
+            <$> lexeme (spanned (tTypeIdentifier TKTypeVar))
         )
 
 -- array and tuple type sugar syntax
@@ -404,7 +404,7 @@ pParameter =
         name@(s1 :< _) <- tupleToCofree Identifier <$> spanned (tExprIdentifier TKParameter)
         isOptional <- isJust <$> optional (token TKOp $ char '?')
         isRest <- isJust <$> optional (lexeme $ token TKOp $ string "...")
-        paramType <- optional $ lexeme (token TKOp $ char ':') *> pType
+        paramType <- optional $ lexeme (token TKSep $ char ':') *> pType
         sc
         defaultExpr <- optional $ lexeme (token TKOp $ char '=') *> pExpr
         pure $ PositionedParameter name isRest isOptional paramType defaultExpr
@@ -416,7 +416,7 @@ pParameter =
         name@(s1 :< _) <- tupleToCofree Identifier <$> spanned (tExprIdentifier TKVar)
         isOptional <- isJust <$> optional (token TKOp $ char '?')
         isRest <- isJust <$> optional (lexeme $ token TKOp $ string "...")
-        paramType <- optional $ lexeme (token TKOp $ char ':') *> pType
+        paramType <- optional $ lexeme (token TKSep $ char ':') *> pType
         defaultExpr <- optional $ token TKOp $ char '=' *> pExpr
         pure $ KeywordParameter name isOptional isRest paramType defaultExpr
       pure $ s :< p

@@ -252,6 +252,30 @@ spec = do
               Token TKVar (mkSpan "test" 1 10 1 11)
             ]
           )
+    it "lambda with typed parameter" $ do
+      parse pExpr "test" "\\(a: Number) -> a"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 18
+              :< ELambda
+                [ mkSpan "test" 1 3 1 12
+                    :< PositionedParameter
+                      (mkSpan "test" 1 3 1 4 :< Identifier "a")
+                      False
+                      False
+                      (Just (mkSpan "test" 1 6 1 12 :< TVar (mkSpan "test" 1 6 1 12 :< Identifier "Number")))
+                      Nothing
+                ]
+                (mkSpan "test" 1 17 1 18 :< EVar (mkSpan "test" 1 17 1 18 :< Identifier "a")),
+            [ Token TKSep (mkSpan "test" 1 1 1 2),
+              Token TKSep (mkSpan "test" 1 2 1 3),
+              Token TKParameter (mkSpan "test" 1 3 1 4),
+              Token TKSep (mkSpan "test" 1 4 1 5),
+              Token TKTypeVar (mkSpan "test" 1 6 1 12),
+              Token TKSep (mkSpan "test" 1 12 1 13),
+              Token TKSep (mkSpan "test" 1 14 1 16),
+              Token TKVar (mkSpan "test" 1 17 1 18)
+            ]
+          )
     it "call with positioned argument" $ do
       parse pExpr "test" "f(1)"
         `shouldBe` Right
@@ -398,7 +422,7 @@ spec = do
         `shouldBe` Right
           ( mkSpan "test" 1 1 1 5
               :< TVar (mkSpan "test" 1 1 1 5 :< Identifier "Void"),
-            [Token TKTypeParameter (mkSpan "test" 1 1 1 5)]
+            [Token TKTypeVar (mkSpan "test" 1 1 1 5)]
           )
     it "null literal type" $ do
       parse pType "test" "null"
@@ -436,7 +460,7 @@ spec = do
                 (mkSpan "test" 1 1 1 9 :< TVar (mkSpan "test" 1 1 1 9 :< Identifier "Array"))
                 [mkSpan "test" 1 2 1 8 :< TVar (mkSpan "test" 1 2 1 8 :< Identifier "String")],
             [ Token TKSep (mkSpan "test" 1 1 1 2),
-              Token TKTypeParameter (mkSpan "test" 1 2 1 8),
+              Token TKTypeVar (mkSpan "test" 1 2 1 8),
               Token TKSep (mkSpan "test" 1 8 1 9)
             ]
           )
@@ -450,9 +474,9 @@ spec = do
                   mkSpan "test" 1 10 1 16 :< TVar (mkSpan "test" 1 10 1 16 :< Identifier "Number")
                 ],
             [ Token TKSep (mkSpan "test" 1 1 1 2),
-              Token TKTypeParameter (mkSpan "test" 1 2 1 8),
+              Token TKTypeVar (mkSpan "test" 1 2 1 8),
               Token TKSep (mkSpan "test" 1 8 1 9),
-              Token TKTypeParameter (mkSpan "test" 1 10 1 16),
+              Token TKTypeVar (mkSpan "test" 1 10 1 16),
               Token TKSep (mkSpan "test" 1 16 1 17)
             ]
           )
@@ -471,11 +495,11 @@ spec = do
             [ Token TKSep (mkSpan "test" 1 1 1 2),
               Token TKString (mkSpan "test" 1 2 1 5),
               Token TKSep (mkSpan "test" 1 5 1 6),
-              Token TKTypeParameter (mkSpan "test" 1 7 1 13),
+              Token TKTypeVar (mkSpan "test" 1 7 1 13),
               Token TKSep (mkSpan "test" 1 13 1 14),
               Token TKString (mkSpan "test" 1 15 1 18),
               Token TKSep (mkSpan "test" 1 18 1 19),
-              Token TKTypeParameter (mkSpan "test" 1 20 1 26),
+              Token TKTypeVar (mkSpan "test" 1 20 1 26),
               Token TKSep (mkSpan "test" 1 26 1 27)
             ]
           )
@@ -488,29 +512,192 @@ spec = do
                 [ mkSpan "test" 1 1 1 7 :< TVar (mkSpan "test" 1 1 1 7 :< Identifier "String"),
                   mkSpan "test" 1 10 1 16 :< TVar (mkSpan "test" 1 10 1 16 :< Identifier "Number")
                 ],
-            [ Token TKTypeParameter (mkSpan "test" 1 1 1 7),
+            [ Token TKTypeVar (mkSpan "test" 1 1 1 7),
               Token TKOp (mkSpan "test" 1 8 1 9),
-              Token TKTypeParameter (mkSpan "test" 1 10 1 16)
+              Token TKTypeVar (mkSpan "test" 1 10 1 16)
             ]
           )
-
--- describe "import" $ do
---   it "import * from \"test.daic\"" $
---     parseTest pImport "test" "import * from \"test.daic\""
---       `shouldBe` Right
---         ( mkSpan "test" 1 1 1 26
---             :< WildImport
---               (mkSpan "test" 1 15 1 26 :< LocalFile "test.daic")
---         )
--- describe "define" $ do
---   it "func a = 1" $
---     parseTest pExprOrExprTypeStatement "test" "func a = 1"
---       `shouldBe` Right
---         ( mkSpan "test" 1 1 1 11
---             :< NamedStatement
---               (mkSpan "test" 1 6 1 7 :< Identifier "a")
---               ( mkSpan "test" 1 1 1 11
---                   :< SExpr
---                     (mkSpan "test" 1 10 1 11 :< ENumber 1)
---               )
---         )
+  describe "expression statement" $ do
+    it "variable" $ do
+      parse pSExpr "test" "a = 1"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 6
+              :< SExpr
+                (mkSpan "test" 1 1 1 2 :< Identifier "a")
+                (mkSpan "test" 1 5 1 6 :< ENumber 1),
+            [ Token TKVar (mkSpan "test" 1 1 1 2),
+              Token TKSep (mkSpan "test" 1 3 1 4),
+              Token TKNumber (mkSpan "test" 1 5 1 6)
+            ]
+          )
+    it "function" $ do
+      parse pSExpr "test" "f(a) = a"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 9
+              :< SExpr
+                (mkSpan "test" 1 1 1 2 :< Identifier "f")
+                ( mkSpan "test" 1 2 1 9
+                    :< ELambda
+                      [ mkSpan "test" 1 3 1 4
+                          :< PositionedParameter
+                            (mkSpan "test" 1 3 1 4 :< Identifier "a")
+                            False
+                            False
+                            Nothing
+                            Nothing
+                      ]
+                      (mkSpan "test" 1 8 1 9 :< EVar (mkSpan "test" 1 8 1 9 :< Identifier "a"))
+                ),
+            [ Token TKVar (mkSpan "test" 1 1 1 2),
+              Token TKSep (mkSpan "test" 1 2 1 3),
+              Token TKParameter (mkSpan "test" 1 3 1 4),
+              Token TKSep (mkSpan "test" 1 4 1 5),
+              Token TKSep (mkSpan "test" 1 6 1 7),
+              Token TKVar (mkSpan "test" 1 8 1 9)
+            ]
+          )
+  describe "type statement" $ do
+    it "type variable" $ do
+      parse pSType "test" "type Name = String"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 19
+              :< SType
+                (mkSpan "test" 1 6 1 10 :< Identifier "Name")
+                []
+                (mkSpan "test" 1 13 1 19 :< TVar (mkSpan "test" 1 13 1 19 :< Identifier "String")),
+            [ Token TKKeyword (mkSpan "test" 1 1 1 5),
+              Token TKTypeVar (mkSpan "test" 1 6 1 10),
+              Token TKSep (mkSpan "test" 1 11 1 12),
+              Token TKTypeVar (mkSpan "test" 1 13 1 19)
+            ]
+          )
+    it "type variable with type parameter" $ do
+      parse pSType "test" "type Names[T] = Array[T]"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 25
+              :< SType
+                (mkSpan "test" 1 6 1 11 :< Identifier "Names")
+                [mkSpan "test" 1 12 1 13 :< Identifier "T"]
+                ( mkSpan "test" 1 17 1 25
+                    :< TParameterized
+                      (mkSpan "test" 1 17 1 22 :< TVar (mkSpan "test" 1 17 1 22 :< Identifier "Array"))
+                      [mkSpan "test" 1 23 1 24 :< TVar (mkSpan "test" 1 23 1 24 :< Identifier "T")]
+                ),
+            [ Token TKKeyword (mkSpan "test" 1 1 1 5),
+              Token TKTypeVar (mkSpan "test" 1 6 1 11),
+              Token TKSep (mkSpan "test" 1 11 1 12),
+              Token TKTypeParameter (mkSpan "test" 1 12 1 13),
+              Token TKSep (mkSpan "test" 1 13 1 14),
+              Token TKSep (mkSpan "test" 1 15 1 16),
+              Token TKTypeVar (mkSpan "test" 1 17 1 22),
+              Token TKSep (mkSpan "test" 1 22 1 23),
+              Token TKTypeVar (mkSpan "test" 1 23 1 24),
+              Token TKSep (mkSpan "test" 1 24 1 25)
+            ]
+          )
+  describe "export" $ do
+    it "expression export" $ do
+      parse pExport "test" "export a"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 9
+              :< Export
+                [mkSpan "test" 1 8 1 9 :< Identifier "a"],
+            [ Token TKKeyword (mkSpan "test" 1 1 1 7),
+              Token TKVar (mkSpan "test" 1 8 1 9)
+            ]
+          )
+    it "type export" $ do
+      parse pExport "test" "export Name"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 12
+              :< Export
+                [mkSpan "test" 1 8 1 12 :< Identifier "Name"],
+            [ Token TKKeyword (mkSpan "test" 1 1 1 7),
+              Token TKTypeVar (mkSpan "test" 1 8 1 12)
+            ]
+          )
+    it "multiple export" $ do
+      parse pExport "test" "export a b"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 11
+              :< Export
+                [mkSpan "test" 1 8 1 9 :< Identifier "a", mkSpan "test" 1 10 1 11 :< Identifier "b"],
+            [ Token TKKeyword (mkSpan "test" 1 1 1 7),
+              Token TKVar (mkSpan "test" 1 8 1 9),
+              Token TKVar (mkSpan "test" 1 10 1 11)
+            ]
+          )
+  describe "import" $ do
+    it "wildcard import" $ do
+      parse pImport "test" "import * from \"test.daic\""
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 26
+              :< WildImport
+                (mkSpan "test" 1 15 1 26 :< LocalFile "test.daic"),
+            [ Token TKKeyword (mkSpan "test" 1 1 1 7),
+              Token TKOp (mkSpan "test" 1 8 1 9),
+              Token TKKeyword (mkSpan "test" 1 10 1 14),
+              Token TKString (mkSpan "test" 1 15 1 26)
+            ]
+          )
+    it "partial import" $ do
+      parse pImport "test" "import {a, b} from \"test.daic\""
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 31
+              :< PartialImport
+                [mkSpan "test" 1 9 1 10 :< Identifier "a", mkSpan "test" 1 12 1 13 :< Identifier "b"]
+                (mkSpan "test" 1 20 1 31 :< LocalFile "test.daic"),
+            [ Token TKKeyword (mkSpan "test" 1 1 1 7),
+              Token TKSep (mkSpan "test" 1 8 1 9),
+              Token TKVar (mkSpan "test" 1 9 1 10),
+              Token TKSep (mkSpan "test" 1 10 1 11),
+              Token TKVar (mkSpan "test" 1 12 1 13),
+              Token TKSep (mkSpan "test" 1 13 1 14),
+              Token TKKeyword (mkSpan "test" 1 15 1 19),
+              Token TKString (mkSpan "test" 1 20 1 31)
+            ]
+          )
+  describe "module" $ do
+    it "simple module" $ do
+      parse pModule "test" "import { g } from \"test.daic\"\nexport f\nf(a) = g(a)\n"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 4 1
+              :< Module
+                [ mkSpan "test" 1 1 1 30
+                    :< PartialImport
+                      [mkSpan "test" 1 10 1 11 :< Identifier "g"]
+                      (mkSpan "test" 1 19 1 30 :< LocalFile "test.daic")
+                ]
+                ( Just $
+                    mkSpan "test" 2 1 2 9
+                      :< Export
+                        [mkSpan "test" 2 8 2 9 :< Identifier "f"]
+                )
+                [ mkSpan "test" 3 1 3 12
+                    :< SExpr
+                      (mkSpan "test" 3 1 3 2 :< Identifier "f")
+                      ( mkSpan "test" 3 8 3 12
+                          :< ECall
+                            (mkSpan "test" 3 8 3 9 :< EVar (mkSpan "test" 3 5 3 6 :< Identifier "g"))
+                            [mkSpan "test" 3 10 3 11 :< PositionedArgument (mkSpan "test" 3 10 3 11 :< EVar (mkSpan "test" 3 10 3 11 :< Identifier "a"))]
+                      )
+                ],
+            [ Token TKKeyword (mkSpan "test" 1 1 1 7),
+              Token TKSep (mkSpan "test" 1 8 1 9),
+              Token TKVar (mkSpan "test" 1 10 1 11),
+              Token TKSep (mkSpan "test" 1 12 1 13),
+              Token TKKeyword (mkSpan "test" 1 14 1 18),
+              Token TKString (mkSpan "test" 1 19 1 30),
+              Token TKKeyword (mkSpan "test" 2 1 2 7),
+              Token TKVar (mkSpan "test" 2 8 2 9),
+              Token TKVar (mkSpan "test" 3 1 3 2),
+              Token TKSep (mkSpan "test" 3 2 3 3),
+              Token TKVar (mkSpan "test" 3 3 3 4),
+              Token TKSep (mkSpan "test" 3 4 3 5),
+              Token TKSep (mkSpan "test" 3 6 3 7),
+              Token TKVar (mkSpan "test" 3 8 3 9),
+              Token TKSep (mkSpan "test" 3 9 3 10),
+              Token TKVar (mkSpan "test" 3 10 3 11),
+              Token TKSep (mkSpan "test" 3 11 3 12)
+            ]
+          )
