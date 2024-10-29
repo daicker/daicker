@@ -11,7 +11,7 @@ import Control.Monad.State.Class (get, put)
 import Control.Monad.State.Lazy (StateT (runStateT))
 import Data.Functor.Identity (Identity)
 import Data.List.NonEmpty (NonEmpty (..), some1)
-import Data.Maybe (catMaybes, isJust)
+import Data.Maybe (catMaybes, fromMaybe, isJust)
 import Data.Scientific (Scientific, toRealFloat)
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -68,6 +68,111 @@ type Parser = StateT [Token] (Parsec Void Text)
 
 parse :: Parser a -> String -> Text -> Either (ParseErrorBundle Text Void) (a, [Token])
 parse parser = runParser (runStateT parser [])
+
+pModule :: Parser (Module Span)
+pModule = do
+  p1 <- getSourcePos
+  imports <- many pImport
+  export <- optional pExport
+  statements <- many pStatement
+  eof
+  p2 <- getSourcePos
+  pure $
+    Span (S.fromSourcePos p1) (S.fromSourcePos p2)
+      :< Module
+        imports
+        export
+        statements
+
+pImport :: Parser (Import Span)
+pImport = do
+  (s1, _) <- lexeme $ spanned $ token TKKeyword (keyword "import")
+  s2 :< i <- pImport'
+  pure $ (s1 `union` s2) :< i
+  where
+    pImport' :: Parser (Import Span)
+    pImport' =
+      choice
+        [ do
+            (s1, is) <-
+              spanned $
+                between
+                  (lexeme $ token TKSep $ char '{')
+                  (lexeme $ token TKSep $ char '}')
+                  ( ( tupleToCofree Identifier
+                        <$> ( lexeme (spanned $ tTypeIdentifier TKTypeVar)
+                                <|> lexeme (spanned $ tExprIdentifier TKVar)
+                            )
+                    )
+                      `sepBy` lexeme (token TKSep (char ','))
+                  )
+            lexeme $ token TKKeyword $ string' "from"
+            u@(s2 :< _) <- pUrl
+            pure $ s1 `union` s2 :< PartialImport is u,
+          do
+            (s1, _) <- lexeme $ spanned $ token TKOp (char '*')
+            lexeme $ token TKKeyword $ string' "from"
+            u@(s2 :< _) <- pUrl
+            pure $ s1 `union` s2 :< WildImport u
+        ]
+
+pUrl :: Parser (URL Span)
+pUrl = lexeme $ tupleToCofree LocalFile <$> spanned tString
+  where
+    tString = token TKString $ char '"' *> manyTill L.charLiteral (char '"')
+
+pExport :: Parser (Export Span)
+pExport = do
+  (s1, _) <- lexeme $ spanned $ token TKKeyword (keyword "export")
+  (s2, is) <-
+    spanned $
+      some
+        ( tupleToCofree Identifier
+            <$> ( lexeme (spanned $ tTypeIdentifier TKTypeVar)
+                    <|> lexeme (spanned $ tExprIdentifier TKVar)
+                )
+        )
+  pure $ (s1 `union` s2) :< Export is
+
+pStatement :: Parser (Statement Span)
+pStatement =
+  choice
+    [ pSType,
+      pSExpr
+    ]
+
+pSType :: Parser (Statement Span)
+pSType = do
+  (s', t) <- spanned $ do
+    lexeme $ token TKKeyword (keyword "type")
+    name <- tupleToCofree Identifier <$> lexeme (spanned $ tTypeIdentifier TKTypeVar)
+    params <-
+      optional
+        $ between
+          (lexeme $ token TKSep $ char '[')
+          (lexeme $ token TKSep $ char ']')
+        $ (tupleToCofree Identifier <$> lexeme (spanned $ tTypeIdentifier TKTypeParameter)) `sepBy` lexeme (token TKSep (char ','))
+    lexeme $ token TKSep $ char '='
+    SType name (fromMaybe [] params) <$> pType
+  pure $ s' :< t
+
+pSExpr :: Parser (Statement Span)
+pSExpr = do
+  (s', e) <- spanned $ do
+    name <- tupleToCofree Identifier <$> lexeme (spanned $ tExprIdentifier TKVar)
+    params <-
+      optional
+        $ spanned
+        $ between
+          (lexeme $ token TKSep $ char '(')
+          (lexeme $ token TKSep $ char ')')
+        $ pParameter `sepBy` lexeme (token TKSep (char ','))
+    lexeme $ token TKSep $ char '='
+    expr@(expr' :< _) <- pExpr
+    case params of
+      Just (params', params) -> pure $ SExpr name (params' `union` expr' :< ELambda params expr)
+      Nothing -> pure $ SExpr name expr
+  pure $ s' :< e
 
 pType :: Parser (Type Span)
 pType = makeExprParser pTTerm typeOpTable
@@ -299,9 +404,10 @@ pParameter =
         name@(s1 :< _) <- tupleToCofree Identifier <$> spanned (tExprIdentifier TKParameter)
         isOptional <- isJust <$> optional (token TKOp $ char '?')
         isRest <- isJust <$> optional (lexeme $ token TKOp $ string "...")
+        paramType <- optional $ lexeme (token TKOp $ char ':') *> pType
         sc
         defaultExpr <- optional $ lexeme (token TKOp $ char '=') *> pExpr
-        pure $ PositionedParameter name isRest isOptional Nothing defaultExpr
+        pure $ PositionedParameter name isRest isOptional paramType defaultExpr
       pure $ s :< p
     keywordParameter :: Parser (Parameter Span)
     keywordParameter = do
@@ -309,9 +415,10 @@ pParameter =
         optional $ token TKOp $ char '-'
         name@(s1 :< _) <- tupleToCofree Identifier <$> spanned (tExprIdentifier TKVar)
         isOptional <- isJust <$> optional (token TKOp $ char '?')
-        isRest <- isJust <$> optional (token TKOp $ string "...")
+        isRest <- isJust <$> optional (lexeme $ token TKOp $ string "...")
+        paramType <- optional $ lexeme (token TKOp $ char ':') *> pType
         defaultExpr <- optional $ token TKOp $ char '=' *> pExpr
-        pure $ KeywordParameter name isOptional isRest Nothing defaultExpr
+        pure $ KeywordParameter name isOptional isRest paramType defaultExpr
       pure $ s :< p
 
 pPrimary :: Parser (Expr Span)

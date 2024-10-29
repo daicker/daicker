@@ -24,7 +24,7 @@ import System.Exit (ExitCode)
 
 type Module ann = Cofree (Module' ann) ann
 
-data Module' ann a = Module [Import ann] (Maybe (Export ann)) [NamedStatement ann] deriving (Show, Eq)
+data Module' ann a = Module [Import ann] (Maybe (Export ann)) [Statement ann] deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Module' ann) where
   liftEq _ (Module i1 e1 s1) (Module i2 e2 s2) =
@@ -75,35 +75,25 @@ instance (Eq ann) => Eq1 (Export' ann) where
 instance (Show ann) => Show1 (Export' ann) where
   liftShowsPrec _ _ _ (Export i) = showString $ show "Export " <> show i
 
-type NamedStatement ann = Cofree (NamedStatement' ann) ann
-
-data NamedStatement' ann a = NamedStatement (Identifier ann) (Statement ann) deriving (Show, Eq)
-
-instance (Eq ann) => Eq1 (NamedStatement' ann) where
-  liftEq _ (NamedStatement i1 s1) (NamedStatement i2 s2) = i1 == i2 && s1 == s2
-
-instance (Show ann) => Show1 (NamedStatement' ann) where
-  liftShowsPrec _ _ _ (NamedStatement i s) = showString $ show "NamedStatement " <> show i <> show s
-
 type Statement ann = Cofree (Statement' ann) ann
 
 data Statement' ann a
-  = SExpr (Expr ann)
-  | SType (Type ann)
+  = SExpr (Identifier ann) (Expr ann)
+  | SType (Identifier ann) [Identifier ann] (Type ann)
   deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Statement' ann) where
-  liftEq _ (SExpr d1) (SExpr d2) = d1 == d2
-  liftEq _ (SType d1) (SType d2) = d1 == d2
+  liftEq _ (SExpr i1 d1) (SExpr i2 d2) = i1 == i2 && d1 == d2
+  liftEq _ (SType i1 a1 d1) (SType i2 a2 d2) = i1 == i2 && a1 == a2 && d1 == d2
   liftEq _ _ _ = False
 
 instance (Show ann) => Show1 (Statement' ann) where
-  liftShowsPrec _ _ _ (SExpr d) = showString $ show "SExpr " <> show d
-  liftShowsPrec _ _ _ (SType d) = showString $ show "SType " <> show d
+  liftShowsPrec _ _ _ (SExpr i d) = showString $ show "SExpr " <> show i <> show d
+  liftShowsPrec _ _ _ (SType i a d) = showString $ show "SType " <> show i <> show a <> show d
 
 (~=) :: Statement a -> Statement a -> Bool
-(_ :< SExpr _) ~= (_ :< SExpr _) = True
-(_ :< SType _) ~= (_ :< SType _) = True
+(_ :< SExpr {}) ~= (_ :< SExpr {}) = True
+(_ :< SType {}) ~= (_ :< SType {}) = True
 _ ~= _ = False
 
 type Type ann = Cofree (Type' ann) ann
