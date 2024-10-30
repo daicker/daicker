@@ -147,17 +147,17 @@ data Expr' ann a
   | EVar (Identifier ann)
   | EAccessor a a
   | ECall a [Argument ann]
-  | ELambda [Parameter ann] a
+  | ELambda [Parameter ann] a (Maybe (Type ann))
   | EError String ExitCode
-  | EFixtureFun [Parameter ann] ([a] -> IO a)
+  | EFixtureFun [Parameter ann] ([Argument ann] -> IO a)
   deriving (Show, Eq)
 
-instance Show ([a] -> IO a) where
-  show :: ([a] -> IO a) -> String
+instance Show ([Argument ann] -> IO a) where
+  show :: ([Argument ann] -> IO a) -> String
   show f = undefined
 
-instance Eq ([a] -> IO a) where
-  (==) :: ([a] -> IO a) -> ([a] -> IO a) -> Bool
+instance Eq ([Argument ann] -> IO a) where
+  (==) :: ([Argument ann] -> IO a) -> ([Argument ann] -> IO a) -> Bool
   _ == _ = undefined
 
 instance (Eq ann) => Eq1 (Expr' ann) where
@@ -171,7 +171,7 @@ instance (Eq ann) => Eq1 (Expr' ann) where
   liftEq _ (EVar a) (EVar b) = a == b
   liftEq f (EAccessor a1 i1) (EAccessor a2 i2) = f a1 a2 && f i1 i2
   liftEq f (ECall f1 a1) (ECall f2 a2) = f f1 f2 && length a1 == length a2 && all (uncurry (==)) (zip a1 a2)
-  liftEq f (ELambda p1 e1) (ELambda p2 e2) = p1 == p2 && f e1 e2
+  liftEq f (ELambda p1 e1 t1) (ELambda p2 e2 t2) = p1 == p2 && f e1 e2 && t1 == t2
   liftEq f (EError s1 c1) (EError s2 c2) = s1 == s2 && c1 == c2
   liftEq _ _ _ = False
 
@@ -191,7 +191,7 @@ instance (Show ann) => Show1 (Expr' ann) where
   liftShowsPrec _ _ _ (EVar i) = showString "EVar " <> showString (show i)
   liftShowsPrec f f' n (ECall a as) = showString "ECall " <> f n a <> showString (show as)
   liftShowsPrec f _ n (EAccessor a i) = showString "EAccessor " <> f n a <> f n i
-  liftShowsPrec f _ n (ELambda pma e) = showString "ELambda " <> showString (show pma) <> f n e
+  liftShowsPrec f _ n (ELambda pma e t) = showString "ELambda " <> showString (show pma) <> f n e <> showString (show t)
   liftShowsPrec _ _ _ (EError s c) = showString $ "EError " <> s <> show c
 
 type Parameter ann = Cofree (Parameter' ann) ann

@@ -171,10 +171,11 @@ pSExpr = do
           (lexeme $ token TKSep $ char '(')
           (lexeme $ token TKSep $ char ')')
         $ pParameter `sepBy` lexeme (token TKSep (char ','))
+    exprType <- optional $ lexeme (token TKSep $ char ':') *> pType
     lexeme $ token TKSep $ char '='
     expr@(expr' :< _) <- pExpr
     case params of
-      Just (params', params) -> pure $ SExpr name (params' `union` expr' :< ELambda params expr)
+      Just (params', params) -> pure $ SExpr name (params' `union` expr' :< ELambda params expr exprType)
       Nothing -> pure $ SExpr name expr
   pure $ s' :< e
 
@@ -472,9 +473,10 @@ pLambda = do
       (lexeme $ token TKSep $ char '(')
       (lexeme $ token TKSep $ char ')')
       $ pParameter `sepBy` lexeme (token TKSep (char ','))
+  exprType <- optional $ lexeme (token TKSep $ char ':') *> pType
   _ <- lexeme $ token TKSep $ string' "->"
   body@(s2 :< _) <- pExpr
-  pure $ s1 `union` s2 :< ELambda params body
+  pure $ s1 `union` s2 :< ELambda params body exprType
 
 pVar :: Parser (Expr Span)
 pVar =

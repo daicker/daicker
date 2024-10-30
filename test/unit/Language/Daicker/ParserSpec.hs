@@ -173,7 +173,8 @@ spec = do
                       Nothing
                       Nothing
                 ]
-                (mkSpan "test" 1 9 1 10 :< EVar (mkSpan "test" 1 9 1 10 :< Identifier "a")),
+                (mkSpan "test" 1 9 1 10 :< EVar (mkSpan "test" 1 9 1 10 :< Identifier "a"))
+                Nothing,
             [ Token TKSep (mkSpan "test" 1 1 1 2),
               Token TKSep (mkSpan "test" 1 2 1 3),
               Token TKParameter (mkSpan "test" 1 3 1 4),
@@ -195,7 +196,8 @@ spec = do
                       Nothing
                       (Just (mkSpan "test" 1 7 1 8 :< ENumber 1))
                 ]
-                (mkSpan "test" 1 13 1 14 :< EVar (mkSpan "test" 1 13 1 14 :< Identifier "a")),
+                (mkSpan "test" 1 13 1 14 :< EVar (mkSpan "test" 1 13 1 14 :< Identifier "a"))
+                Nothing,
             [ Token TKSep (mkSpan "test" 1 1 1 2),
               Token TKSep (mkSpan "test" 1 2 1 3),
               Token TKParameter (mkSpan "test" 1 3 1 4),
@@ -219,7 +221,8 @@ spec = do
                       Nothing
                       Nothing
                 ]
-                (mkSpan "test" 1 12 1 13 :< EVar (mkSpan "test" 1 12 1 13 :< Identifier "a")),
+                (mkSpan "test" 1 12 1 13 :< EVar (mkSpan "test" 1 12 1 13 :< Identifier "a"))
+                Nothing,
             [ Token TKSep (mkSpan "test" 1 1 1 2),
               Token TKSep (mkSpan "test" 1 2 1 3),
               Token TKParameter (mkSpan "test" 1 3 1 4),
@@ -242,7 +245,8 @@ spec = do
                       Nothing
                       Nothing
                 ]
-                (mkSpan "test" 1 10 1 11 :< EVar (mkSpan "test" 1 10 1 11 :< Identifier "a")),
+                (mkSpan "test" 1 10 1 11 :< EVar (mkSpan "test" 1 10 1 11 :< Identifier "a"))
+                Nothing,
             [ Token TKSep (mkSpan "test" 1 1 1 2),
               Token TKSep (mkSpan "test" 1 2 1 3),
               Token TKParameter (mkSpan "test" 1 3 1 4),
@@ -265,13 +269,39 @@ spec = do
                       (Just (mkSpan "test" 1 6 1 12 :< TVar (mkSpan "test" 1 6 1 12 :< Identifier "Number")))
                       Nothing
                 ]
-                (mkSpan "test" 1 17 1 18 :< EVar (mkSpan "test" 1 17 1 18 :< Identifier "a")),
+                (mkSpan "test" 1 17 1 18 :< EVar (mkSpan "test" 1 17 1 18 :< Identifier "a"))
+                Nothing,
             [ Token TKSep (mkSpan "test" 1 1 1 2),
               Token TKSep (mkSpan "test" 1 2 1 3),
               Token TKParameter (mkSpan "test" 1 3 1 4),
               Token TKSep (mkSpan "test" 1 4 1 5),
               Token TKTypeVar (mkSpan "test" 1 6 1 12),
               Token TKSep (mkSpan "test" 1 12 1 13),
+              Token TKSep (mkSpan "test" 1 14 1 16),
+              Token TKVar (mkSpan "test" 1 17 1 18)
+            ]
+          )
+    it "lambda with return type" $ do
+      parse pExpr "test" "\\(a): Number -> a"
+        `shouldBe` Right
+          ( mkSpan "test" 1 1 1 18
+              :< ELambda
+                [ mkSpan "test" 1 3 1 4
+                    :< PositionedParameter
+                      (mkSpan "test" 1 3 1 4 :< Identifier "a")
+                      False
+                      False
+                      Nothing
+                      Nothing
+                ]
+                (mkSpan "test" 1 17 1 18 :< EVar (mkSpan "test" 1 17 1 18 :< Identifier "a"))
+                (Just (mkSpan "test" 1 7 1 13 :< TVar (mkSpan "test" 1 7 1 13 :< Identifier "Number"))),
+            [ Token TKSep (mkSpan "test" 1 1 1 2),
+              Token TKSep (mkSpan "test" 1 2 1 3),
+              Token TKParameter (mkSpan "test" 1 3 1 4),
+              Token TKSep (mkSpan "test" 1 4 1 5),
+              Token TKSep (mkSpan "test" 1 5 1 6),
+              Token TKTypeVar (mkSpan "test" 1 7 1 13),
               Token TKSep (mkSpan "test" 1 14 1 16),
               Token TKVar (mkSpan "test" 1 17 1 18)
             ]
@@ -547,6 +577,7 @@ spec = do
                             Nothing
                       ]
                       (mkSpan "test" 1 8 1 9 :< EVar (mkSpan "test" 1 8 1 9 :< Identifier "a"))
+                      Nothing
                 ),
             [ Token TKVar (mkSpan "test" 1 1 1 2),
               Token TKSep (mkSpan "test" 1 2 1 3),
@@ -698,6 +729,7 @@ spec = do
                                   (mkSpan "test" 3 8 3 9 :< EVar (mkSpan "test" 3 8 3 9 :< Identifier "h"))
                                   [mkSpan "test" 3 10 3 11 :< PositionedArgument (mkSpan "test" 3 10 3 11 :< EVar (mkSpan "test" 3 10 3 11 :< Identifier "a"))]
                             )
+                            Nothing
                       ),
                   mkSpan "test" 4 1 4 12
                     :< SExpr
@@ -717,6 +749,7 @@ spec = do
                                   (mkSpan "test" 4 8 4 9 :< EVar (mkSpan "test" 4 8 4 9 :< Identifier "g"))
                                   [mkSpan "test" 4 10 4 11 :< PositionedArgument (mkSpan "test" 4 10 4 11 :< EVar (mkSpan "test" 4 10 4 11 :< Identifier "a"))]
                             )
+                            Nothing
                       )
                 ],
             [ Token TKKeyword (mkSpan "test" 1 1 1 7),
