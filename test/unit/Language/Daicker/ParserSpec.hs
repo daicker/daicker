@@ -597,34 +597,41 @@ spec = do
           )
   describe "export" $ do
     it "expression export" $ do
-      parse pExport "test" "export a"
+      parse pExport "test" "export { a }"
         `shouldBe` Right
-          ( mkSpan "test" 1 1 1 9
+          ( mkSpan "test" 1 1 1 13
               :< Export
-                [mkSpan "test" 1 8 1 9 :< Identifier "a"],
+                [mkSpan "test" 1 10 1 11 :< Identifier "a"],
             [ Token TKKeyword (mkSpan "test" 1 1 1 7),
-              Token TKVar (mkSpan "test" 1 8 1 9)
+              Token TKSep (mkSpan "test" 1 8 1 9),
+              Token TKVar (mkSpan "test" 1 10 1 11),
+              Token TKSep (mkSpan "test" 1 12 1 13)
             ]
           )
     it "type export" $ do
-      parse pExport "test" "export Name"
+      parse pExport "test" "export { Name }"
         `shouldBe` Right
-          ( mkSpan "test" 1 1 1 12
+          ( mkSpan "test" 1 1 1 16
               :< Export
-                [mkSpan "test" 1 8 1 12 :< Identifier "Name"],
+                [mkSpan "test" 1 10 1 14 :< Identifier "Name"],
             [ Token TKKeyword (mkSpan "test" 1 1 1 7),
-              Token TKTypeVar (mkSpan "test" 1 8 1 12)
+              Token TKSep (mkSpan "test" 1 8 1 9),
+              Token TKTypeVar (mkSpan "test" 1 10 1 14),
+              Token TKSep (mkSpan "test" 1 15 1 16)
             ]
           )
     it "multiple export" $ do
-      parse pExport "test" "export a b"
+      parse pExport "test" "export { a, b }"
         `shouldBe` Right
-          ( mkSpan "test" 1 1 1 11
+          ( mkSpan "test" 1 1 1 16
               :< Export
-                [mkSpan "test" 1 8 1 9 :< Identifier "a", mkSpan "test" 1 10 1 11 :< Identifier "b"],
+                [mkSpan "test" 1 10 1 11 :< Identifier "a", mkSpan "test" 1 13 1 14 :< Identifier "b"],
             [ Token TKKeyword (mkSpan "test" 1 1 1 7),
-              Token TKVar (mkSpan "test" 1 8 1 9),
-              Token TKVar (mkSpan "test" 1 10 1 11)
+              Token TKSep (mkSpan "test" 1 8 1 9),
+              Token TKVar (mkSpan "test" 1 10 1 11),
+              Token TKSep (mkSpan "test" 1 11 1 12),
+              Token TKVar (mkSpan "test" 1 13 1 14),
+              Token TKSep (mkSpan "test" 1 15 1 16)
             ]
           )
   describe "import" $ do
@@ -659,9 +666,9 @@ spec = do
           )
   describe "module" $ do
     it "simple module" $ do
-      parse pModule "test" "import { g } from \"test.daic\"\nexport f\nf(a) = g(a)\n"
+      parse pModule "test" "import { g } from \"test.daic\"\nexport { f }\nf(a) = h(a)\nh(a) = g(a)\n"
         `shouldBe` Right
-          ( mkSpan "test" 1 1 4 1
+          ( mkSpan "test" 1 1 5 1
               :< Module
                 [ mkSpan "test" 1 1 1 30
                     :< PartialImport
@@ -669,17 +676,47 @@ spec = do
                       (mkSpan "test" 1 19 1 30 :< LocalFile "test.daic")
                 ]
                 ( Just $
-                    mkSpan "test" 2 1 2 9
+                    mkSpan "test" 2 1 2 13
                       :< Export
-                        [mkSpan "test" 2 8 2 9 :< Identifier "f"]
+                        [mkSpan "test" 2 10 2 11 :< Identifier "f"]
                 )
                 [ mkSpan "test" 3 1 3 12
                     :< SExpr
                       (mkSpan "test" 3 1 3 2 :< Identifier "f")
-                      ( mkSpan "test" 3 8 3 12
-                          :< ECall
-                            (mkSpan "test" 3 8 3 9 :< EVar (mkSpan "test" 3 5 3 6 :< Identifier "g"))
-                            [mkSpan "test" 3 10 3 11 :< PositionedArgument (mkSpan "test" 3 10 3 11 :< EVar (mkSpan "test" 3 10 3 11 :< Identifier "a"))]
+                      ( mkSpan "test" 3 2 3 12
+                          :< ELambda
+                            [ mkSpan "test" 3 3 3 4
+                                :< PositionedParameter
+                                  (mkSpan "test" 3 3 3 4 :< Identifier "a")
+                                  False
+                                  False
+                                  Nothing
+                                  Nothing
+                            ]
+                            ( mkSpan "test" 3 8 3 12
+                                :< ECall
+                                  (mkSpan "test" 3 8 3 9 :< EVar (mkSpan "test" 3 8 3 9 :< Identifier "h"))
+                                  [mkSpan "test" 3 10 3 11 :< PositionedArgument (mkSpan "test" 3 10 3 11 :< EVar (mkSpan "test" 3 10 3 11 :< Identifier "a"))]
+                            )
+                      ),
+                  mkSpan "test" 4 1 4 12
+                    :< SExpr
+                      (mkSpan "test" 4 1 4 2 :< Identifier "h")
+                      ( mkSpan "test" 4 2 4 12
+                          :< ELambda
+                            [ mkSpan "test" 4 3 4 4
+                                :< PositionedParameter
+                                  (mkSpan "test" 4 3 4 4 :< Identifier "a")
+                                  False
+                                  False
+                                  Nothing
+                                  Nothing
+                            ]
+                            ( mkSpan "test" 4 8 4 12
+                                :< ECall
+                                  (mkSpan "test" 4 8 4 9 :< EVar (mkSpan "test" 4 8 4 9 :< Identifier "g"))
+                                  [mkSpan "test" 4 10 4 11 :< PositionedArgument (mkSpan "test" 4 10 4 11 :< EVar (mkSpan "test" 4 10 4 11 :< Identifier "a"))]
+                            )
                       )
                 ],
             [ Token TKKeyword (mkSpan "test" 1 1 1 7),
@@ -689,15 +726,26 @@ spec = do
               Token TKKeyword (mkSpan "test" 1 14 1 18),
               Token TKString (mkSpan "test" 1 19 1 30),
               Token TKKeyword (mkSpan "test" 2 1 2 7),
-              Token TKVar (mkSpan "test" 2 8 2 9),
+              Token TKSep (mkSpan "test" 2 8 2 9),
+              Token TKVar (mkSpan "test" 2 10 2 11),
+              Token TKSep (mkSpan "test" 2 12 2 13),
               Token TKVar (mkSpan "test" 3 1 3 2),
               Token TKSep (mkSpan "test" 3 2 3 3),
-              Token TKVar (mkSpan "test" 3 3 3 4),
+              Token TKParameter (mkSpan "test" 3 3 3 4),
               Token TKSep (mkSpan "test" 3 4 3 5),
               Token TKSep (mkSpan "test" 3 6 3 7),
               Token TKVar (mkSpan "test" 3 8 3 9),
               Token TKSep (mkSpan "test" 3 9 3 10),
               Token TKVar (mkSpan "test" 3 10 3 11),
-              Token TKSep (mkSpan "test" 3 11 3 12)
+              Token TKSep (mkSpan "test" 3 11 3 12),
+              Token TKVar (mkSpan "test" 4 1 4 2),
+              Token TKSep (mkSpan "test" 4 2 4 3),
+              Token TKParameter (mkSpan "test" 4 3 4 4),
+              Token TKSep (mkSpan "test" 4 4 4 5),
+              Token TKSep (mkSpan "test" 4 6 4 7),
+              Token TKVar (mkSpan "test" 4 8 4 9),
+              Token TKSep (mkSpan "test" 4 9 4 10),
+              Token TKVar (mkSpan "test" 4 10 4 11),
+              Token TKSep (mkSpan "test" 4 11 4 12)
             ]
           )

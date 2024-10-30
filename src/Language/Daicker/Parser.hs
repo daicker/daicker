@@ -126,11 +126,15 @@ pExport = do
   (s1, _) <- lexeme $ spanned $ token TKKeyword (keyword "export")
   (s2, is) <-
     spanned $
-      some
-        ( tupleToCofree Identifier
-            <$> ( lexeme (spanned $ tTypeIdentifier TKTypeVar)
-                    <|> lexeme (spanned $ tExprIdentifier TKVar)
-                )
+      between
+        (lexeme $ token TKSep $ char '{')
+        (lexeme $ token TKSep $ char '}')
+        ( ( tupleToCofree Identifier
+              <$> ( lexeme (spanned $ tTypeIdentifier TKTypeVar)
+                      <|> lexeme (spanned $ tExprIdentifier TKVar)
+                  )
+          )
+            `sepBy` lexeme (token TKSep (char ','))
         )
   pure $ (s1 `union` s2) :< Export is
 
