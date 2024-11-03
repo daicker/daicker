@@ -8,31 +8,29 @@ import Control.Concurrent.MVar (newEmptyMVar)
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString.Lazy.Char8 as B
 import Data.List (intercalate)
+import Data.Maybe (fromJust)
 import qualified Data.Text as T
 import Data.Text.IO (hGetLine, hPutStrLn)
 import GHC.Conc (forkIO, par)
 import GHC.IO.Exception (ExitCode (ExitFailure))
 import GHC.IO.Handle (Handle)
 import Language.Daicker.AST
-  ( Expr,
-    Expr' (..),
-    Identifier' (Identifier),
-    Module,
-    Module' (Module),
-    NamedStatement' (NamedStatement),
-    PatternMatchAssign' (PMAAnyValue),
-    Statement' (SExpr),
-  )
 import Language.Daicker.Span (Span (FixtureSpan), union)
 import qualified Language.Daicker.Span as S
 import Network.HTTP.Client
+  ( Response (responseBody),
+    httpLbs,
+    newManager,
+    parseRequest,
+  )
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import System.Directory (getCurrentDirectory)
 import System.Directory.Internal.Prelude (hClose)
 import System.Exit (ExitCode (ExitSuccess))
 import System.IO (hIsClosed, hIsEOF)
 import qualified System.IO as IO
-import System.Process (CreateProcess (..), createProcess, proc, waitForProcess)
+import System.Process (CreateProcess (..), createProcess, proc, shell, waitForProcess)
+import System.Process.Common (showCreateProcessForUser)
 import System.Process.Internals (StdStream (CreatePipe))
 
 prelude :: Module Span
@@ -42,186 +40,286 @@ prelude =
       []
       Nothing
       [ preludeSpan
-          :< NamedStatement
+          :< SExpr
             (preludeSpan :< Identifier "$_")
             ( preludeSpan
-                :< SExpr
-                  ( preludeSpan
-                      :< EFixtureFun
-                        [preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "args")]
-                        ( \image strings -> do
-                            let cmds = map (\(_ :< EString s) -> s) strings
-                            let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
-                            (CommandResult i out err) <- liftIO $ case image of
-                              Nothing -> runSubprocess "local" cmds
-                              Just (_ :< Identifier image) -> runContainer image cmds
-                            pure $
-                              sp
-                                :< EObject
-                                  [ (sp :< Identifier "exitCode", sp :< ENumber (fromIntegral $ exitCodeToInt i)),
-                                    (sp :< Identifier "stdout", sp :< EString out),
-                                    (sp :< Identifier "stderr", sp :< EString err)
-                                  ]
-                        )
-                        True
+                :< EFixtureFun
+                  [ preludeSpan
+                      :< PositionedParameter
+                        (preludeSpan :< Identifier "script")
+                        False
+                        False
+                        (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "String"))
+                        Nothing,
+                    preludeSpan
+                      :< KeywordParameter
+                        (preludeSpan :< Identifier "image")
+                        False
+                        False
+                        (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "String"))
+                        (Just $ preludeSpan :< EImage (preludeSpan :< Identifier "local"))
+                  ]
+                  ( \sp args -> do
+                      let (_ :< EString script) = fromJust $ lookup "script" args
+                      let (_ :< EImage (_ :< Identifier image)) = fromJust $ lookup "image" args
+                      (CommandResult i out err) <- liftIO $ case image of
+                        "local" -> runSubprocess "local" script
+                        image -> runContainer image script
+                      pure $
+                        sp
+                          :< EObject
+                            [ (sp :< EString "exitCode", sp :< ENumber (fromIntegral $ exitCodeToInt i)),
+                              (sp :< EString "stdout", sp :< EString out),
+                              (sp :< EString "stderr", sp :< EString err)
+                            ]
+                  )
+                  ( Just $
+                      preludeSpan
+                        :< TObject
+                          [ (preludeSpan :< TStringLiteral "exitCode", preludeSpan :< TVar (preludeSpan :< Identifier "Number")),
+                            (preludeSpan :< TStringLiteral "stdout", preludeSpan :< TVar (preludeSpan :< Identifier "String")),
+                            (preludeSpan :< TStringLiteral "stderr", preludeSpan :< TVar (preludeSpan :< Identifier "String"))
+                          ]
                   )
             ),
         preludeSpan
-          :< NamedStatement
+          :< SExpr
             (preludeSpan :< Identifier "$")
             ( preludeSpan
-                :< SExpr
-                  ( preludeSpan
-                      :< EFixtureFun
-                        [preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "args")]
-                        ( \image strings -> do
-                            let cmds = map (\(_ :< EString s) -> s) strings
-                            let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
-                            (CommandResult i out _) <- liftIO $ case image of
-                              Nothing -> runSubprocess "local" cmds
-                              Just (_ :< Identifier image) -> runContainer image cmds
-                            case i of
-                              ExitSuccess -> pure $ sp :< EString out
-                              ExitFailure _ -> pure $ sp :< EError ("Error command exec: " <> "$ " <> unwords cmds) i
-                        )
-                        True
+                :< EFixtureFun
+                  [ preludeSpan
+                      :< PositionedParameter
+                        (preludeSpan :< Identifier "script")
+                        False
+                        False
+                        (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "String"))
+                        Nothing,
+                    preludeSpan
+                      :< KeywordParameter
+                        (preludeSpan :< Identifier "image")
+                        False
+                        False
+                        (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "String"))
+                        (Just $ preludeSpan :< EImage (preludeSpan :< Identifier "local"))
+                  ]
+                  ( \sp args -> do
+                      let (_ :< EString script) = fromJust $ lookup "script" args
+                      let (_ :< EImage (_ :< Identifier image)) = fromJust $ lookup "image" args
+                      (CommandResult i out err) <- liftIO $ case image of
+                        "local" -> runSubprocess "local" script
+                        image -> runContainer image script
+                      case i of
+                        ExitSuccess -> pure $ sp :< EString out
+                        ExitFailure _ -> pure $ sp :< EError ("Error command exec: " <> "$ " <> script) i
                   )
+                  (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "String"))
             ),
         preludeSpan
-          :< NamedStatement
+          :< SExpr
             (preludeSpan :< Identifier "$1")
             ( preludeSpan
-                :< SExpr
-                  ( preludeSpan
-                      :< EFixtureFun
-                        [preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "args")]
-                        ( \image strings -> do
-                            let cmds = map (\(_ :< EString s) -> s) strings
-                            let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
-                            (CommandResult i out _) <- liftIO $ case image of
-                              Nothing -> runSubprocess "local" cmds
-                              Just (_ :< Identifier image) -> runContainer image cmds
-                            case i of
-                              ExitSuccess -> pure $ sp :< EString out
-                              ExitFailure _ -> pure $ sp :< EError ("Error command exec: " <> "$1 " <> unwords cmds) i
-                        )
-                        True
+                :< EFixtureFun
+                  [ preludeSpan
+                      :< PositionedParameter
+                        (preludeSpan :< Identifier "script")
+                        False
+                        False
+                        (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "String"))
+                        Nothing,
+                    preludeSpan
+                      :< KeywordParameter
+                        (preludeSpan :< Identifier "image")
+                        False
+                        False
+                        (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "String"))
+                        (Just $ preludeSpan :< EImage (preludeSpan :< Identifier "local"))
+                  ]
+                  ( \sp args -> do
+                      let (_ :< EString script) = fromJust $ lookup "script" args
+                      let (_ :< EImage (_ :< Identifier image)) = fromJust $ lookup "image" args
+                      (CommandResult i out err) <- liftIO $ case image of
+                        "local" -> runSubprocess "local" script
+                        image -> runContainer image script
+                      case i of
+                        ExitSuccess -> pure $ sp :< EString out
+                        ExitFailure _ -> pure $ sp :< EError ("Error command exec: " <> "$1 " <> script) i
                   )
+                  (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "String"))
             ),
         preludeSpan
-          :< NamedStatement
+          :< SExpr
             (preludeSpan :< Identifier "$2")
             ( preludeSpan
-                :< SExpr
-                  ( preludeSpan
-                      :< EFixtureFun
-                        [preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "args")]
-                        ( \image strings -> do
-                            let cmds = map (\(_ :< EString s) -> s) strings
-                            let sp = foldl (\a b -> a `union` S.span b) (S.span $ head strings) strings
-                            (CommandResult i _ err) <- liftIO $ case image of
-                              Nothing -> runSubprocess "local" cmds
-                              Just (_ :< Identifier image) -> runContainer image cmds
-                            case i of
-                              ExitSuccess -> pure $ sp :< EString err
-                              ExitFailure _ -> pure $ sp :< EError ("Error command exec: " <> "$1 " <> unwords cmds) i
-                        )
-                        True
-                  )
-            ),
-        preludeSpan
-          :< NamedStatement
-            (preludeSpan :< Identifier ";")
-            ( preludeSpan
-                :< SExpr
-                  ( preludeSpan
-                      :< EFixtureFun
-                        [ preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "a"),
-                          preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "b")
-                        ]
-                        ( \_ [e1, e2] -> do
-                            _ <- pure e1 -- execute forcibly
-                            pure e2
-                        )
+                :< EFixtureFun
+                  [ preludeSpan
+                      :< PositionedParameter
+                        (preludeSpan :< Identifier "script")
                         False
+                        False
+                        (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "String"))
+                        Nothing,
+                    preludeSpan
+                      :< KeywordParameter
+                        (preludeSpan :< Identifier "image")
+                        False
+                        False
+                        (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "String"))
+                        (Just $ preludeSpan :< EImage (preludeSpan :< Identifier "local"))
+                  ]
+                  ( \sp args -> do
+                      let (_ :< EString script) = fromJust $ lookup "script" args
+                      let (_ :< EImage (_ :< Identifier image)) = fromJust $ lookup "image" args
+                      (CommandResult i out err) <- liftIO $ case image of
+                        "local" -> runSubprocess "local" script
+                        image -> runContainer image script
+                      case i of
+                        ExitSuccess -> pure $ sp :< EString err
+                        ExitFailure _ -> pure $ sp :< EError ("Error command exec: " <> "$1 " <> script) i
                   )
+                  (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "String"))
             ),
         preludeSpan
-          :< NamedStatement
+          :< SExpr
+            (preludeSpan :< Identifier ">>")
+            ( preludeSpan
+                :< EFixtureFun
+                  [ preludeSpan :< PositionedParameter (preludeSpan :< Identifier "a") False False Nothing Nothing,
+                    preludeSpan :< PositionedParameter (preludeSpan :< Identifier "b") False False Nothing Nothing
+                  ]
+                  ( \sp args -> do
+                      let (_ :< e1) = fromJust $ lookup "a" args
+                      let (_ :< e2) = fromJust $ lookup "b" args
+                      _ <- pure e1 -- execute forcibly
+                      pure $ sp :< e2
+                  )
+                  Nothing
+            ),
+        preludeSpan
+          :< SExpr
             (preludeSpan :< Identifier "|>")
             ( preludeSpan
-                :< SExpr
-                  ( preludeSpan
-                      :< EFixtureFun
-                        [ preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "a"),
-                          preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "b")
-                        ]
-                        ( \_ [e1@(s1 :< _), e2@(s2 :< _)] ->
-                            pure $
-                              s1 `S.union` s2
-                                :< EApp
-                                  Nothing
-                                  e1
-                                  [(e2, False)]
-                        )
-                        False
+                :< EFixtureFun
+                  [ preludeSpan :< PositionedParameter (preludeSpan :< Identifier "a") False False Nothing Nothing,
+                    preludeSpan :< PositionedParameter (preludeSpan :< Identifier "b") False False Nothing Nothing
+                  ]
+                  ( \sp args -> do
+                      let e1 = fromJust $ lookup "a" args
+                      let e2 = fromJust $ lookup "b" args
+                      pure $
+                        sp
+                          :< ECall
+                            e1
+                            [sp :< PositionedArgument e2]
                   )
+                  Nothing
             ),
         preludeSpan
-          :< NamedStatement
+          :< SExpr
             (preludeSpan :< Identifier "+")
             ( preludeSpan
-                :< SExpr
-                  ( preludeSpan
-                      :< EFixtureFun
-                        [ preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "a"),
-                          preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "b")
-                        ]
-                        (\_ [s1 :< ENumber a, s2 :< ENumber b] -> pure $ (s1 `union` s2) :< ENumber (a + b))
+                :< EFixtureFun
+                  [ preludeSpan
+                      :< PositionedParameter
+                        (preludeSpan :< Identifier "a")
                         False
+                        False
+                        (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "Number"))
+                        Nothing,
+                    preludeSpan
+                      :< PositionedParameter
+                        (preludeSpan :< Identifier "b")
+                        False
+                        False
+                        (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "Number"))
+                        Nothing
+                  ]
+                  ( \sp args -> do
+                      let (_ :< ENumber a) = fromJust $ lookup "a" args
+                      let (_ :< ENumber b) = fromJust $ lookup "b" args
+                      pure $ sp :< ENumber (a + b)
                   )
+                  (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "Number"))
             ),
         preludeSpan
-          :< NamedStatement
+          :< SExpr
             (preludeSpan :< Identifier "-")
             ( preludeSpan
-                :< SExpr
-                  ( preludeSpan
-                      :< EFixtureFun
-                        [ preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "a"),
-                          preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "b")
-                        ]
-                        (\_ [s1 :< ENumber a, s2 :< ENumber b] -> pure $ (s1 `union` s2) :< ENumber (a - b))
+                :< EFixtureFun
+                  [ preludeSpan
+                      :< PositionedParameter
+                        (preludeSpan :< Identifier "a")
                         False
+                        False
+                        (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "Number"))
+                        Nothing,
+                    preludeSpan
+                      :< PositionedParameter
+                        (preludeSpan :< Identifier "b")
+                        False
+                        False
+                        (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "Number"))
+                        Nothing
+                  ]
+                  ( \sp args -> do
+                      let (_ :< ENumber a) = fromJust $ lookup "a" args
+                      let (_ :< ENumber b) = fromJust $ lookup "b" args
+                      pure $ sp :< ENumber (a - b)
                   )
+                  (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "Number"))
             ),
         preludeSpan
-          :< NamedStatement
+          :< SExpr
             (preludeSpan :< Identifier "*")
             ( preludeSpan
-                :< SExpr
-                  ( preludeSpan
-                      :< EFixtureFun
-                        [ preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "a"),
-                          preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "b")
-                        ]
-                        (\_ [s1 :< ENumber a, s2 :< ENumber b] -> pure $ (s1 `union` s2) :< ENumber (a * b))
+                :< EFixtureFun
+                  [ preludeSpan
+                      :< PositionedParameter
+                        (preludeSpan :< Identifier "a")
                         False
+                        False
+                        (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "Number"))
+                        Nothing,
+                    preludeSpan
+                      :< PositionedParameter
+                        (preludeSpan :< Identifier "b")
+                        False
+                        False
+                        (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "Number"))
+                        Nothing
+                  ]
+                  ( \sp args -> do
+                      let (_ :< ENumber a) = fromJust $ lookup "a" args
+                      let (_ :< ENumber b) = fromJust $ lookup "b" args
+                      pure $ sp :< ENumber (a * b)
                   )
+                  (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "Number"))
             ),
         preludeSpan
-          :< NamedStatement
+          :< SExpr
             (preludeSpan :< Identifier "/")
             ( preludeSpan
-                :< SExpr
-                  ( preludeSpan
-                      :< EFixtureFun
-                        [ preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "a"),
-                          preludeSpan :< PMAAnyValue (preludeSpan :< Identifier "b")
-                        ]
-                        (\_ [s1 :< ENumber a, s2 :< ENumber b] -> pure $ (s1 `union` s2) :< ENumber (a / b))
+                :< EFixtureFun
+                  [ preludeSpan
+                      :< PositionedParameter
+                        (preludeSpan :< Identifier "a")
                         False
+                        False
+                        (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "Number"))
+                        Nothing,
+                    preludeSpan
+                      :< PositionedParameter
+                        (preludeSpan :< Identifier "b")
+                        False
+                        False
+                        (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "Number"))
+                        Nothing
+                  ]
+                  ( \sp args -> do
+                      let (_ :< ENumber a) = fromJust $ lookup "a" args
+                      let (_ :< ENumber b) = fromJust $ lookup "b" args
+                      pure $ sp :< ENumber (a / b)
                   )
+                  (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "Number"))
             )
       ]
   where
@@ -242,23 +340,27 @@ http =
       []
       Nothing
       [ httpSpan
-          :< NamedStatement
+          :< SExpr
             (httpSpan :< Identifier "get")
             ( httpSpan
-                :< SExpr
-                  ( httpSpan
-                      :< EFixtureFun
-                        [ httpSpan :< PMAAnyValue (httpSpan :< Identifier "url")
-                        ]
-                        ( \_ [s :< EString url] -> do
-                            manager <- newManager tlsManagerSettings
-                            request <- parseRequest url
-                            response <- httpLbs request manager
-                            let body = responseBody response
-                            pure $ s :< EString (B.unpack body)
-                        )
+                :< EFixtureFun
+                  [ httpSpan
+                      :< PositionedParameter
+                        (httpSpan :< Identifier "url")
                         False
+                        False
+                        (Just $ httpSpan :< TVar (httpSpan :< Identifier "String"))
+                        Nothing
+                  ]
+                  ( \sp args -> do
+                      let (_ :< EString url) = fromJust $ lookup "url" args
+                      manager <- newManager tlsManagerSettings
+                      request <- parseRequest url
+                      response <- httpLbs request manager
+                      let body = responseBody response
+                      pure $ sp :< EString (B.unpack body)
                   )
+                  (Just $ httpSpan :< TVar (httpSpan :< Identifier "String"))
             )
       ]
   where
@@ -267,11 +369,11 @@ http =
 
 data CommandResult = CommandResult {exitCode :: ExitCode, stdout :: String, stderr :: String}
 
-runSubprocess :: String -> [String] -> IO CommandResult
-runSubprocess image (cmd : args) = do
-  hPutStrLn IO.stderr $ T.pack $ "> " <> unwords (cmd : args)
+runSubprocess :: String -> String -> IO CommandResult
+runSubprocess image cmd = do
+  hPutStrLn IO.stderr $ T.pack $ "> " <> showCreateProcessForUser (shell cmd)
   (_, Just stdout, Just stderr, ps) <-
-    createProcess (proc cmd args) {std_out = CreatePipe, std_err = CreatePipe, delegate_ctlc = True}
+    createProcess (shell cmd) {std_out = CreatePipe, std_err = CreatePipe, delegate_ctlc = True}
   stdout' <- newEmptyMVar
   forkIO $ do
     stdout'' <- hPutAndGetContents ("[" <> image <> "(stdout)]") stdout
@@ -314,10 +416,9 @@ hPutAndGetContents = hPutAndGetContents' ""
 -- to configure Docker to communicate over TCP to avoid this problem.
 -- The [http-client](https://hackage.haskell.org/package/http-client-0.7.17) package provides
 -- a low-level API for HTTP but does not appear to support Unix Sockets.
-runContainer :: String -> [String] -> IO CommandResult
+runContainer :: String -> String -> IO CommandResult
 runContainer image args = do
   -- TODO: Implement better default volume mounts and user-customisable methods.
   currentDir <- getCurrentDirectory
   let volume = currentDir <> ":/work"
-  runSubprocess image $
-    ["docker", "run", "--rm", "-v", volume, "-w", "/work", image] <> args
+  runSubprocess image $ "docker run --rm -v " <> volume <> " -w /work " <> image <> " " <> args

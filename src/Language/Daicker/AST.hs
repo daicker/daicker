@@ -149,15 +149,15 @@ data Expr' ann a
   | ECall a [Argument ann]
   | ELambda [Parameter ann] a (Maybe (Type ann))
   | EError String ExitCode
-  | EFixtureFun [Parameter ann] ([Argument ann] -> IO a)
+  | EFixtureFun [Parameter ann] (ann -> [(String, Expr ann)] -> IO a) (Maybe (Type ann))
   deriving (Show, Eq)
 
-instance Show ([Argument ann] -> IO a) where
-  show :: ([Argument ann] -> IO a) -> String
+instance Show (ann -> [(String, Expr ann)] -> IO a) where
+  show :: (ann -> [(String, Expr ann)] -> IO a) -> String
   show f = undefined
 
-instance Eq ([Argument ann] -> IO a) where
-  (==) :: ([Argument ann] -> IO a) -> ([Argument ann] -> IO a) -> Bool
+instance Eq (ann -> [(String, Expr ann)] -> IO a) where
+  (==) :: (ann -> [(String, Expr ann)] -> IO a) -> (ann -> [(String, Expr ann)] -> IO a) -> Bool
   _ == _ = undefined
 
 instance (Eq ann) => Eq1 (Expr' ann) where
