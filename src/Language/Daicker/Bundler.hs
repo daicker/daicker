@@ -19,8 +19,6 @@ import Language.Daicker.AST
     Import' (PartialImport, WildImport),
     Module,
     Module' (Module),
-    NamedStatement,
-    NamedStatement' (NamedStatement),
     Statement,
     Statement' (SExpr, SType),
     Type,
@@ -28,8 +26,7 @@ import Language.Daicker.AST
     URL' (LocalFile),
   )
 import Language.Daicker.Error (RuntimeError, StaticError (StaticError))
-import Language.Daicker.Lexer (lexTokens, mkTStreamWithoutComment)
-import Language.Daicker.Parser (parseModule)
+import Language.Daicker.Parser (pModule, parse)
 import Language.Daicker.Span (Span)
 import Language.Daicker.StdLib (prelude, stdlib)
 import System.Directory (doesFileExist)
@@ -46,18 +43,19 @@ type StatementBundle a = [(String, (Statement a, Module a))]
 
 type ModuleBundle a = [(String, Module a)]
 
-findExpr :: String -> [NamedStatement a] -> Maybe (NamedStatement a)
-findExpr n = find (\(_ :< NamedStatement (_ :< Identifier n') s) -> isExpr s && n' == n)
+findExpr :: String -> [Statement a] -> Maybe (Statement a)
+findExpr n ss = find (\s@(_ :< SExpr (_ :< Identifier n') _) -> n' == n) $ filter isExpr ss
 
-findType :: String -> [NamedStatement a] -> Maybe (NamedStatement a)
-findType n = find (\(_ :< NamedStatement (_ :< Identifier n') s) -> isType s && n' == n)
+findType :: String -> [Statement a] -> Maybe (Statement a)
+findType n ss = find (\s@(_ :< SType (_ :< Identifier n') _ _) -> n' == n) $ filter isType ss
 
 findExprWithBundle :: Bundle Span -> Identifier Span -> Either [StaticError] (Expr Span, Bundle Span)
-findExprWithBundle (Bundle ms cm ss) (s :< Identifier name) = case lookup name (filter (\(_, (s, _)) -> isExpr s) ss) of
-  Just (_ :< SExpr e, m) -> do
-    ss' <- loadStatements ms m
-    pure (e, Bundle ms m ss')
-  Nothing -> Left [StaticError ("not defined: " <> name) s]
+findExprWithBundle (Bundle ms cm ss) (s :< Identifier name) =
+  case lookup name (filter (\(_, (s, _)) -> isExpr s) ss) of
+    Just (_ :< SExpr _ e, m) -> do
+      ss' <- loadStatements ms m
+      pure (e, Bundle ms m ss')
+    Nothing -> Left [StaticError ("not defined: " <> name) s]
 
 loadStatements :: ModuleBundle Span -> Module Span -> Either [StaticError] (StatementBundle Span)
 loadStatements ms m@(s :< Module is e ss) = do
@@ -65,12 +63,6 @@ loadStatements ms m@(s :< Module is e ss) = do
   bs <- mapM (importedStatements ms) is
   ps <- exportedStatements prelude
   pure $ ps <> join bs <> ss'
-
-pickupType :: [Statement a] -> [Type a]
-pickupType ss = map (\(_ :< SType d) -> d) $ filter isType ss
-
-pickupExpr :: [Statement a] -> [Expr a]
-pickupExpr ss = map (\(_ :< SExpr d) -> d) $ filter isExpr ss
 
 isExpr :: Statement a -> Bool
 isExpr (_ :< SExpr {}) = True
@@ -107,8 +99,9 @@ exportedStatements m@(s :< Module _ export ss) = case export of
       Nothing -> Left [StaticError ("not defined: " <> name) s]
       Just e -> Right (name, e)
 
-toPairStatement :: Module a -> NamedStatement a -> (String, (Statement a, Module a))
-toPairStatement m (_ :< NamedStatement (_ :< Identifier name) t) = (name, (t, m))
+toPairStatement :: Module a -> Statement a -> (String, (Statement a, Module a))
+toPairStatement m s@(_ :< SExpr (_ :< Identifier name) _) = (name, (s, m))
+toPairStatement m s@(_ :< SType (_ :< Identifier name) _ _) = (name, (s, m))
 
 loadModules :: [Import Span] -> ExceptT [StaticError] IO (ModuleBundle Span)
 loadModules = foldr (\i -> (<*>) ((<>) <$> importModules i)) (pure [])
@@ -123,9 +116,7 @@ readModule (s :< LocalFile fileName) = do
     Just m -> pure [(fileName, m)]
     Nothing -> do
       src <- withExceptT (\e -> [StaticError e s]) $ safeReadFile fileName
-      tokens <- liftEither $ lexTokens fileName src
-      let stream = mkTStreamWithoutComment src tokens
-      m@(_ :< Module is _ _) <- liftEither $ parseModule fileName stream
+      (m@(_ :< Module is _ _), tokens) <- liftEither $ parse pModule fileName src
       (<>) [(fileName, m)] <$> loadModules is
 
 safeReadFile :: FilePath -> ExceptT String IO Text
