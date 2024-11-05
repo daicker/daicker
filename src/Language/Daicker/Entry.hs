@@ -15,13 +15,12 @@ import qualified Data.ByteString.Lazy.Char8 as B
 import Data.Sequence (mapWithIndex)
 import Data.Text (Text)
 import qualified Data.Text.IO as T
-import Language.Daicker.AST (Expr, Expr' (EArray, EError, EFun), Identifier, Module, Module' (..), NamedStatement, NamedStatement' (NamedStatement), Statement' (SExpr), switchAnn)
+import Language.Daicker.AST (Expr, Expr' (EArray, EError, ELambda), Identifier, Module, Module' (..), Statement' (SExpr), switchAnn)
 import Language.Daicker.Bundler (Bundle (Bundle), StatementBundle, findExpr, loadModules, loadStatements)
 import Language.Daicker.CmdArgParser (parseArg)
 import Language.Daicker.Error (CodeError (RuntimeE, StaticE), RuntimeError (RuntimeError), StaticError, codeErrorPretty)
-import Language.Daicker.Executor (execDefine)
-import Language.Daicker.Lexer (lexTokens, mkTStreamWithoutComment)
-import Language.Daicker.Parser (parseModule)
+import Language.Daicker.Executor (eval)
+import Language.Daicker.Parser (pModule, parse)
 import Language.Daicker.Span (Span, mkSpan, spanPretty)
 import Language.Daicker.TypeChecker (validateModule)
 import System.Directory (createDirectoryIfMissing)
@@ -41,9 +40,7 @@ validate fileName = do
 
 validate' :: String -> Text -> ExceptT [StaticError] IO ()
 validate' fileName src = do
-  tokens <- liftEither $ lexTokens fileName src
-  let stream = mkTStreamWithoutComment src tokens
-  m@(_ :< Module is _ _) <- liftEither $ parseModule fileName stream
+  (m@(_ :< Module is _ _), _) <- liftEither $ parse pModule fileName src
   mb <- loadModules is
   ss <- liftEither $ loadStatements mb m
   liftEither $ validateModule (Bundle mb m ss) m
@@ -52,28 +49,24 @@ validate' fileName src = do
 
 statements' :: String -> Text -> ExceptT [StaticError] IO (StatementBundle Span)
 statements' fileName src = do
-  tokens <- liftEither $ lexTokens fileName src
-  let stream = mkTStreamWithoutComment src tokens
-  m@(_ :< Module is _ _) <- liftEither $ parseModule fileName stream
+  (m@(_ :< Module is _ _), _) <- liftEither $ parse pModule fileName src
   mb <- loadModules is
   liftEither $ loadStatements mb m
 
 run :: String -> String -> [Text] -> ExceptT CodeError IO (Expr Span)
 run fileName funcName args = do
   src <- liftIO $ T.readFile fileName
-  tokens <- liftEither $ mapLeft StaticE $ lexTokens fileName src
-  let stream = mkTStreamWithoutComment src tokens
-  m@(_ :< Module is _ ss) <- liftEither $ mapLeft StaticE $ parseModule fileName stream
+  (m@(_ :< Module is _ ss), tokens) <- liftEither $ mapLeft StaticE $ parse pModule fileName src
   e <- case findExpr funcName ss of
     Nothing -> throwError $ RuntimeE $ RuntimeError ("not found: " <> funcName) (mkSpan "command-line-function" 1 1 1 1) (ExitFailure 1)
-    Just (_ :< NamedStatement _ (_ :< SExpr e)) -> return e
+    Just (_ :< SExpr _ e) -> return e
   mb <- withExceptT StaticE $ loadModules is
   ss <- withExceptT StaticE $ liftEither $ loadStatements mb m
   withExceptT StaticE $ liftEither $ validateModule (Bundle mb m ss) m
   hasStdin <- liftIO $ hReady stdin
   input <- liftIO $ if hasStdin then Just <$> B.getContents else pure Nothing
   es <- liftEither $ mapLeft StaticE $ mapM (\(i, arg) -> parseArg ("command-line-argument($" <> show i <> ")") input arg) $ zip [1 ..] args
-  withExceptT RuntimeE $ execDefine (Bundle mb m ss) e (map (,False) es)
+  withExceptT RuntimeE $ eval (Bundle mb m ss) e -- TODO: pass arguments
 
 mapLeft :: (a -> c) -> Either a b -> Either c b
 mapLeft f = either (Left . f) Right

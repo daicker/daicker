@@ -32,15 +32,13 @@ import Language.Daicker.AST
   ( Identifier' (Identifier),
     Module,
     Module' (Module),
-    NamedStatement,
-    NamedStatement' (NamedStatement),
     Statement,
     Statement' (SExpr, SType),
   )
 import Language.Daicker.Bundler (Bundle)
 import Language.Daicker.Entry (statements', validate')
-import Language.Daicker.Error (CodeError (), StaticError (StaticError))
-import Language.Daicker.Lexer
+import Language.Daicker.Error (CodeError (), StaticError (StaticError), staticErrorListPretty)
+import Language.Daicker.Parser (Token (Token), TokenKind (..), pModule, parse)
 import Language.Daicker.Span (Span (Span), WithSpan (WithSpan), toRange)
 import qualified Language.Daicker.Span as S
 import Language.LSP.Diagnostics
@@ -54,7 +52,7 @@ import qualified Language.LSP.Protocol.Types as LSP
 import Language.LSP.Server
 import Language.LSP.VFS (VirtualFile (VirtualFile), virtualFileText, virtualFileVersion)
 import System.IO.Unsafe (unsafePerformIO)
-import Text.Megaparsec (ParseErrorBundle (bundlePosState), PosState (PosState), SourcePos (SourcePos), bundlePosState, choice, errorBundlePretty, parse, unPos)
+import Text.Megaparsec (ParseErrorBundle (bundlePosState), PosState (PosState), SourcePos (SourcePos), bundlePosState, choice, errorBundlePretty, unPos)
 import Text.Megaparsec.Error (ParseErrorBundle (bundleErrors), errorOffset)
 import Text.Megaparsec.State (PosState (pstateSourcePos))
 import Text.Megaparsec.Stream (reachOffset)
@@ -230,13 +228,13 @@ reactor logger inp = do
 
 lexSemanticTokens :: String -> Text -> Either Text [SemanticTokenAbsolute]
 lexSemanticTokens fileName src =
-  case parse tTokens fileName src of
-    Left e -> Left $ T.pack $ errorBundlePretty e
-    Right ts -> Right $ makeSemanticTokenAbsolutes ts
+  case parse pModule fileName src of
+    Left e -> Left $ T.pack $ staticErrorListPretty e
+    Right (_, ts) -> Right $ makeSemanticTokenAbsolutes ts
   where
-    makeSemanticTokenAbsolutes :: [WithSpan TToken] -> [SemanticTokenAbsolute]
+    makeSemanticTokenAbsolutes :: [Token] -> [SemanticTokenAbsolute]
     makeSemanticTokenAbsolutes [] = []
-    makeSemanticTokenAbsolutes (WithSpan x (Span (S.Position _ l1 c1) (S.Position _ l2 c2)) : ts) =
+    makeSemanticTokenAbsolutes (Token x (Span (S.Position _ l1 c1) (S.Position _ l2 c2)) : ts) =
       case toSemanticTokenTypes x of
         Just t ->
           SemanticTokenAbsolute
@@ -247,27 +245,25 @@ lexSemanticTokens fileName src =
             []
             : makeSemanticTokenAbsolutes ts
         Nothing -> makeSemanticTokenAbsolutes ts
-    toSemanticTokenTypes :: TToken -> Maybe SemanticTokenTypes
+    toSemanticTokenTypes :: TokenKind -> Maybe SemanticTokenTypes
     toSemanticTokenTypes t = case t of
-      TNull -> Just SemanticTokenTypes_Macro
-      TBool _ -> Just SemanticTokenTypes_Macro
-      TNumber _ -> Just SemanticTokenTypes_Number
-      TString _ -> Just SemanticTokenTypes_String
-      TImport -> Just SemanticTokenTypes_Keyword
-      TExport -> Just SemanticTokenTypes_Keyword
-      TFrom -> Just SemanticTokenTypes_Keyword
-      TType -> Just SemanticTokenTypes_Keyword
-      TData -> Just SemanticTokenTypes_Keyword
-      TVar -> Just SemanticTokenTypes_Keyword
-      TState -> Just SemanticTokenTypes_Struct
-      TTypeIdentifier _ -> Just SemanticTokenTypes_Type
-      TIdentifier _ -> Just SemanticTokenTypes_Variable
-      TImage _ -> Just SemanticTokenTypes_Macro
-      TComment -> Just SemanticTokenTypes_Comment
+      TKTypeVar -> Just SemanticTokenTypes_Type
+      TKOp -> Just SemanticTokenTypes_Operator
+      TKVar -> Just SemanticTokenTypes_Variable
+      TKKeyword -> Just SemanticTokenTypes_Keyword
+      TKNull -> Just SemanticTokenTypes_Macro
+      TKBool -> Just SemanticTokenTypes_Macro
+      TKNumber -> Just SemanticTokenTypes_Number
+      TKString -> Just SemanticTokenTypes_String
+      TKComment -> Just SemanticTokenTypes_Comment
+      TKParameter -> Just SemanticTokenTypes_Parameter
+      TKTypeParameter -> Just SemanticTokenTypes_TypeParameter
+      TKProperty -> Just SemanticTokenTypes_Property
+      TKImage -> Just SemanticTokenTypes_Macro
       _ -> Nothing
 
 completions :: (String, (Statement a, Module a)) -> CompletionItem
-completions (name, (_ :< SExpr _, _)) =
+completions (name, (_ :< SExpr {}, _)) =
   CompletionItem
     { _label = T.pack name,
       _labelDetails = Nothing,
@@ -289,7 +285,7 @@ completions (name, (_ :< SExpr _, _)) =
       _command = Nothing,
       _data_ = Nothing
     }
-completions (name, (_ :< SType _, _)) =
+completions (name, (_ :< SType {}, _)) =
   CompletionItem
     { _label = T.pack name,
       _labelDetails = Nothing,

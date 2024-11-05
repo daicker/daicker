@@ -26,7 +26,7 @@ import Language.Daicker.Span (Span (..), WithSpan (..), union)
 import qualified Language.Daicker.Span as S
 import Language.LSP.Protocol.Lens (HasCh (ch), HasIdentifier (identifier))
 import Language.LSP.Protocol.Types
-import Text.Megaparsec hiding (Token, token)
+import Text.Megaparsec hiding (Token, parse, token)
 import Text.Megaparsec.Byte.Lexer (float)
 import Text.Megaparsec.Char
   ( alphaNumChar,
@@ -49,7 +49,6 @@ data Token = Token
 data TokenKind
   = TKTypeVar
   | TKOp
-  | TKFun
   | TKVar
   | TKKeyword
   | TKNull
@@ -66,11 +65,14 @@ data TokenKind
 
 type Parser = StateT [Token] (Parsec Void Text)
 
-parse :: Parser a -> String -> Text -> Either (ParseErrorBundle Text Void) (a, [Token])
-parse parser = runParser (runStateT parser [])
+parse :: Parser a -> FilePath -> Text -> Either [StaticError] (a, [Token])
+parse parser filePath src = case runParser (runStateT parser []) filePath src of
+  Left e -> Left [fromParseErrorBundle e]
+  Right (a, tokens) -> Right (a, tokens)
 
 pModule :: Parser (Module Span)
 pModule = do
+  sc
   p1 <- getSourcePos
   imports <- many pImport
   export <- optional pExport

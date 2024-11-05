@@ -197,8 +197,18 @@ instance (Show ann) => Show1 (Expr' ann) where
 type Parameter ann = Cofree (Parameter' ann) ann
 
 data Parameter' ann a
-  = PositionedParameter (Identifier ann) IsRest IsOptional (Maybe (Type ann)) (Maybe (Expr ann))
-  | KeywordParameter (Identifier ann) IsRest IsOptional (Maybe (Type ann)) (Maybe (Expr ann))
+  = PositionedParameter
+      (Identifier ann)
+      IsRest
+      IsOptional
+      (Maybe (Type ann))
+      (Maybe (Expr ann))
+  | KeywordParameter
+      (Identifier ann)
+      IsRest
+      IsOptional
+      (Maybe (Type ann))
+      (Maybe (Expr ann))
   deriving (Show, Eq)
 
 type IsRest = Bool -- Rest Parameter
