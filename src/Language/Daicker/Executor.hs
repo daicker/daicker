@@ -52,8 +52,7 @@ eval bundle v = case v of
     case f' of
       (s :< ELambda pms (s' :< e) t) -> do
         args <- zipArg pms args
-        let args' = map (\(name, e@(s :< _)) -> (name, (s :< SExpr undefined e, current bundle))) args -- TODO: Arguments handling
-        eval (Bundle (modules bundle) (current bundle) (statements bundle <> args')) (s' :< e)
+        eval (Bundle (modules bundle) (current bundle) (statements bundle) args) (s' :< e)
       (s :< EFixtureFun pms e ex) -> do
         args <- zipArg pms args
         liftIO $ e s args

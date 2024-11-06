@@ -35,7 +35,8 @@ import System.IO (readFile)
 data Bundle a = Bundle
   { modules :: ModuleBundle a,
     current :: Module a,
-    statements :: StatementBundle a
+    statements :: StatementBundle a,
+    arguments :: [(String, Expr a)]
   }
   deriving (Show, Eq)
 
@@ -50,12 +51,14 @@ findType :: String -> [Statement a] -> Maybe (Statement a)
 findType n ss = find (\s@(_ :< SType (_ :< Identifier n') _ _) -> n' == n) $ filter isType ss
 
 findExprWithBundle :: Bundle Span -> Identifier Span -> Either [StaticError] (Expr Span, Bundle Span)
-findExprWithBundle (Bundle ms cm ss) (s :< Identifier name) =
-  case lookup name (filter (\(_, (s, _)) -> isExpr s) ss) of
-    Just (_ :< SExpr _ e, m) -> do
-      ss' <- loadStatements ms m
-      pure (e, Bundle ms m ss')
-    Nothing -> Left [StaticError ("not defined: " <> name) s]
+findExprWithBundle (Bundle ms cm ss as) (s :< Identifier name) =
+  case lookup name as of
+    Just e -> Right (e, Bundle ms cm ss as)
+    Nothing -> case lookup name (filter (\(_, (s, _)) -> isExpr s) ss) of
+      Just (_ :< SExpr _ e, m) -> do
+        ss' <- loadStatements ms m
+        pure (e, Bundle ms m ss' as)
+      Nothing -> Left [StaticError ("not defined: " <> name) s]
 
 loadStatements :: ModuleBundle Span -> Module Span -> Either [StaticError] (StatementBundle Span)
 loadStatements ms m@(s :< Module is e ss) = do

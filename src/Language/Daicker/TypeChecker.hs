@@ -22,14 +22,14 @@ validateModule b m@(_ :< Module _ e ss) = case es of
         ]
 
 validateExport :: Bundle Span -> Identifier Span -> [StaticError]
-validateExport (Bundle mb cm ss) (s :< Identifier name) =
+validateExport (Bundle mb cm ss _) (s :< Identifier name) =
   case lookup name (filter (\(_, (_, m)) -> m == cm) ss) of
     Just _ -> []
     Nothing -> [StaticError ("not define: " <> name) s]
 
 validateStatement :: Bundle Span -> Statement Span -> [StaticError]
 validateStatement
-  (Bundle mb cm ss)
+  (Bundle mb cm ss _)
   s@(_ :< SExpr (sp :< Identifier name) _) =
     case lookup
       name

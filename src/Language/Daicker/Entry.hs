@@ -15,11 +15,11 @@ import qualified Data.ByteString.Lazy.Char8 as B
 import Data.Sequence (mapWithIndex)
 import Data.Text (Text)
 import qualified Data.Text.IO as T
-import Language.Daicker.AST (Expr, Expr' (EArray, EError, ELambda), Identifier, Module, Module' (..), Statement' (SExpr), switchAnn)
+import Language.Daicker.AST (Argument' (..), Expr, Expr' (..), Identifier, Module, Module' (..), Statement' (SExpr), switchAnn)
 import Language.Daicker.Bundler (Bundle (Bundle), StatementBundle, findExpr, loadModules, loadStatements)
 import Language.Daicker.CmdArgParser (parseArg)
 import Language.Daicker.Error (CodeError (RuntimeE, StaticE), RuntimeError (RuntimeError), StaticError, codeErrorPretty)
-import Language.Daicker.Executor (eval)
+import Language.Daicker.Executor (eval, zipArg)
 import Language.Daicker.Parser (pModule, parse)
 import Language.Daicker.Span (Span, mkSpan, spanPretty)
 import Language.Daicker.TypeChecker (validateModule)
@@ -43,7 +43,7 @@ validate' fileName src = do
   (m@(_ :< Module is _ _), _) <- liftEither $ parse pModule fileName src
   mb <- loadModules is
   ss <- liftEither $ loadStatements mb m
-  liftEither $ validateModule (Bundle mb m ss) m
+  liftEither $ validateModule (Bundle mb m ss []) m
   ms <- loadModules is
   void $ liftEither $ loadStatements ms m
 
@@ -62,11 +62,22 @@ run fileName funcName args = do
     Just (_ :< SExpr _ e) -> return e
   mb <- withExceptT StaticE $ loadModules is
   ss <- withExceptT StaticE $ liftEither $ loadStatements mb m
-  withExceptT StaticE $ liftEither $ validateModule (Bundle mb m ss) m
-  hasStdin <- liftIO $ hReady stdin
-  input <- liftIO $ if hasStdin then Just <$> B.getContents else pure Nothing
-  es <- liftEither $ mapLeft StaticE $ mapM (\(i, arg) -> parseArg ("command-line-argument($" <> show i <> ")") input arg) $ zip [1 ..] args
-  withExceptT RuntimeE $ eval (Bundle mb m ss) e -- TODO: pass arguments
+  let bundle = Bundle mb m ss []
+  withExceptT StaticE $ liftEither $ validateModule bundle m
+  case e of
+    (s :< ELambda pms (s' :< e) t) -> do
+      hasStdin <- liftIO $ hReady stdin
+      input <- liftIO $ if hasStdin then Just <$> B.getContents else pure Nothing
+      es <- liftEither $ mapLeft StaticE $ mapM (\(i, arg) -> parseArg ("command-line-argument($" <> show i <> ")") input arg) $ zip [1 ..] args
+      withExceptT RuntimeE $
+        eval
+          bundle
+          ( s
+              :< ECall
+                (s :< ELambda pms (s' :< e) t)
+                (map (\e@(s :< _) -> s :< PositionedArgument e) es)
+          )
+    _ -> withExceptT RuntimeE $ eval bundle e
 
 mapLeft :: (a -> c) -> Either a b -> Either c b
 mapLeft f = either (Left . f) Right
