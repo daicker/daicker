@@ -65,7 +65,7 @@ data TokenKind
 
 type Parser = StateT [Token] (Parsec Void Text)
 
-parse :: Parser a -> FilePath -> Text -> Either [StaticError] (a, [Token])
+parse :: Parser a -> FilePath -> Text -> Either [StaticError Span] (a, [Token])
 parse parser filePath src = case runParser (runStateT parser []) filePath src of
   Left e -> Left [fromParseErrorBundle e]
   Right (a, tokens) -> Right (a, tokens)

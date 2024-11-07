@@ -18,7 +18,6 @@ data Span
       { startPos :: Position,
         endPos :: Position
       }
-  | DataSpan String
   | FixtureSpan String
   deriving (Show, Ord, Eq)
 

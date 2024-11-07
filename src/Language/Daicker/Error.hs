@@ -16,16 +16,16 @@ import Text.Megaparsec.State (PosState (..))
 import Text.Megaparsec.Stream (TraversableStream (..))
 
 -- StaticError is a lexical, syntax, type or semantic error.
-data StaticError = StaticError String Span deriving (Show, Eq)
+data StaticError a = StaticError String a deriving (Show, Eq)
 
-data RuntimeError = RuntimeError String Span ExitCode deriving (Show, Eq)
+data RuntimeError a = RuntimeError String a ExitCode deriving (Show, Eq)
 
-data CodeError
-  = StaticE [StaticError]
-  | RuntimeE RuntimeError
+data CodeError a
+  = StaticE [StaticError a]
+  | RuntimeE (RuntimeError a)
   deriving (Show, Eq)
 
-fromParseErrorBundle :: (TraversableStream a, VisualStream a) => ParseErrorBundle a Void -> StaticError
+fromParseErrorBundle :: (TraversableStream a, VisualStream a) => ParseErrorBundle a Void -> StaticError Span
 fromParseErrorBundle e =
   StaticError
     (parseErrorTextPretty $ NEL.head $ bundleErrors e)
@@ -40,15 +40,15 @@ errorBundleSourcePos peb = do
   let (_, pst') = reachOffset (errorOffset e) pst
   pstateSourcePos pst'
 
-staticErrorPretty :: StaticError -> String
+staticErrorPretty :: StaticError Span -> String
 staticErrorPretty (StaticError m s) = spanPretty s <> ": " <> m
 
-staticErrorListPretty :: [StaticError] -> String
+staticErrorListPretty :: [StaticError Span] -> String
 staticErrorListPretty es = intercalate "\n" $ map staticErrorPretty es
 
-runtimeErrorPretty :: RuntimeError -> String
+runtimeErrorPretty :: RuntimeError Span -> String
 runtimeErrorPretty (RuntimeError m s _) = spanPretty s <> ": " <> m
 
-codeErrorPretty :: CodeError -> String
+codeErrorPretty :: CodeError Span -> String
 codeErrorPretty (StaticE es) = staticErrorListPretty es
 codeErrorPretty (RuntimeE e) = runtimeErrorPretty e

@@ -33,7 +33,8 @@ import System.Directory (doesFileExist)
 import System.IO (readFile)
 
 data Bundle a = Bundle
-  { modules :: ModuleBundle a,
+  { prelude :: Module a,
+    modules :: ModuleBundle a,
     current :: Module a,
     statements :: StatementBundle a,
     arguments :: [(String, Expr a)]
@@ -50,18 +51,18 @@ findExpr n ss = find (\s@(_ :< SExpr (_ :< Identifier n') _) -> n' == n) $ filte
 findType :: String -> [Statement a] -> Maybe (Statement a)
 findType n ss = find (\s@(_ :< SType (_ :< Identifier n') _ _) -> n' == n) $ filter isType ss
 
-findExprWithBundle :: Bundle Span -> Identifier Span -> Either [StaticError] (Expr Span, Bundle Span)
-findExprWithBundle (Bundle ms cm ss as) (s :< Identifier name) =
+findExprWithBundle :: Bundle a -> Identifier a -> Either [StaticError a] (Expr a, Bundle a)
+findExprWithBundle b@(Bundle prelude ms cm ss as) (s :< Identifier name) =
   case lookup name as of
-    Just e -> Right (e, Bundle ms cm ss as)
+    Just e -> Right (e, b)
     Nothing -> case lookup name (filter (\(_, (s, _)) -> isExpr s) ss) of
       Just (_ :< SExpr _ e, m) -> do
-        ss' <- loadStatements ms m
-        pure (e, Bundle ms m ss' as)
+        ss' <- loadStatements prelude ms m
+        pure (e, Bundle prelude ms m ss' as)
       Nothing -> Left [StaticError ("not defined: " <> name) s]
 
-loadStatements :: ModuleBundle Span -> Module Span -> Either [StaticError] (StatementBundle Span)
-loadStatements ms m@(s :< Module is e ss) = do
+loadStatements :: Module a -> ModuleBundle a -> Module a -> Either [StaticError a] (StatementBundle a)
+loadStatements prelude ms m@(s :< Module is e ss) = do
   let ss' = map (toPairStatement m) ss
   bs <- mapM (importedStatements ms) is
   ps <- exportedStatements prelude
@@ -75,7 +76,7 @@ isType :: Statement a -> Bool
 isType (_ :< SType {}) = True
 isType _ = False
 
-importedStatements :: ModuleBundle Span -> Import Span -> Either [StaticError] (StatementBundle Span)
+importedStatements :: ModuleBundle a -> Import a -> Either [StaticError a] (StatementBundle a)
 importedStatements ms (s :< impt) = do
   case impt of
     PartialImport imports (_ :< LocalFile url) -> do
@@ -92,7 +93,7 @@ importedStatements ms (s :< impt) = do
       Nothing -> Left [StaticError ("not defined: " <> name) s]
       Just e -> Right (name, e)
 
-exportedStatements :: Module Span -> Either [StaticError] (StatementBundle Span)
+exportedStatements :: Module a -> Either [StaticError a] (StatementBundle a)
 exportedStatements m@(s :< Module _ export ss) = case export of
   Just (_ :< Export names) -> mapM findExpr names
   Nothing -> pure $ map (toPairStatement m) ss
@@ -106,14 +107,14 @@ toPairStatement :: Module a -> Statement a -> (String, (Statement a, Module a))
 toPairStatement m s@(_ :< SExpr (_ :< Identifier name) _) = (name, (s, m))
 toPairStatement m s@(_ :< SType (_ :< Identifier name) _ _) = (name, (s, m))
 
-loadModules :: [Import Span] -> ExceptT [StaticError] IO (ModuleBundle Span)
+loadModules :: [Import Span] -> ExceptT [StaticError Span] IO (ModuleBundle Span)
 loadModules = foldr (\i -> (<*>) ((<>) <$> importModules i)) (pure [])
 
-importModules :: Import Span -> ExceptT [StaticError] IO (ModuleBundle Span)
+importModules :: Import Span -> ExceptT [StaticError Span] IO (ModuleBundle Span)
 importModules (s :< PartialImport _ url) = readModule url
 importModules (s :< WildImport url) = readModule url
 
-readModule :: URL Span -> ExceptT [StaticError] IO (ModuleBundle Span)
+readModule :: URL Span -> ExceptT [StaticError Span] IO (ModuleBundle Span)
 readModule (s :< LocalFile fileName) = do
   case lookup fileName stdlib of
     Just m -> pure [(fileName, m)]

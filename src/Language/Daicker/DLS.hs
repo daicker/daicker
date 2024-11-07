@@ -65,7 +65,7 @@ instance J.ToJSON Config where
 
 instance J.FromJSON Config
 
-sendDiagnostics :: LSP.NormalizedUri -> Maybe Int32 -> [StaticError] -> LspM Config ()
+sendDiagnostics :: LSP.NormalizedUri -> Maybe Int32 -> [StaticError Span] -> LspM Config ()
 sendDiagnostics fileUri version es = do
   let diags =
         map

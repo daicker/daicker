@@ -22,6 +22,7 @@ import Language.Daicker.Error (CodeError (RuntimeE, StaticE), RuntimeError (Runt
 import Language.Daicker.Executor (eval, zipArg)
 import Language.Daicker.Parser (pModule, parse)
 import Language.Daicker.Span (Span, mkSpan, spanPretty)
+import Language.Daicker.StdLib (prelude)
 import Language.Daicker.TypeChecker (validateModule)
 import System.Directory (createDirectoryIfMissing)
 import System.Exit (ExitCode (ExitFailure, ExitSuccess), exitFailure, exitSuccess, exitWith)
@@ -33,27 +34,27 @@ initialize = do
   createDirectoryIfMissing True ".daicker"
   createDirectoryIfMissing True (".daicker" </> "state")
 
-validate :: String -> ExceptT [StaticError] IO ()
+validate :: String -> ExceptT [StaticError Span] IO ()
 validate fileName = do
   src <- liftIO $ T.readFile fileName
   validate' fileName src
 
-validate' :: String -> Text -> ExceptT [StaticError] IO ()
+validate' :: String -> Text -> ExceptT [StaticError Span] IO ()
 validate' fileName src = do
   (m@(_ :< Module is _ _), _) <- liftEither $ parse pModule fileName src
   mb <- loadModules is
-  ss <- liftEither $ loadStatements mb m
-  liftEither $ validateModule (Bundle mb m ss []) m
+  ss <- liftEither $ loadStatements prelude mb m
+  liftEither $ validateModule (Bundle prelude mb m ss []) m
   ms <- loadModules is
-  void $ liftEither $ loadStatements ms m
+  void $ liftEither $ loadStatements prelude ms m
 
-statements' :: String -> Text -> ExceptT [StaticError] IO (StatementBundle Span)
+statements' :: String -> Text -> ExceptT [StaticError Span] IO (StatementBundle Span)
 statements' fileName src = do
   (m@(_ :< Module is _ _), _) <- liftEither $ parse pModule fileName src
   mb <- loadModules is
-  liftEither $ loadStatements mb m
+  liftEither $ loadStatements prelude mb m
 
-run :: String -> String -> [Text] -> ExceptT CodeError IO (Expr Span)
+run :: String -> String -> [Text] -> ExceptT (CodeError Span) IO (Expr Span)
 run fileName funcName args = do
   src <- liftIO $ T.readFile fileName
   (m@(_ :< Module is _ ss), tokens) <- liftEither $ mapLeft StaticE $ parse pModule fileName src
@@ -61,8 +62,8 @@ run fileName funcName args = do
     Nothing -> throwError $ RuntimeE $ RuntimeError ("not found: " <> funcName) (mkSpan "command-line-function" 1 1 1 1) (ExitFailure 1)
     Just (_ :< SExpr _ e) -> return e
   mb <- withExceptT StaticE $ loadModules is
-  ss <- withExceptT StaticE $ liftEither $ loadStatements mb m
-  let bundle = Bundle mb m ss []
+  ss <- withExceptT StaticE $ liftEither $ loadStatements prelude mb m
+  let bundle = Bundle prelude mb m ss []
   withExceptT StaticE $ liftEither $ validateModule bundle m
   case e of
     (s :< ELambda pms (s' :< e) t) -> do
@@ -82,12 +83,12 @@ run fileName funcName args = do
 mapLeft :: (a -> c) -> Either a b -> Either c b
 mapLeft f = either (Left . f) Right
 
-hExitWithCodeErrors :: Handle -> CodeError -> IO ()
+hExitWithCodeErrors :: Handle -> CodeError Span -> IO ()
 hExitWithCodeErrors h e = do
   hPutStrLn h $ codeErrorPretty e
   exitFailure
 
-hExitWithRuntimeError :: Handle -> CodeError -> IO ()
+hExitWithRuntimeError :: Handle -> CodeError Span -> IO ()
 hExitWithRuntimeError h e@(RuntimeE (RuntimeError m s n)) = do
   hPutStrLn h $ codeErrorPretty e
   exitWith n

@@ -16,7 +16,7 @@ import qualified Text.Megaparsec.Char.Lexer as L
 
 type CmdArgParser = Parsec Void Text
 
-parseArg :: String -> Maybe ByteString -> Text -> Either [StaticError] (Expr Span)
+parseArg :: String -> Maybe ByteString -> Text -> Either [StaticError Span] (Expr Span)
 parseArg fileName stdinContent src =
   case parse (pArg stdinContent) fileName src of
     Right e -> pure e

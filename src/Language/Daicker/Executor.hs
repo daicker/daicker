@@ -22,7 +22,7 @@ import Debug.Trace (traceShow)
 import GHC.Base (join)
 import GHC.IO.Handle (Handle, hClose, hFlush, hGetChar, hGetContents, hIsClosed, hIsEOF)
 import Language.Daicker.AST
-import Language.Daicker.Bundler (Bundle (Bundle, current, modules, statements), ModuleBundle, findExpr, findExprWithBundle)
+import Language.Daicker.Bundler (Bundle (Bundle, current, modules, prelude, statements), ModuleBundle, findExpr, findExprWithBundle)
 import Language.Daicker.Error (RuntimeError (RuntimeError), StaticError (StaticError))
 import Language.Daicker.Span (Span (FixtureSpan), mkSpan, union)
 import qualified Language.Daicker.Span as S
@@ -32,8 +32,8 @@ import System.IO (hSetBuffering)
 import qualified System.IO as IO
 import System.Process
 
-eval :: Bundle Span -> Expr Span -> ExceptT RuntimeError IO (Expr Span)
-eval bundle v = case v of
+eval :: Bundle a -> Expr a -> ExceptT (RuntimeError a) IO (Expr a)
+eval bundle@(Bundle p ms c ss as) v = case v of
   e@(s :< EError {}) -> pure e
   s :< EArray vs -> (:<) s . EArray <$> mapM (eval bundle) vs
   s :< EObject vs -> (:<) s . EObject <$> mapM (\(k, e) -> (,) k <$> eval bundle e) vs
@@ -52,7 +52,7 @@ eval bundle v = case v of
     case f' of
       (s :< ELambda pms (s' :< e) t) -> do
         args <- zipArg pms args
-        eval (Bundle (modules bundle) (current bundle) (statements bundle) args) (s' :< e)
+        eval (Bundle p ms c ss (as <> args)) (s' :< e)
       (s :< EFixtureFun pms e ex) -> do
         args <- zipArg pms args
         liftIO $ e s args
@@ -71,7 +71,7 @@ eval bundle v = case v of
   where
     expand (_ :< EArray es) = es
 
-zipArg :: [Parameter ann] -> [Argument ann] -> ExceptT RuntimeError IO [(String, Expr ann)]
+zipArg :: [Parameter ann] -> [Argument ann] -> ExceptT (RuntimeError ann) IO [(String, Expr ann)]
 zipArg params args =
   (<>)
     <$> liftEither (zipPositionedArg positionedParams positionedArgs)
@@ -93,10 +93,10 @@ zipArg params args =
     isKeywordArg :: Argument ann -> Bool
     isKeywordArg (_ :< KeywordArgument {}) = True
     isKeywordArg _ = False
-    zipPositionedArg :: [Parameter ann] -> [Argument ann] -> Either RuntimeError [(String, Expr ann)]
+    zipPositionedArg :: [Parameter ann] -> [Argument ann] -> Either (RuntimeError ann) [(String, Expr ann)]
     zipPositionedArg (p : ps) ((_ :< PositionedArgument a) : as) = ((paramName p, a) :) <$> zipPositionedArg ps as
     zipPositionedArg [] _ = pure []
-    zipKeywordArg :: [Parameter ann] -> [Argument ann] -> Either RuntimeError [(String, Expr ann)]
+    zipKeywordArg :: [Parameter ann] -> [Argument ann] -> Either (RuntimeError ann) [(String, Expr ann)]
     zipKeywordArg (p@(_ :< KeywordParameter (_ :< Identifier name) _ _ _ defaultValue) : ps) as = do
       let (_ :< KeywordArgument _ value) = fromJust $ find (\(_ :< KeywordArgument (_ :< Identifier name') e) -> name == name') as
       ((paramName p, value) :) <$> zipKeywordArg ps as

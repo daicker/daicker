@@ -8,7 +8,7 @@ import Language.Daicker.Error (StaticError (StaticError))
 import Language.Daicker.Parser (parse)
 import Language.Daicker.Span (Span, spanPretty)
 
-validateModule :: Bundle Span -> Module Span -> Either [StaticError] ()
+validateModule :: (Eq a) => Bundle a -> Module a -> Either [StaticError a] ()
 validateModule b m@(_ :< Module _ e ss) = case es of
   [] -> Right ()
   _ -> Left es
@@ -21,15 +21,15 @@ validateModule b m@(_ :< Module _ e ss) = case es of
             Nothing -> []
         ]
 
-validateExport :: Bundle Span -> Identifier Span -> [StaticError]
-validateExport (Bundle mb cm ss _) (s :< Identifier name) =
+validateExport :: (Eq a) => Bundle a -> Identifier a -> [StaticError a]
+validateExport (Bundle _ _ cm ss _) (s :< Identifier name) =
   case lookup name (filter (\(_, (_, m)) -> m == cm) ss) of
     Just _ -> []
     Nothing -> [StaticError ("not define: " <> name) s]
 
-validateStatement :: Bundle Span -> Statement Span -> [StaticError]
+validateStatement :: (Eq a) => Bundle a -> Statement a -> [StaticError a]
 validateStatement
-  (Bundle mb cm ss _)
+  (Bundle _ _ cm ss _)
   s@(_ :< SExpr (sp :< Identifier name) _) =
     case lookup
       name
@@ -42,7 +42,7 @@ validateStatement
           ss
       ) of
       Nothing -> []
-      Just _ -> [StaticError ("duplicated name: " <> name <> " with at " <> spanPretty sp) sp]
+      Just _ -> [StaticError ("duplicated name: " <> name) sp]
 
 -- infer :: Bundle Span -> Expr Span -> Either StaticError (Type Span)
 -- infer b e = case e of
