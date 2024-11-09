@@ -36,18 +36,18 @@ instance (Show ann) => Show1 (Module' ann) where
 type Import ann = Cofree (Import' ann) ann
 
 data Import' ann a
-  = PartialImport [Identifier ann] (URL ann)
-  | WildImport (URL ann)
+  = PartialImport [Identifier ann] (Maybe (Identifier ann)) (URL ann)
+  | WildImport (Maybe (Identifier ann)) (URL ann)
   deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Import' ann) where
-  liftEq _ (PartialImport i1 url1) (PartialImport i2 url2) = i1 == i2 && url1 == url2
-  liftEq _ (WildImport url1) (WildImport url2) = url1 == url2
+  liftEq _ (PartialImport i1 ns1 url1) (PartialImport i2 ns2 url2) = i1 == i2 && ns1 == ns2 && url1 == url2
+  liftEq _ (WildImport ns1 url1) (WildImport ns2 url2) = ns1 == ns2 && url1 == url2
   liftEq _ _ _ = False
 
 instance (Show ann) => Show1 (Import' ann) where
-  liftShowsPrec _ _ _ (PartialImport is url) = showString $ "PartialImport " <> show is <> show url
-  liftShowsPrec _ _ _ (WildImport url) = showString $ "WildImport " <> show url
+  liftShowsPrec _ _ _ (PartialImport is ns url) = showString $ "PartialImport " <> show is <> show ns <> show url
+  liftShowsPrec _ _ _ (WildImport ns url) = showString $ "WildImport " <> show ns <> show url
 
 type URL ann = Cofree (URL' ann) ann
 

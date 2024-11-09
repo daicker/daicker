@@ -79,11 +79,11 @@ isType _ = False
 importedStatements :: ModuleBundle a -> Import a -> Either [StaticError a] (StatementBundle a)
 importedStatements ms (s :< impt) = do
   case impt of
-    PartialImport imports (_ :< LocalFile url) -> do
+    PartialImport imports Nothing (_ :< LocalFile url) -> do
       let m = findModule url
       ss <- exportedStatements m
       mapM (findExpr ss) imports
-    WildImport (_ :< LocalFile url) -> do
+    WildImport Nothing (_ :< LocalFile url) -> do
       let m = findModule url
       exprs <- exportedStatements m
       pure (map (\(k, (e, _)) -> (k, (e, findModule url))) exprs)
@@ -111,8 +111,8 @@ loadModules :: [Import Span] -> ExceptT [StaticError Span] IO (ModuleBundle Span
 loadModules = foldr (\i -> (<*>) ((<>) <$> importModules i)) (pure [])
 
 importModules :: Import Span -> ExceptT [StaticError Span] IO (ModuleBundle Span)
-importModules (s :< PartialImport _ url) = readModule url
-importModules (s :< WildImport url) = readModule url
+importModules (s :< PartialImport _ _ url) = readModule url
+importModules (s :< WildImport _ url) = readModule url
 
 readModule :: URL Span -> ExceptT [StaticError Span] IO (ModuleBundle Span)
 readModule (s :< LocalFile fileName) = do

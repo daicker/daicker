@@ -108,14 +108,24 @@ pImport = do
                     )
                       `sepBy` lexeme (token TKSep (char ','))
                   )
+            ns <-
+              optional $
+                lexeme
+                  (token TKKeyword $ string' "as")
+                  *> (tupleToCofree Identifier <$> lexeme (spanned (tExprIdentifier TKVar)))
             lexeme $ token TKKeyword $ string' "from"
             u@(s2 :< _) <- pUrl
-            pure $ s1 `union` s2 :< PartialImport is u,
+            pure $ s1 `union` s2 :< PartialImport is ns u,
           do
             (s1, _) <- lexeme $ spanned $ token TKOp (char '*')
+            ns <-
+              optional $
+                lexeme
+                  (token TKKeyword $ string' "as")
+                  *> (tupleToCofree Identifier <$> lexeme (spanned (tExprIdentifier TKVar)))
             lexeme $ token TKKeyword $ string' "from"
             u@(s2 :< _) <- pUrl
-            pure $ s1 `union` s2 :< WildImport u
+            pure $ s1 `union` s2 :< WildImport ns u
         ]
 
 pUrl :: Parser (URL Span)
