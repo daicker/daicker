@@ -97,8 +97,12 @@ zipArg params args =
     zipPositionedArg (p : ps) ((_ :< PositionedArgument a) : as) = ((paramName p, a) :) <$> zipPositionedArg ps as
     zipPositionedArg [] _ = pure []
     zipKeywordArg :: [Parameter ann] -> [Argument ann] -> Either (RuntimeError ann) [(String, Expr ann)]
-    zipKeywordArg (p@(_ :< KeywordParameter (_ :< Identifier name) _ _ _ defaultValue) : ps) as = do
-      let (_ :< KeywordArgument _ value) = fromJust $ find (\(_ :< KeywordArgument (_ :< Identifier name') e) -> name == name') as
+    zipKeywordArg (p@(_ :< KeywordParameter (s :< Identifier name) _ _ _ defaultValue) : ps) as = do
+      value <- case find (\(_ :< KeywordArgument (_ :< Identifier name') e) -> name == name') as of
+        Just (_ :< KeywordArgument _ a) -> pure a
+        Nothing -> case defaultValue of
+          Just e -> pure e
+          Nothing -> Left $ RuntimeError ("Missing keyword argument: " <> name) s (ExitFailure 1)
       ((paramName p, value) :) <$> zipKeywordArg ps as
     zipKeywordArg [] _ = pure []
     paramName :: Parameter ann -> String
