@@ -367,7 +367,7 @@ pOp name = do
   (s, op) <- lexeme (spanned $ tOp name)
   pure $ s :< EVar (s :< Identifier op)
   where
-    tOp name = token TKOp (T.unpack <$> string name)
+    tOp name = token TKOp (T.unpack <$> string name <* notFollowedBy (char '>'))
 
 pTerm :: Parser (Expr Span)
 pTerm = do
@@ -391,7 +391,7 @@ pTerm = do
     pDotAccessor :: Expr Span -> Parser (Expr Span)
     pDotAccessor v@(s1 :< _) = do
       _ <- lexeme $ token TKSep $ char '.'
-      key@(s2 :< _) <- tupleToCofree EString <$> spanned (tExprIdentifier TKProperty)
+      key@(s2 :< _) <- tupleToCofree EString <$> lexeme (spanned (tPropIdentifier TKProperty))
       pure $ s1 `union` s2 :< EAccessor v key
     pBracketAccessor :: Expr Span -> Parser (Expr Span)
     pBracketAccessor v@(s1 :< _) = do
@@ -443,11 +443,12 @@ pParameter =
     keywordParameter = do
       (s, p) <- spanned $ do
         optional $ token TKOp $ char '-'
-        name@(s1 :< _) <- tupleToCofree Identifier <$> spanned (tExprIdentifier TKVar)
+        name@(s1 :< _) <- tupleToCofree Identifier <$> spanned (tExprIdentifier TKParameter)
         isOptional <- isJust <$> optional (token TKOp $ char '?')
         isRest <- isJust <$> optional (lexeme $ token TKOp $ string "...")
         paramType <- optional $ lexeme (token TKSep $ char ':') *> pType
-        defaultExpr <- optional $ token TKOp $ char '=' *> pExpr
+        sc
+        defaultExpr <- optional $ lexeme (token TKOp $ char '=') *> pExpr
         pure $ KeywordParameter name isOptional isRest paramType defaultExpr
       pure $ s :< p
 
@@ -479,7 +480,7 @@ pCommand = do
               (lexeme $ token TKSep $ char ']')
               pImage
           )
-    (cmd', cmd) <- lexeme $ spanned $ token TKString $ manyTill L.charLiteral (string ";;")
+    (cmd', cmd) <- lexeme $ spanned $ token TKString $ manyTill L.charLiteral (string ";")
     pure $
       ECall
         (name' :< EVar (name' :< Identifier name))
@@ -587,6 +588,15 @@ tExprIdentifier kind =
     kind
     ( (:)
         <$> (lowerChar <|> char '_')
+        <*> many (alphaNumChar <|> char '_' <|> char '-')
+    )
+
+tPropIdentifier :: TokenKind -> Parser String
+tPropIdentifier kind =
+  token
+    kind
+    ( (:)
+        <$> (alphaNumChar <|> char '_')
         <*> many (alphaNumChar <|> char '_' <|> char '-')
     )
 
