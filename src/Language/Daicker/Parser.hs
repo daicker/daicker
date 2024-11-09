@@ -237,7 +237,8 @@ pTTerm = do
 pTPrimary :: Parser (Type Span)
 pTPrimary =
   choice
-    [ pTVar,
+    [ pTAccessor,
+      pTVar,
       pTArrayOrTuple,
       pTObject,
       pTStringLiteral,
@@ -255,6 +256,15 @@ pTVar =
             Identifier
             <$> lexeme (spanned (tTypeIdentifier TKTypeVar))
         )
+
+pTAccessor :: Parser (Type Span)
+pTAccessor = do
+  (s, a) <- lexeme $ spanned $ do
+    ns <- tupleToCofree Identifier <$> spanned (tExprIdentifier TKVar)
+    _ <- token TKSep $ char '.'
+    p <- tupleToCofree Identifier <$> spanned (tTypeIdentifier TKTypeVar)
+    pure $ TAccessor ns p
+  pure $ s :< a
 
 -- array and tuple type sugar syntax
 pTArrayOrTuple :: Parser (Type Span)

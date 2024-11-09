@@ -100,6 +100,7 @@ type Type ann = Cofree (Type' ann) ann
 
 data Type' ann a
   = TVar (Identifier ann)
+  | TAccessor (Identifier ann) (Identifier ann)
   | TObject [(a, a)]
   | TParameterized a [a]
   | TStringLiteral String
@@ -110,6 +111,7 @@ data Type' ann a
 
 instance (Eq ann) => Eq1 (Type' ann) where
   liftEq f (TObject as) (TObject bs) = length as == length bs && all (\((ka, va), (kb, vb)) -> f ka kb && f va vb) (zip as bs)
+  liftEq _ (TAccessor a1 i1) (TAccessor a2 i2) = a1 == a2 && i1 == i2
   liftEq _ (TVar n1) (TVar n2) = n1 == n2
   liftEq f (TParameterized f1 a1) (TParameterized f2 a2) = f f1 f2 && length a1 == length a2 && all (uncurry f) (zip a1 a2)
   liftEq _ (TStringLiteral s1) (TStringLiteral s2) = s1 == s2
@@ -125,6 +127,7 @@ instance (Show ann) => Show1 (Type' ann) where
         (\a b -> a <> showString ", " <> b)
         (map (\(i, a) -> showString "(" <> f n i <> showString ", " <> f n a <> showString ")") as)
       <> showString "]"
+  liftShowsPrec f _ n (TAccessor a i) = showString $ "TAccessor " <> show a <> show i
   liftShowsPrec f _ n (TVar name) = showString $ "TVar " <> show name
   liftShowsPrec f f' n (TParameterized tf args) = showString "TCall " <> f n tf <> f' args
   liftShowsPrec _ _ _ (TStringLiteral s) = showString $ "TStringLiteral " <> s
