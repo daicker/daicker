@@ -50,6 +50,7 @@ data TokenKind
   = TKTypeVar
   | TKOp
   | TKVar
+  | TKFunction
   | TKKeyword
   | TKNull
   | TKBool
@@ -175,7 +176,7 @@ pSType = do
 pSExpr :: Parser (Statement Span)
 pSExpr = do
   (s', e) <- spanned $ do
-    name <- tupleToCofree Identifier <$> lexeme (spanned $ tExprIdentifier TKVar)
+    name <- tupleToCofree Identifier <$> lexeme (spanned $ tExprIdentifier TKFunction)
     params <-
       optional
         $ spanned
@@ -292,10 +293,13 @@ pTObject = do
   where
     pair :: Parser (Type Span, Type Span)
     pair = do
-      key <- pType
+      key <- pTObjectKey <|> pType
       _ <- lexeme $ token TKSep $ char ':'
       val <- pType
       pure (key, val)
+    pTObjectKey :: Parser (Type Span)
+    pTObjectKey =
+      tupleToCofree TStringLiteral <$> lexeme (spanned (tExprIdentifier TKVar))
 
 pTStringLiteral :: Parser (Type Span)
 pTStringLiteral = lexeme $ tupleToCofree TStringLiteral <$> spanned tString
@@ -322,30 +326,30 @@ pExpr = makeExprParser pTerm opTable
 
 opTable :: [[Operator Parser (Expr Span)]]
 opTable =
-  [ [ unary "!"
+  [ [ unary $ string "!"
     ],
-    [ binary "*",
-      binary "/"
+    [ binary $ string "*",
+      binary $ string "/"
     ],
-    [ binary "+",
-      binary "-"
+    [ binary $ string "+",
+      binary $ string "-"
     ],
-    [ binary "==",
-      binary "!=",
-      binary "<",
-      binary "<=",
-      binary ">",
-      binary ">="
+    [ binary $ string "==",
+      binary $ string "!=",
+      binary $ string "<",
+      binary $ string "<=",
+      binary $ try $ string ">" <* notFollowedBy (char '>'),
+      binary $ string ">="
     ],
-    [ binary "&&",
-      binary "||"
+    [ binary $ string "&&",
+      binary $ string "||"
     ],
-    [ binary "|>",
-      binary ">>"
+    [ binary $ string "|>",
+      binary $ string ">>"
     ]
   ]
 
-unary :: Text -> Operator Parser (Expr Span)
+unary :: Parser Text -> Operator Parser (Expr Span)
 unary name = Prefix (f <$> pOp name)
   where
     f :: Expr Span -> Expr Span -> Expr Span
@@ -353,7 +357,7 @@ unary name = Prefix (f <$> pOp name)
       (op' `union` v')
         :< ECall op [v' :< PositionedArgument v]
 
-binary :: Text -> Operator Parser (Expr Span)
+binary :: Parser Text -> Operator Parser (Expr Span)
 binary name = do
   InfixL (f <$> pOp name)
   where
@@ -362,23 +366,24 @@ binary name = do
       (a' `union` b')
         :< ECall op [a' :< PositionedArgument a, b' :< PositionedArgument b]
 
-pOp :: Text -> Parser (Expr Span)
+pOp :: Parser Text -> Parser (Expr Span)
 pOp name = do
   (s, op) <- lexeme (spanned $ tOp name)
   pure $ s :< EVar (s :< Identifier op)
   where
-    tOp name = token TKOp (T.unpack <$> string name <* notFollowedBy (char '>'))
+    tOp name = token TKOp (T.unpack <$> name)
 
 pTerm :: Parser (Expr Span)
-pTerm = do
-  v <- pPrimary
-  choice
-    [ pCall v,
-      pBracketAccessor v,
-      pDotAccessor v,
-      pure v
-    ]
+pTerm = pPrimary >>= pChain
   where
+    pChain :: Expr Span -> Parser (Expr Span)
+    pChain v = do
+      choice
+        [ pCall v >>= pChain,
+          pBracketAccessor v >>= pChain,
+          pDotAccessor v >>= pChain,
+          pure v
+        ]
     pCall :: Expr Span -> Parser (Expr Span)
     pCall f@(s1 :< _) = do
       (s2, es) <-
@@ -478,7 +483,7 @@ pCommand = do
           ( between
               (lexeme $ token TKSep $ char '[')
               (lexeme $ token TKSep $ char ']')
-              pImage
+              pExpr
           )
     (cmd', cmd) <- lexeme $ spanned $ token TKString $ manyTill L.charLiteral (string ";")
     pure $

@@ -250,6 +250,7 @@ lexSemanticTokens fileName src =
       TKTypeVar -> Just SemanticTokenTypes_Type
       TKOp -> Just SemanticTokenTypes_Operator
       TKVar -> Just SemanticTokenTypes_Variable
+      TKFunction -> Just SemanticTokenTypes_Function
       TKKeyword -> Just SemanticTokenTypes_Keyword
       TKNull -> Just SemanticTokenTypes_Macro
       TKBool -> Just SemanticTokenTypes_Macro
