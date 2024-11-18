@@ -36,18 +36,30 @@ instance (Show ann) => Show1 (Module' ann) where
 type Import ann = Cofree (Import' ann) ann
 
 data Import' ann a
-  = PartialImport [Identifier ann] (Maybe (Identifier ann)) (URL ann)
-  | WildImport (Maybe (Identifier ann)) (URL ann)
+  = Import (ImportScope ann) (Maybe (Identifier ann)) (URL ann)
   deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Import' ann) where
-  liftEq _ (PartialImport i1 ns1 url1) (PartialImport i2 ns2 url2) = i1 == i2 && ns1 == ns2 && url1 == url2
-  liftEq _ (WildImport ns1 url1) (WildImport ns2 url2) = ns1 == ns2 && url1 == url2
-  liftEq _ _ _ = False
+  liftEq _ (Import i1 ns1 url1) (Import i2 ns2 url2) = i1 == i2 && ns1 == ns2 && url1 == url2
 
 instance (Show ann) => Show1 (Import' ann) where
-  liftShowsPrec _ _ _ (PartialImport is ns url) = showString $ "PartialImport " <> show is <> show ns <> show url
-  liftShowsPrec _ _ _ (WildImport ns url) = showString $ "WildImport " <> show ns <> show url
+  liftShowsPrec _ _ _ (Import is ns url) = showString $ "Import " <> show is <> show ns <> show url
+
+type ImportScope ann = Cofree (ImportScope' ann) ann
+
+data ImportScope' ann a
+  = PartialScope [Identifier ann]
+  | FullScope
+  deriving (Show, Eq)
+
+instance (Eq ann) => Eq1 (ImportScope' ann) where
+  liftEq _ (PartialScope i1) (PartialScope i2) = i1 == i2
+  liftEq _ FullScope FullScope = True
+  liftEq _ _ _ = False
+
+instance (Show ann) => Show1 (ImportScope' ann) where
+  liftShowsPrec _ _ _ (PartialScope i) = showString $ "PartialScope " <> show i
+  liftShowsPrec _ _ _ FullScope = showString "FullScope"
 
 type URL ann = Cofree (URL' ann) ann
 

@@ -24,7 +24,6 @@ import qualified Language.Daicker.AST as AST
 import Language.Daicker.Error (StaticError (StaticError), fromParseErrorBundle)
 import Language.Daicker.Span (Span (..), WithSpan (..), union)
 import qualified Language.Daicker.Span as S
-import Language.LSP.Protocol.Lens (HasCh (ch), HasIdentifier (identifier))
 import Language.LSP.Protocol.Types
 import Text.Megaparsec hiding (Token, parse, token)
 import Text.Megaparsec.Byte.Lexer (float)
@@ -89,45 +88,48 @@ pModule = do
 
 pImport :: Parser (Import Span)
 pImport = do
-  (s1, _) <- lexeme $ spanned $ token TKKeyword (keyword "import")
-  s2 :< i <- pImport'
-  pure $ (s1 `union` s2) :< i
+  (s, i) <- spanned pImport'
+  pure $ s :< i
   where
-    pImport' :: Parser (Import Span)
-    pImport' =
-      choice
-        [ do
-            (s1, is) <-
-              spanned $
-                between
-                  (lexeme $ token TKSep $ char '{')
-                  (lexeme $ token TKSep $ char '}')
-                  ( ( tupleToCofree Identifier
-                        <$> ( lexeme (spanned $ tTypeIdentifier TKTypeVar)
-                                <|> lexeme (spanned $ tExprIdentifier TKVar)
-                            )
+    pImport' = do
+      lexeme $ spanned $ token TKKeyword (keyword "import")
+      scope <- pImportScope
+      ns <-
+        optional $
+          lexeme
+            (token TKKeyword $ string' "as")
+            *> (tupleToCofree Identifier <$> lexeme (spanned (tExprIdentifier TKVar)))
+      lexeme $ token TKKeyword $ string' "from"
+      Import scope ns <$> pUrl
+
+pImportScope :: Parser (ImportScope Span)
+pImportScope = choice [pPartialScope, pFullScope]
+
+pPartialScope :: Parser (ImportScope Span)
+pPartialScope =
+  tupleToCofree
+    PartialScope
+    <$> spanned
+      ( between
+          (lexeme $ token TKSep $ char '{')
+          (lexeme $ token TKSep $ char '}')
+          ( ( tupleToCofree Identifier
+                <$> ( lexeme (spanned $ tTypeIdentifier TKTypeVar)
+                        <|> lexeme (spanned $ tExprIdentifier TKVar)
                     )
-                      `sepBy` lexeme (token TKSep (char ','))
-                  )
-            ns <-
-              optional $
-                lexeme
-                  (token TKKeyword $ string' "as")
-                  *> (tupleToCofree Identifier <$> lexeme (spanned (tExprIdentifier TKVar)))
-            lexeme $ token TKKeyword $ string' "from"
-            u@(s2 :< _) <- pUrl
-            pure $ s1 `union` s2 :< PartialImport is ns u,
-          do
-            (s1, _) <- lexeme $ spanned $ token TKOp (char '*')
-            ns <-
-              optional $
-                lexeme
-                  (token TKKeyword $ string' "as")
-                  *> (tupleToCofree Identifier <$> lexeme (spanned (tExprIdentifier TKVar)))
-            lexeme $ token TKKeyword $ string' "from"
-            u@(s2 :< _) <- pUrl
-            pure $ s1 `union` s2 :< WildImport ns u
-        ]
+            )
+              `sepBy` lexeme (token TKSep (char ','))
+          )
+      )
+
+pFullScope :: Parser (ImportScope Span)
+pFullScope = do
+  (s, _) <-
+    lexeme
+      ( spanned $
+          token TKOp (char '*')
+      )
+  pure $ s :< FullScope
 
 pUrl :: Parser (URL Span)
 pUrl = lexeme $ tupleToCofree LocalFile <$> spanned tString

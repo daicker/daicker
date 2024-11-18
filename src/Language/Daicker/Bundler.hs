@@ -16,7 +16,9 @@ import Language.Daicker.AST
     Identifier,
     Identifier' (Identifier),
     Import,
-    Import' (PartialImport, WildImport),
+    Import' (Import),
+    ImportScope,
+    ImportScope' (FullScope, PartialScope),
     Module,
     Module' (Module),
     Statement,
@@ -79,11 +81,11 @@ isType _ = False
 importedStatements :: ModuleBundle a -> Import a -> Either [StaticError a] (StatementBundle a)
 importedStatements ms (s :< impt) = do
   case impt of
-    PartialImport imports Nothing (_ :< LocalFile url) -> do
+    Import (_ :< PartialScope imports) Nothing (_ :< LocalFile url) -> do
       let m = findModule url
       ss <- exportedStatements m
       mapM (findExpr ss) imports
-    WildImport Nothing (_ :< LocalFile url) -> do
+    Import (_ :< FullScope) Nothing (_ :< LocalFile url) -> do
       let m = findModule url
       exprs <- exportedStatements m
       pure (map (\(k, (e, _)) -> (k, (e, findModule url))) exprs)
@@ -111,8 +113,7 @@ loadModules :: [Import Span] -> ExceptT [StaticError Span] IO (ModuleBundle Span
 loadModules = foldr (\i -> (<*>) ((<>) <$> importModules i)) (pure [])
 
 importModules :: Import Span -> ExceptT [StaticError Span] IO (ModuleBundle Span)
-importModules (s :< PartialImport _ _ url) = readModule url
-importModules (s :< WildImport _ url) = readModule url
+importModules (s :< Import _ _ url) = readModule url
 
 readModule :: URL Span -> ExceptT [StaticError Span] IO (ModuleBundle Span)
 readModule (s :< LocalFile fileName) = do
