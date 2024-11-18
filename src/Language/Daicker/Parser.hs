@@ -63,12 +63,25 @@ data TokenKind
   | TKImage
   deriving (Show, Eq)
 
-type Parser = StateT [Token] (Parsec Void Text)
+type Parser = StateT ParserState (Parsec Void Text)
+
+type ParserState = ([Token], Text)
+
+getTokens :: Parser [Token]
+getTokens = fst <$> get
+
+getFullInput :: Parser Text
+getFullInput = snd <$> get
+
+addTokens :: [Token] -> Parser ()
+addTokens ts = do
+  (tokens, input) <- get
+  put (tokens ++ ts, input)
 
 parse :: Parser a -> FilePath -> Text -> Either [StaticError Span] (a, [Token])
-parse parser filePath src = case runParser (runStateT parser []) filePath src of
+parse parser filePath src = case runParser (runStateT parser ([], src)) filePath src of
   Left e -> Left [fromParseErrorBundle e]
-  Right (a, tokens) -> Right (a, tokens)
+  Right (a, (tokens, _)) -> Right (a, tokens)
 
 pModule :: Parser (Module Span)
 pModule = do
@@ -609,11 +622,23 @@ tPropIdentifier kind =
 
 token :: TokenKind -> Parser a -> Parser a
 token kind p = do
-  (s, v) <- tokenSpanned p
-  tokens <- get
-  put $ tokens <> [Token kind s]
+  (s@(Span (S.Position f1 l1 c1) (S.Position f2 l2 c2)), v) <- tokenSpanned p
+  (tokens, input) <- get
+  -- split input into lines because language server protocol is not supporting multi-line token.
+  addTokens $
+    map
+      ( \l -> do
+          let c1' = if l == l1 then c1 else 1
+          let c2' = if l == l2 then c2 else T.length (getLine input l) + 1
+          Token
+            kind
+            (Span (S.Position f1 l c1') (S.Position f2 l c2'))
+      )
+      [l1 .. l2]
   pure v
   where
+    getLine :: Text -> Int -> Text
+    getLine input line = T.splitOn "\n" input !! (line - 1)
     tokenSpanned :: Parser a -> Parser (Span, a)
     tokenSpanned p = do
       start <- getSourcePos
@@ -638,8 +663,8 @@ blockComment = token TKComment $ L.skipBlockComment "/*" "*/"
 
 spanned :: Parser a -> Parser (Span, a)
 spanned p = do
-  start <- length <$> get
+  start <- length <$> getTokens
   x <- p
-  end <- length <$> get
-  tokens <- take (end - start) . drop start <$> get
+  end <- length <$> getTokens
+  tokens <- take (end - start) . drop start <$> getTokens
   pure (tokenSpan (head tokens) `union` tokenSpan (last tokens), x)
