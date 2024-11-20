@@ -111,7 +111,7 @@ pImport = do
         optional $
           lexeme
             (token TKKeyword $ string' "as")
-            *> (tupleToCofree Identifier <$> lexeme (spanned (tExprIdentifier TKVar)))
+            *> (tupleToCofree Identifier <$> lexeme (spanned (tLowerIdentifier TKVar)))
       lexeme $ token TKKeyword $ string' "from"
       Import scope ns <$> pUrl
 
@@ -127,8 +127,8 @@ pPartialScope =
           (lexeme $ token TKSep $ char '{')
           (lexeme $ token TKSep $ char '}')
           ( ( tupleToCofree Identifier
-                <$> ( lexeme (spanned $ tTypeIdentifier TKTypeVar)
-                        <|> lexeme (spanned $ tExprIdentifier TKVar)
+                <$> ( lexeme (spanned $ tUpperIdentifier TKTypeVar)
+                        <|> lexeme (spanned $ tLowerIdentifier TKVar)
                     )
             )
               `sepBy` lexeme (token TKSep (char ','))
@@ -158,8 +158,8 @@ pExport = do
         (lexeme $ token TKSep $ char '{')
         (lexeme $ token TKSep $ char '}')
         ( ( tupleToCofree Identifier
-              <$> ( lexeme (spanned $ tTypeIdentifier TKTypeVar)
-                      <|> lexeme (spanned $ tExprIdentifier TKVar)
+              <$> ( lexeme (spanned $ tUpperIdentifier TKTypeVar)
+                      <|> lexeme (spanned $ tLowerIdentifier TKVar)
                   )
           )
             `sepBy` lexeme (token TKSep (char ','))
@@ -177,13 +177,13 @@ pSType :: Parser (Statement Span)
 pSType = do
   (s', t) <- spanned $ do
     lexeme $ token TKKeyword (keyword "type")
-    name <- tupleToCofree Identifier <$> lexeme (spanned $ tTypeIdentifier TKTypeVar)
+    name <- tupleToCofree Identifier <$> lexeme (spanned $ tUpperIdentifier TKTypeVar)
     params <-
       optional
         $ between
           (lexeme $ token TKSep $ char '[')
           (lexeme $ token TKSep $ char ']')
-        $ (tupleToCofree Identifier <$> lexeme (spanned $ tTypeIdentifier TKTypeParameter)) `sepBy` lexeme (token TKSep (char ','))
+        $ (tupleToCofree Identifier <$> lexeme (spanned $ tUpperIdentifier TKTypeParameter)) `sepBy` lexeme (token TKSep (char ','))
     lexeme $ token TKSep $ char '='
     SType name (fromMaybe [] params) <$> pType
   pure $ s' :< t
@@ -191,7 +191,7 @@ pSType = do
 pSExpr :: Parser (Statement Span)
 pSExpr = do
   (s', e) <- spanned $ do
-    name <- tupleToCofree Identifier <$> lexeme (spanned $ tExprIdentifier TKFunction)
+    name <- tupleToCofree Identifier <$> lexeme (spanned $ tLowerIdentifier TKFunction)
     params <-
       optional
         $ spanned
@@ -270,15 +270,15 @@ pTVar =
       <$> spanned
         ( tupleToCofree
             Identifier
-            <$> lexeme (spanned (tTypeIdentifier TKTypeVar))
+            <$> lexeme (spanned (tUpperIdentifier TKTypeVar))
         )
 
 pTAccessor :: Parser (Type Span)
 pTAccessor = do
   (s, a) <- lexeme $ spanned $ do
-    ns <- tupleToCofree Identifier <$> spanned (tExprIdentifier TKVar)
+    ns <- tupleToCofree Identifier <$> spanned (tLowerIdentifier TKVar)
     _ <- token TKSep $ char '.'
-    p <- tupleToCofree Identifier <$> spanned (tTypeIdentifier TKTypeVar)
+    p <- tupleToCofree Identifier <$> spanned (tUpperIdentifier TKTypeVar)
     pure $ TAccessor ns p
   pure $ s :< a
 
@@ -314,7 +314,7 @@ pTObject = do
       pure (key, val)
     pTObjectKey :: Parser (Type Span)
     pTObjectKey =
-      tupleToCofree TStringLiteral <$> lexeme (spanned (tExprIdentifier TKVar))
+      tupleToCofree TStringLiteral <$> lexeme (spanned (tLowerIdentifier TKVar))
 
 pTStringLiteral :: Parser (Type Span)
 pTStringLiteral = lexeme $ tupleToCofree TStringLiteral <$> spanned tString
@@ -411,7 +411,7 @@ pTerm = pPrimary >>= pChain
     pDotAccessor :: Expr Span -> Parser (Expr Span)
     pDotAccessor v@(s1 :< _) = do
       _ <- lexeme $ token TKSep $ char '.'
-      key@(s2 :< _) <- tupleToCofree EString <$> lexeme (spanned (tPropIdentifier TKProperty))
+      key@(s2 :< _) <- tupleToCofree EString <$> lexeme (spanned (tIdentifier TKProperty))
       pure $ s1 `union` s2 :< EAccessor v key
     pBracketAccessor :: Expr Span -> Parser (Expr Span)
     pBracketAccessor v@(s1 :< _) = do
@@ -436,7 +436,7 @@ pArgument =
       pure $ s1 :< PositionedArgument value
     keywordArgument :: Parser (Argument Span)
     keywordArgument = do
-      key@(s1 :< _) <- tupleToCofree Identifier <$> lexeme (spanned (tExprIdentifier TKParameter))
+      key@(s1 :< _) <- tupleToCofree Identifier <$> lexeme (spanned (tLowerIdentifier TKParameter))
       _ <- lexeme $ token TKSep $ char '='
       (s2, value) <- spanned pExpr
       pure $ s1 `union` s2 :< KeywordArgument key value
@@ -451,7 +451,7 @@ pParameter =
     positionedParameter :: Parser (Parameter Span)
     positionedParameter = do
       (s, p) <- spanned $ do
-        name@(s1 :< _) <- tupleToCofree Identifier <$> spanned (tExprIdentifier TKParameter)
+        name@(s1 :< _) <- tupleToCofree Identifier <$> spanned (tLowerIdentifier TKParameter)
         isOptional <- isJust <$> optional (token TKOp $ char '?')
         isRest <- isJust <$> optional (lexeme $ token TKOp $ string "...")
         paramType <- optional $ lexeme (token TKSep $ char ':') *> pType
@@ -463,7 +463,7 @@ pParameter =
     keywordParameter = do
       (s, p) <- spanned $ do
         optional $ token TKOp $ char '-'
-        name@(s1 :< _) <- tupleToCofree Identifier <$> spanned (tExprIdentifier TKParameter)
+        name@(s1 :< _) <- tupleToCofree Identifier <$> spanned (tLowerIdentifier TKParameter)
         isOptional <- isJust <$> optional (token TKOp $ char '?')
         isRest <- isJust <$> optional (lexeme $ token TKOp $ string "...")
         paramType <- optional $ lexeme (token TKSep $ char ':') *> pType
@@ -531,7 +531,7 @@ pVar =
       <$> spanned
         ( tupleToCofree
             Identifier
-            <$> spanned (tExprIdentifier TKVar)
+            <$> spanned (tLowerIdentifier TKVar)
         )
 
 pImage :: Parser (Expr Span)
@@ -555,10 +555,13 @@ pObject = do
   where
     pPair :: Parser (Expr Span, Expr Span)
     pPair = do
-      key <- pExpr
+      key <- pObjectKey <|> pExpr
       _ <- lexeme $ token TKSep $ char ':'
       value <- pExpr
       pure (key, value)
+    pObjectKey :: Parser (Expr Span)
+    pObjectKey =
+      tupleToCofree EString <$> lexeme (spanned (tLowerIdentifier TKVar))
 
 pArray :: Parser (Expr Span)
 pArray =
@@ -593,17 +596,17 @@ pNull = lexeme $ (:< ENull) . fst <$> spanned tNull
 tupleToCofree :: (t -> f (Cofree f a)) -> (a, t) -> Cofree f a
 tupleToCofree f (s, v) = s :< f v
 
-tTypeIdentifier :: TokenKind -> Parser String
-tTypeIdentifier kind =
+tUpperIdentifier :: TokenKind -> Parser String
+tUpperIdentifier kind =
   token
     kind
     ( (:)
         <$> (upperChar <|> char '_')
-        <*> many (alphaNumChar <|> char '_')
+        <*> many (alphaNumChar <|> char '_' <|> char '-')
     )
 
-tExprIdentifier :: TokenKind -> Parser String
-tExprIdentifier kind =
+tLowerIdentifier :: TokenKind -> Parser String
+tLowerIdentifier kind =
   token
     kind
     ( (:)
@@ -611,12 +614,12 @@ tExprIdentifier kind =
         <*> many (alphaNumChar <|> char '_' <|> char '-')
     )
 
-tPropIdentifier :: TokenKind -> Parser String
-tPropIdentifier kind =
+tIdentifier :: TokenKind -> Parser String
+tIdentifier kind =
   token
     kind
     ( (:)
-        <$> (alphaNumChar <|> char '_')
+        <$> (lowerChar <|> upperChar <|> char '_')
         <*> many (alphaNumChar <|> char '_' <|> char '-')
     )
 
