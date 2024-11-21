@@ -351,7 +351,7 @@ opTable =
     ],
     [ binary $ string "==",
       binary $ string "!=",
-      binary $ string "<",
+      binary $ try $ string "<" <* notFollowedBy (char '<' <|> char '|'),
       binary $ string "<=",
       binary $ try $ string ">" <* notFollowedBy (char '>'),
       binary $ string ">="
@@ -360,7 +360,9 @@ opTable =
       binary $ string "||"
     ],
     [ binary $ string "|>",
-      binary $ string ">>"
+      binary $ string "<|",
+      binary $ string ">>",
+      binary $ string "<<"
     ]
   ]
 
@@ -484,7 +486,8 @@ pPrimary =
       pNumber,
       pBool,
       pNull,
-      pVar
+      pVar,
+      lexeme (token TKSep (char '(')) *> pExpr <* lexeme (token TKSep (char ')'))
     ]
 
 -- command sugar syntax

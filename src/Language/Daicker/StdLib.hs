@@ -196,7 +196,42 @@ prelude =
             ),
         preludeSpan
           :< SExpr
+            (preludeSpan :< Identifier "<<")
+            ( preludeSpan
+                :< EFixtureFun
+                  [ preludeSpan :< PositionedParameter (preludeSpan :< Identifier "a") False False Nothing Nothing,
+                    preludeSpan :< PositionedParameter (preludeSpan :< Identifier "b") False False Nothing Nothing
+                  ]
+                  ( \sp args -> do
+                      let (_ :< e1) = fromJust $ lookup "a" args
+                      let (_ :< e2) = fromJust $ lookup "b" args
+                      _ <- pure e2 -- execute forcibly
+                      pure $ sp :< e1
+                  )
+                  Nothing
+            ),
+        preludeSpan
+          :< SExpr
             (preludeSpan :< Identifier "|>")
+            ( preludeSpan
+                :< EFixtureFun
+                  [ preludeSpan :< PositionedParameter (preludeSpan :< Identifier "a") False False Nothing Nothing,
+                    preludeSpan :< PositionedParameter (preludeSpan :< Identifier "b") False False Nothing Nothing
+                  ]
+                  ( \sp args -> do
+                      let e1 = fromJust $ lookup "a" args
+                      let e2 = fromJust $ lookup "b" args
+                      pure $
+                        sp
+                          :< ECall
+                            e2
+                            [sp :< PositionedArgument e1]
+                  )
+                  Nothing
+            ),
+        preludeSpan
+          :< SExpr
+            (preludeSpan :< Identifier "<|")
             ( preludeSpan
                 :< EFixtureFun
                   [ preludeSpan :< PositionedParameter (preludeSpan :< Identifier "a") False False Nothing Nothing,

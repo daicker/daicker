@@ -32,7 +32,7 @@ import System.IO (hSetBuffering)
 import qualified System.IO as IO
 import System.Process
 
-eval :: Bundle a -> Expr a -> ExceptT (RuntimeError a) IO (Expr a)
+eval :: (Eq a) => Bundle a -> Expr a -> ExceptT (RuntimeError a) IO (Expr a)
 eval bundle@(Bundle p ms c ss as) v = case v of
   e@(s :< EError {}) -> pure e
   s :< EArray vs -> (:<) s . EArray <$> mapM (eval bundle) vs
@@ -55,15 +55,16 @@ eval bundle@(Bundle p ms c ss as) v = case v of
         eval (Bundle p ms c ss (as <> args)) (s' :< e)
       (s :< EFixtureFun pms e ex) -> do
         args <- zipArg pms args
-        liftIO $ e s args
+        res <- liftIO $ e s args
+        eval bundle res
       (s :< e) ->
         case args of
           [] -> pure $ s :< e
           _ -> throwError $ RuntimeError "Not a function" s (ExitFailure 1)
-  s :< EAccessor e key -> do
+  s :< EAccessor e (_ :< key) -> do
     e <- eval bundle e
     case e of
-      (_ :< EObject vs) -> case find (\(_, _) -> undefined) vs of
+      (_ :< EObject vs) -> case find (\(_ :< key', _) -> key == key') vs of -- TODO: Implement equality
         Just (_, v) -> pure v
         Nothing -> pure $ s :< ENull
       (s :< _) -> throwError $ RuntimeError "Accessors can only be used on objects" s (ExitFailure 1)
