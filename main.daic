@@ -3,4 +3,4 @@ ut = $ stack test :daicker-unit-test;
 e2e = $ stack test :daicker-e2e-test;
 install = $ stack --local-bin-path /usr/local/bin/ install;
 uninstall = $ rm /usr/local/bin/daicker;
-count = $ cloc . --vcs=git;
+count = $[#aldanial/cloc:2.02] cloc . --vcs=git;
