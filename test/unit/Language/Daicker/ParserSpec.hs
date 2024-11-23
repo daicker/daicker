@@ -312,7 +312,7 @@ spec = do
           ( mkSpan "test" 1 1 1 5
               :< ECall
                 (mkSpan "test" 1 1 1 2 :< EVar (mkSpan "test" 1 1 1 2 :< Identifier "f"))
-                [mkSpan "test" 1 3 1 4 :< PositionedArgument (mkSpan "test" 1 3 1 4 :< ENumber 1)],
+                [mkSpan "test" 1 3 1 4 :< PositionedArgument False (mkSpan "test" 1 3 1 4 :< ENumber 1)],
             [ Token TKVar (mkSpan "test" 1 1 1 2),
               Token TKSep (mkSpan "test" 1 2 1 3),
               Token TKNumber (mkSpan "test" 1 3 1 4),
@@ -344,7 +344,7 @@ spec = do
           ( mkSpan "test" 1 1 1 5
               :< ECall
                 (mkSpan "test" 1 1 1 2 :< EVar (mkSpan "test" 1 1 1 2 :< Identifier "f"))
-                [mkSpan "test" 1 3 1 4 :< PositionedArgument (mkSpan "test" 1 3 1 4 :< EVar (mkSpan "test" 1 3 1 4 :< Identifier "a"))],
+                [mkSpan "test" 1 3 1 4 :< PositionedArgument False (mkSpan "test" 1 3 1 4 :< EVar (mkSpan "test" 1 3 1 4 :< Identifier "a"))],
             [ Token TKVar (mkSpan "test" 1 1 1 2),
               Token TKSep (mkSpan "test" 1 2 1 3),
               Token TKVar (mkSpan "test" 1 3 1 4),
@@ -358,7 +358,7 @@ spec = do
               :< ECall
                 (mkSpan "test" 1 1 1 2 :< EVar (mkSpan "test" 1 1 1 2 :< Identifier "f"))
                 [ mkSpan "test" 1 3 1 4
-                    :< PositionedArgument (mkSpan "test" 1 3 1 4 :< ENumber 1),
+                    :< PositionedArgument False (mkSpan "test" 1 3 1 4 :< ENumber 1),
                   mkSpan "test" 1 6 1 11
                     :< KeywordArgument
                       (mkSpan "test" 1 6 1 7 :< Identifier "a")
@@ -405,8 +405,8 @@ spec = do
           ( mkSpan "test" 1 1 1 6
               :< ECall
                 (mkSpan "test" 1 3 1 4 :< EVar (mkSpan "test" 1 3 1 4 :< Identifier "+"))
-                [ mkSpan "test" 1 1 1 2 :< PositionedArgument (mkSpan "test" 1 1 1 2 :< ENumber 1),
-                  mkSpan "test" 1 5 1 6 :< PositionedArgument (mkSpan "test" 1 5 1 6 :< ENumber 2)
+                [ mkSpan "test" 1 1 1 2 :< PositionedArgument False (mkSpan "test" 1 1 1 2 :< ENumber 1),
+                  mkSpan "test" 1 5 1 6 :< PositionedArgument False (mkSpan "test" 1 5 1 6 :< ENumber 2)
                 ],
             [ Token TKNumber (mkSpan "test" 1 1 1 2),
               Token TKOp (mkSpan "test" 1 3 1 4),
@@ -414,36 +414,36 @@ spec = do
             ]
           )
     it "command sugar syntax" $ do
-      parse pExpr "test" "$ echo hello;;"
+      parse pExpr "test" "$ echo hello;"
         `shouldBe` Right
-          ( mkSpan "test" 1 1 1 15
+          ( mkSpan "test" 1 1 1 14
               :< ECall
                 (mkSpan "test" 1 1 1 2 :< EVar (mkSpan "test" 1 1 1 2 :< Identifier "$"))
-                [ mkSpan "test" 1 3 1 15
-                    :< PositionedArgument (mkSpan "test" 1 3 1 15 :< EString "echo hello")
+                [ mkSpan "test" 1 3 1 14
+                    :< PositionedArgument False (mkSpan "test" 1 3 1 14 :< EString "echo hello")
                 ],
             [ Token TKVar (mkSpan "test" 1 1 1 2),
-              Token TKString (mkSpan "test" 1 3 1 15)
+              Token TKString (mkSpan "test" 1 3 1 14)
             ]
           )
     it "command sugar syntax with image tag" $ do
-      parse pExpr "test" "$[#alpine:3.12] echo hello;;"
+      parse pExpr "test" "$[#alpine:3.12] echo hello;"
         `shouldBe` Right
-          ( mkSpan "test" 1 1 1 29
+          ( mkSpan "test" 1 1 1 28
               :< ECall
                 (mkSpan "test" 1 1 1 2 :< EVar (mkSpan "test" 1 1 1 2 :< Identifier "$"))
                 [ mkSpan "test" 1 2 1 16
                     :< KeywordArgument
                       (mkSpan "test" 1 2 1 16 :< Identifier "image")
                       (mkSpan "test" 1 3 1 15 :< EImage (mkSpan "test" 1 3 1 15 :< Identifier "alpine:3.12")),
-                  mkSpan "test" 1 17 1 29
-                    :< PositionedArgument (mkSpan "test" 1 17 1 29 :< EString "echo hello")
+                  mkSpan "test" 1 17 1 28
+                    :< PositionedArgument False (mkSpan "test" 1 17 1 28 :< EString "echo hello")
                 ],
             [ Token TKVar (mkSpan "test" 1 1 1 2),
               Token TKSep (mkSpan "test" 1 2 1 3),
               Token TKImage (mkSpan "test" 1 3 1 15),
               Token TKSep (mkSpan "test" 1 15 1 16),
-              Token TKString (mkSpan "test" 1 17 1 29)
+              Token TKString (mkSpan "test" 1 17 1 28)
             ]
           )
   describe "type" $ do
@@ -670,7 +670,9 @@ spec = do
       parse pImport "test" "import * from \"test.daic\""
         `shouldBe` Right
           ( mkSpan "test" 1 1 1 26
-              :< WildImport
+              :< Import
+                (mkSpan "test" 1 8 1 9 :< FullScope)
+                Nothing
                 (mkSpan "test" 1 15 1 26 :< LocalFile "test.daic"),
             [ Token TKKeyword (mkSpan "test" 1 1 1 7),
               Token TKOp (mkSpan "test" 1 8 1 9),
@@ -682,8 +684,9 @@ spec = do
       parse pImport "test" "import {a, b} from \"test.daic\""
         `shouldBe` Right
           ( mkSpan "test" 1 1 1 31
-              :< PartialImport
-                [mkSpan "test" 1 9 1 10 :< Identifier "a", mkSpan "test" 1 12 1 13 :< Identifier "b"]
+              :< Import
+                (mkSpan "test" 1 9 1 13 :< PartialScope [mkSpan "test" 1 9 1 10 :< Identifier "a", mkSpan "test" 1 12 1 13 :< Identifier "b"])
+                Nothing
                 (mkSpan "test" 1 20 1 31 :< LocalFile "test.daic"),
             [ Token TKKeyword (mkSpan "test" 1 1 1 7),
               Token TKSep (mkSpan "test" 1 8 1 9),
@@ -702,8 +705,9 @@ spec = do
           ( mkSpan "test" 1 1 5 1
               :< Module
                 [ mkSpan "test" 1 1 1 30
-                    :< PartialImport
-                      [mkSpan "test" 1 10 1 11 :< Identifier "g"]
+                    :< Import
+                      (mkSpan "test" 1 10 1 11 :< PartialScope [mkSpan "test" 1 10 1 11 :< Identifier "g"])
+                      Nothing
                       (mkSpan "test" 1 19 1 30 :< LocalFile "test.daic")
                 ]
                 ( Just $
@@ -727,7 +731,7 @@ spec = do
                             ( mkSpan "test" 3 8 3 12
                                 :< ECall
                                   (mkSpan "test" 3 8 3 9 :< EVar (mkSpan "test" 3 8 3 9 :< Identifier "h"))
-                                  [mkSpan "test" 3 10 3 11 :< PositionedArgument (mkSpan "test" 3 10 3 11 :< EVar (mkSpan "test" 3 10 3 11 :< Identifier "a"))]
+                                  [mkSpan "test" 3 10 3 11 :< PositionedArgument False (mkSpan "test" 3 10 3 11 :< EVar (mkSpan "test" 3 10 3 11 :< Identifier "a"))]
                             )
                             Nothing
                       ),
@@ -747,7 +751,7 @@ spec = do
                             ( mkSpan "test" 4 8 4 12
                                 :< ECall
                                   (mkSpan "test" 4 8 4 9 :< EVar (mkSpan "test" 4 8 4 9 :< Identifier "g"))
-                                  [mkSpan "test" 4 10 4 11 :< PositionedArgument (mkSpan "test" 4 10 4 11 :< EVar (mkSpan "test" 4 10 4 11 :< Identifier "a"))]
+                                  [mkSpan "test" 4 10 4 11 :< PositionedArgument False (mkSpan "test" 4 10 4 11 :< EVar (mkSpan "test" 4 10 4 11 :< Identifier "a"))]
                             )
                             Nothing
                       )

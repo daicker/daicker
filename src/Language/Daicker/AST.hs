@@ -242,18 +242,20 @@ instance (Show ann) => Show1 (Parameter' ann) where
 type Argument ann = Cofree (Argument' ann) ann
 
 data Argument' ann a
-  = PositionedArgument (Expr ann)
+  = PositionedArgument IsExpanded (Expr ann)
   | KeywordArgument (Identifier ann) (Expr ann)
   deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Argument' ann) where
-  liftEq f (PositionedArgument a1) (PositionedArgument a2) = a1 == a2
+  liftEq f (PositionedArgument e1 a1) (PositionedArgument e2 a2) = e1 == e2 && a1 == a2
   liftEq f (KeywordArgument i1 a1) (KeywordArgument i2 a2) = i1 == i2 && a1 == a2
   liftEq _ _ _ = False
 
 instance (Show ann) => Show1 (Argument' ann) where
-  liftShowsPrec f _ n (PositionedArgument a) = showString "PositionedArgument " <> showString (show a)
+  liftShowsPrec f _ n (PositionedArgument e a) = showString "PositionedArgument " <> showString (show e) <> showString (show a)
   liftShowsPrec f _ n (KeywordArgument i a) = showString "KeywordArgument " <> showString (show i) <> showString (show a)
+
+type IsExpanded = Bool -- Expanded Argument
 
 type EKey ann = Identifier ann
 

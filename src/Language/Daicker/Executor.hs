@@ -44,7 +44,7 @@ eval bundle@(Bundle p ms c ss as) v = case v of
     args <-
       mapM
         ( \case
-            (s :< PositionedArgument e) -> (s :<) . PositionedArgument <$> eval bundle e
+            (s :< PositionedArgument False e) -> (s :<) . PositionedArgument False <$> eval bundle e
             (s :< KeywordArgument i e) -> (s :<) . KeywordArgument i <$> eval bundle e
         )
         args
@@ -95,7 +95,7 @@ zipArg params args =
     isKeywordArg (_ :< KeywordArgument {}) = True
     isKeywordArg _ = False
     zipPositionedArg :: [Parameter ann] -> [Argument ann] -> Either (RuntimeError ann) [(String, Expr ann)]
-    zipPositionedArg (p : ps) ((_ :< PositionedArgument a) : as) = ((paramName p, a) :) <$> zipPositionedArg ps as
+    zipPositionedArg (p : ps) ((_ :< PositionedArgument False a) : as) = ((paramName p, a) :) <$> zipPositionedArg ps as
     zipPositionedArg [] _ = pure []
     zipKeywordArg :: [Parameter ann] -> [Argument ann] -> Either (RuntimeError ann) [(String, Expr ann)]
     zipKeywordArg (p@(_ :< KeywordParameter (s :< Identifier name) _ _ _ defaultValue) : ps) as = do

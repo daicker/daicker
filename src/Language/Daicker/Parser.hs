@@ -372,7 +372,7 @@ unary name = Prefix (f <$> pOp name)
     f :: Expr Span -> Expr Span -> Expr Span
     f op@(op' :< _) v@(v' :< _) =
       (op' `union` v')
-        :< ECall op [v' :< PositionedArgument v]
+        :< ECall op [v' :< PositionedArgument False v]
 
 binary :: Parser Text -> Operator Parser (Expr Span)
 binary name = do
@@ -381,7 +381,7 @@ binary name = do
     f :: Expr Span -> Expr Span -> Expr Span -> Expr Span
     f op a@(a' :< _) b@(b' :< _) =
       (a' `union` b')
-        :< ECall op [a' :< PositionedArgument a, b' :< PositionedArgument b]
+        :< ECall op [a' :< PositionedArgument False a, b' :< PositionedArgument False b]
 
 pOp :: Parser Text -> Parser (Expr Span)
 pOp name = do
@@ -412,7 +412,7 @@ pTerm = pPrimary >>= pChain
       pure $ s1 `union` s2 :< ECall f es
     pDotAccessor :: Expr Span -> Parser (Expr Span)
     pDotAccessor v@(s1 :< _) = do
-      _ <- lexeme $ token TKSep $ char '.'
+      _ <- lexeme $ token TKSep $ try $ char '.' <* notFollowedBy (char '.')
       key@(s2 :< _) <- tupleToCofree EString <$> lexeme (spanned (tIdentifier TKProperty))
       pure $ s1 `union` s2 :< EAccessor v key
     pBracketAccessor :: Expr Span -> Parser (Expr Span)
@@ -434,8 +434,11 @@ pArgument =
   where
     positionedArgument :: Parser (Argument Span)
     positionedArgument = do
-      (s1, value) <- spanned pExpr
-      pure $ s1 :< PositionedArgument value
+      (s, arg) <- spanned $ do
+        v <- pExpr
+        isExpanded <- isJust <$> optional (lexeme $ token TKOp $ string "...")
+        pure $ PositionedArgument isExpanded v
+      pure $ s :< arg
     keywordArgument :: Parser (Argument Span)
     keywordArgument = do
       key@(s1 :< _) <- tupleToCofree Identifier <$> lexeme (spanned (tLowerIdentifier TKParameter))
@@ -509,7 +512,7 @@ pCommand = do
         (name' :< EVar (name' :< Identifier name))
         ( catMaybes
             [ fmap (\(image', image) -> image' :< KeywordArgument (image' :< Identifier "image") image) image,
-              Just $ cmd' :< PositionedArgument (cmd' :< EString cmd)
+              Just $ cmd' :< PositionedArgument False (cmd' :< EString cmd)
             ]
         )
   pure $ s :< command

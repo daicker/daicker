@@ -76,7 +76,7 @@ run fileName funcName args = do
           ( s
               :< ECall
                 (s :< ELambda pms (s' :< e) t)
-                (map (\e@(s :< _) -> s :< PositionedArgument e) es)
+                (map (\e@(s :< _) -> s :< PositionedArgument False e) es)
           )
     _ -> withExceptT RuntimeE $ eval bundle e
 

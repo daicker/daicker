@@ -180,6 +180,38 @@ prelude =
             ),
         preludeSpan
           :< SExpr
+            (preludeSpan :< Identifier "shell")
+            ( preludeSpan
+                :< EFixtureFun
+                  [ preludeSpan
+                      :< PositionedParameter
+                        (preludeSpan :< Identifier "script")
+                        False
+                        False
+                        (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "String"))
+                        Nothing,
+                    preludeSpan
+                      :< KeywordParameter
+                        (preludeSpan :< Identifier "image")
+                        False
+                        False
+                        (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "String"))
+                        (Just $ preludeSpan :< EImage (preludeSpan :< Identifier "local"))
+                  ]
+                  ( \sp args -> do
+                      let (_ :< EString script) = fromJust $ lookup "script" args
+                      let (_ :< EImage (_ :< Identifier image)) = fromJust $ lookup "image" args
+                      (CommandResult i out err) <- liftIO $ case image of
+                        "local" -> runSubprocess "local" script
+                        image -> runContainer image script
+                      case i of
+                        ExitSuccess -> pure $ sp :< EString out
+                        ExitFailure _ -> pure $ sp :< EError ("Error command exec: " <> "$ " <> script) i
+                  )
+                  (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "String"))
+            ),
+        preludeSpan
+          :< SExpr
             (preludeSpan :< Identifier ">>")
             ( preludeSpan
                 :< EFixtureFun
@@ -225,7 +257,7 @@ prelude =
                         sp
                           :< ECall
                             e2
-                            [sp :< PositionedArgument e1]
+                            [sp :< PositionedArgument False e1]
                   )
                   Nothing
             ),
@@ -244,7 +276,7 @@ prelude =
                         sp
                           :< ECall
                             e1
-                            [sp :< PositionedArgument e2]
+                            [sp :< PositionedArgument False e2]
                   )
                   Nothing
             ),
