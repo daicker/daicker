@@ -180,12 +180,16 @@ pSType = do
     name <- tupleToCofree Identifier <$> lexeme (spanned $ tUpperIdentifier TKTypeVar)
     params <-
       optional
+        $ spanned
         $ between
           (lexeme $ token TKSep $ char '[')
           (lexeme $ token TKSep $ char ']')
         $ (tupleToCofree Identifier <$> lexeme (spanned $ tUpperIdentifier TKTypeParameter)) `sepBy` lexeme (token TKSep (char ','))
     lexeme $ token TKSep $ char '='
-    SType name (fromMaybe [] params) <$> pType
+    t@(t' :< _) <- pType
+    case params of
+      Just (params', params) -> pure $ SType name (params' `union` t' :< TFunc params t)
+      Nothing -> pure $ SType name t
   pure $ s' :< t
 
 pSExpr :: Parser (Statement Span)

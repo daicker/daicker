@@ -91,17 +91,17 @@ type Statement ann = Cofree (Statement' ann) ann
 
 data Statement' ann a
   = SExpr (Identifier ann) (Expr ann)
-  | SType (Identifier ann) [Identifier ann] (Type ann)
+  | SType (Identifier ann) (Type ann)
   deriving (Show, Eq)
 
 instance (Eq ann) => Eq1 (Statement' ann) where
   liftEq _ (SExpr i1 d1) (SExpr i2 d2) = i1 == i2 && d1 == d2
-  liftEq _ (SType i1 a1 d1) (SType i2 a2 d2) = i1 == i2 && a1 == a2 && d1 == d2
+  liftEq _ (SType i1 d1) (SType i2 d2) = i1 == i2 && d1 == d2
   liftEq _ _ _ = False
 
 instance (Show ann) => Show1 (Statement' ann) where
   liftShowsPrec _ _ _ (SExpr i d) = showString $ show "SExpr " <> show i <> show d
-  liftShowsPrec _ _ _ (SType i a d) = showString $ show "SType " <> show i <> show a <> show d
+  liftShowsPrec _ _ _ (SType i d) = showString $ show "SType " <> show i <> show d
 
 (~=) :: Statement a -> Statement a -> Bool
 (_ :< SExpr {}) ~= (_ :< SExpr {}) = True
@@ -112,6 +112,7 @@ type Type ann = Cofree (Type' ann) ann
 
 data Type' ann a
   = TVar (Identifier ann)
+  | TFunc [Identifier ann] a
   | TAccessor (Identifier ann) (Identifier ann)
   | TObject [(a, a)]
   | TParameterized a [a]

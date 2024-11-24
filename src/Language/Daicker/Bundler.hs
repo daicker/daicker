@@ -51,7 +51,7 @@ findExpr :: String -> [Statement a] -> Maybe (Statement a)
 findExpr n ss = find (\s@(_ :< SExpr (_ :< Identifier n') _) -> n' == n) $ filter isExpr ss
 
 findType :: String -> [Statement a] -> Maybe (Statement a)
-findType n ss = find (\s@(_ :< SType (_ :< Identifier n') _ _) -> n' == n) $ filter isType ss
+findType n ss = find (\s@(_ :< SType (_ :< Identifier n') _) -> n' == n) $ filter isType ss
 
 findExprWithBundle :: Bundle a -> Identifier a -> Either [StaticError a] (Expr a, Bundle a)
 findExprWithBundle b@(Bundle prelude ms cm ss as) (s :< Identifier name) =
@@ -107,7 +107,7 @@ exportedStatements m@(s :< Module _ export ss) = case export of
 
 toPairStatement :: Module a -> Statement a -> (String, (Statement a, Module a))
 toPairStatement m s@(_ :< SExpr (_ :< Identifier name) _) = (name, (s, m))
-toPairStatement m s@(_ :< SType (_ :< Identifier name) _ _) = (name, (s, m))
+toPairStatement m s@(_ :< SType (_ :< Identifier name) _) = (name, (s, m))
 
 loadModules :: [Import Span] -> ExceptT [StaticError Span] IO (ModuleBundle Span)
 loadModules = foldr (\i -> (<*>) ((<>) <$> importModules i)) (pure [])

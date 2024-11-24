@@ -594,7 +594,6 @@ spec = do
           ( mkSpan "test" 1 1 1 19
               :< SType
                 (mkSpan "test" 1 6 1 10 :< Identifier "Name")
-                []
                 (mkSpan "test" 1 13 1 19 :< TVar (mkSpan "test" 1 13 1 19 :< Identifier "String")),
             [ Token TKKeyword (mkSpan "test" 1 1 1 5),
               Token TKTypeVar (mkSpan "test" 1 6 1 10),
@@ -608,11 +607,14 @@ spec = do
           ( mkSpan "test" 1 1 1 25
               :< SType
                 (mkSpan "test" 1 6 1 11 :< Identifier "Names")
-                [mkSpan "test" 1 12 1 13 :< Identifier "T"]
-                ( mkSpan "test" 1 17 1 25
-                    :< TParameterized
-                      (mkSpan "test" 1 17 1 22 :< TVar (mkSpan "test" 1 17 1 22 :< Identifier "Array"))
-                      [mkSpan "test" 1 23 1 24 :< TVar (mkSpan "test" 1 23 1 24 :< Identifier "T")]
+                ( mkSpan "test" 1 12 1 24
+                    :< TFunc
+                      [mkSpan "test" 1 12 1 13 :< Identifier "T"]
+                      ( mkSpan "test" 1 17 1 25
+                          :< TParameterized
+                            (mkSpan "test" 1 17 1 22 :< TVar (mkSpan "test" 1 17 1 22 :< Identifier "Array"))
+                            [mkSpan "test" 1 23 1 24 :< TVar (mkSpan "test" 1 23 1 24 :< Identifier "T")]
+                      )
                 ),
             [ Token TKKeyword (mkSpan "test" 1 1 1 5),
               Token TKTypeVar (mkSpan "test" 1 6 1 11),
