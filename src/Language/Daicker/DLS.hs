@@ -36,7 +36,7 @@ import Language.Daicker.AST
     Statement' (SExpr, SType),
   )
 import Language.Daicker.Bundler (Bundle)
-import Language.Daicker.Entry (statements', validate')
+import Language.Daicker.Entry (validate')
 import Language.Daicker.Error (CodeError (), StaticError (StaticError), staticErrorListPretty)
 import Language.Daicker.Parser (Token (Token), TokenKind (..), pModule, parse)
 import Language.Daicker.Span (Span (Span), WithSpan (WithSpan), toRange)

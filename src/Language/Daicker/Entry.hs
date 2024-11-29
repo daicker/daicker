@@ -16,14 +16,14 @@ import Data.Sequence (mapWithIndex)
 import Data.Text (Text)
 import qualified Data.Text.IO as T
 import Language.Daicker.AST (Argument' (..), Expr, Expr' (..), Identifier, Module, Module' (..), Statement' (SExpr), switchAnn)
-import Language.Daicker.Bundler (Bundle (Bundle), StatementBundle, findExpr, loadModules, loadStatements)
+import Language.Daicker.Bundler (Bundle (Bundle), emptyArgumentBundle, findExpr, loadModuleBundle)
 import Language.Daicker.CmdArgParser (parseArg)
 import Language.Daicker.Error (CodeError (RuntimeE, StaticE), RuntimeError (RuntimeError), StaticError, codeErrorPretty)
-import Language.Daicker.Executor (eval, zipArg)
+import Language.Daicker.Executor (eval)
 import Language.Daicker.Parser (pModule, parse)
 import Language.Daicker.Span (Span, mkSpan, spanPretty)
 import Language.Daicker.StdLib (prelude)
-import Language.Daicker.TypeChecker (validateModule)
+import Language.Daicker.Validator (validateModule)
 import System.Directory (createDirectoryIfMissing)
 import System.Exit (ExitCode (ExitFailure, ExitSuccess), exitFailure, exitSuccess, exitWith)
 import System.FilePath ((</>))
@@ -42,28 +42,19 @@ validate fileName = do
 validate' :: String -> Text -> ExceptT [StaticError Span] IO ()
 validate' fileName src = do
   (m@(_ :< Module is _ _), _) <- liftEither $ parse pModule fileName src
-  mb <- loadModules is
-  ss <- liftEither $ loadStatements prelude mb m
-  liftEither $ validateModule (Bundle prelude mb m ss []) m
-  ms <- loadModules is
-  void $ liftEither $ loadStatements prelude ms m
-
-statements' :: String -> Text -> ExceptT [StaticError Span] IO (StatementBundle Span)
-statements' fileName src = do
-  (m@(_ :< Module is _ _), _) <- liftEither $ parse pModule fileName src
-  mb <- loadModules is
-  liftEither $ loadStatements prelude mb m
+  mb <- loadModuleBundle m
+  let b = Bundle mb emptyArgumentBundle
+  liftEither $ validateModule b m
 
 run :: String -> String -> [Text] -> ExceptT (CodeError Span) IO (Expr Span)
 run fileName funcName args = do
   src <- liftIO $ T.readFile fileName
   (m@(_ :< Module is _ ss), tokens) <- liftEither $ mapLeft StaticE $ parse pModule fileName src
-  e <- case findExpr funcName ss of
+  mb <- withExceptT StaticE $ loadModuleBundle m
+  let bundle = Bundle mb emptyArgumentBundle
+  e <- case findExpr bundle funcName of
     Nothing -> throwError $ RuntimeE $ RuntimeError ("not found: " <> funcName) (mkSpan "command-line-function" 1 1 1 1) (ExitFailure 1)
-    Just (_ :< SExpr _ e) -> return e
-  mb <- withExceptT StaticE $ loadModules is
-  ss <- withExceptT StaticE $ liftEither $ loadStatements prelude mb m
-  let bundle = Bundle prelude mb m ss []
+    Just (_, e) -> pure e
   withExceptT StaticE $ liftEither $ validateModule bundle m
   case e of
     (s :< ELambda pms (s' :< e) t) -> do

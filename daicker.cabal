@@ -29,11 +29,12 @@ library
       Language.Daicker.Entry
       Language.Daicker.Error
       Language.Daicker.Executor
+      Language.Daicker.Infer
       Language.Daicker.Parser
       Language.Daicker.Span
       Language.Daicker.StdLib
       Language.Daicker.Storage
-      Language.Daicker.TypeChecker
+      Language.Daicker.Validator
   other-modules:
       Paths_daicker
   hs-source-dirs:

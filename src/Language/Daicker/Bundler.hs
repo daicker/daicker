@@ -1,3 +1,4 @@
+{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE TupleSections #-}
 
 module Language.Daicker.Bundler where
@@ -13,7 +14,9 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Language.Daicker.AST
-  ( Export' (Export),
+  ( Argument,
+    Argument' (KeywordArgument, PositionedArgument),
+    Export' (Export),
     Expr,
     Identifier,
     Identifier' (Identifier),
@@ -23,18 +26,21 @@ import Language.Daicker.AST
     ImportScope' (FullScope, PartialScope),
     Module,
     Module' (Module),
+    Parameter,
+    Parameter' (KeywordParameter, PositionedParameter),
     Statement,
     Statement' (SExpr, SType),
     Type,
     URL,
     URL' (LocalFile),
   )
-import Language.Daicker.Error (RuntimeError, StaticError (StaticError))
+import Language.Daicker.Error (RuntimeError (RuntimeError), StaticError (StaticError))
 import Language.Daicker.Parser (pModule, parse)
 import Language.Daicker.Span (Span)
 import qualified Language.Daicker.StdLib as SL
 import Language.Haskell.TH.Lens (HasName (name))
 import System.Directory (doesFileExist)
+import System.Exit (ExitCode (ExitFailure))
 import System.IO (readFile)
 
 data Bundle a = Bundle
@@ -57,6 +63,9 @@ data ArgumentBundle a = ArgumentBundle
   deriving (Show, Eq)
 
 type PackedArgument a = (String, (Expr a, Maybe (Type a)))
+
+appendArgument :: ArgumentBundle a -> [PackedArgument a] -> ArgumentBundle a
+appendArgument bundle args = ArgumentBundle args (Just bundle)
 
 findExpr :: Bundle a -> String -> Maybe (Bundle a, Expr a)
 findExpr
@@ -169,13 +178,13 @@ isType :: Statement a -> Bool
 isType (_ :< SType {}) = True
 isType _ = False
 
-loadBundle :: Module Span -> ExceptT [StaticError Span] IO (ModuleBundle Span)
-loadBundle m@(_ :< Module is _ _) = do
+loadModuleBundle :: Module Span -> ExceptT [StaticError Span] IO (ModuleBundle Span)
+loadModuleBundle m@(_ :< Module is _ _) = do
   ms <-
     mapM
       ( \(_ :< Import _ _ url) -> do
           m <- readModule url
-          b <- loadBundle m
+          b <- loadModuleBundle m
           pure (url, b)
       )
       is
@@ -196,3 +205,44 @@ safeReadFile filePath = do
   if existsFile
     then liftIO $ T.readFile filePath
     else throwError ("does not exist: " <> filePath)
+
+packArg :: [Parameter ann] -> [Argument ann] -> ExceptT (RuntimeError ann) IO [PackedArgument ann]
+packArg params args =
+  (<>)
+    <$> liftEither (zipPositionedArg positionedParams positionedArgs)
+    <*> liftEither (zipKeywordArg keywordParams keywordArgs)
+  where
+    positionedParams = filter isPositionedParam params
+    keywordParams = filter isKeywordParam params
+    positionedArgs = filter isPositionedArg args
+    keywordArgs = filter isKeywordArg args
+    isPositionedParam :: Parameter ann -> Bool
+    isPositionedParam (_ :< PositionedParameter {}) = True
+    isPositionedParam _ = False
+    isKeywordParam :: Parameter ann -> Bool
+    isKeywordParam (_ :< KeywordParameter {}) = True
+    isKeywordParam _ = False
+    isPositionedArg :: Argument ann -> Bool
+    isPositionedArg (_ :< PositionedArgument {}) = True
+    isPositionedArg _ = False
+    isKeywordArg :: Argument ann -> Bool
+    isKeywordArg (_ :< KeywordArgument {}) = True
+    isKeywordArg _ = False
+    zipPositionedArg :: [Parameter ann] -> [Argument ann] -> Either (RuntimeError ann) [PackedArgument ann]
+    zipPositionedArg (p@(_ :< PositionedParameter _ _ _ t _) : ps) ((_ :< PositionedArgument False a) : as) = ((paramName p, (a, t)) :) <$> zipPositionedArg ps as
+    zipPositionedArg [] _ = pure []
+    zipKeywordArg :: [Parameter ann] -> [Argument ann] -> Either (RuntimeError ann) [PackedArgument ann]
+    zipKeywordArg (p@(_ :< KeywordParameter (s :< Identifier name) _ _ t defaultValue) : ps) as = do
+      value <- case find (\(_ :< KeywordArgument (_ :< Identifier name') e) -> name == name') as of
+        Just (_ :< KeywordArgument _ a) -> pure a
+        Nothing -> case defaultValue of
+          Just e -> pure e
+          Nothing -> Left $ RuntimeError ("Missing keyword argument: " <> name) s (ExitFailure 1)
+      ((paramName p, (value, t)) :) <$> zipKeywordArg ps as
+    zipKeywordArg [] _ = pure []
+    paramName :: Parameter ann -> String
+    paramName (_ :< PositionedParameter (i :< Identifier name) _ _ _ _) = name
+    paramName (_ :< KeywordParameter (i :< Identifier name) _ _ _ _) = name
+
+abandonType :: PackedArgument a -> (String, Expr a)
+abandonType (n, (e, _)) = (n, e)

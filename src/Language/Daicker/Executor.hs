@@ -22,7 +22,7 @@ import Debug.Trace (traceShow)
 import GHC.Base (join)
 import GHC.IO.Handle (Handle, hClose, hFlush, hGetChar, hGetContents, hIsClosed, hIsEOF)
 import Language.Daicker.AST
-import Language.Daicker.Bundler (Bundle (Bundle, current, modules, prelude, statements), ModuleBundle, findExpr, findExprWithBundle)
+import Language.Daicker.Bundler (Bundle (Bundle), ModuleBundle (ModuleBundle, currentModule, dependencyModules, preludeModule), abandonType, appendArgument, findExpr, packArg)
 import Language.Daicker.Error (RuntimeError (RuntimeError), StaticError (StaticError))
 import Language.Daicker.Span (Span (FixtureSpan), mkSpan, union)
 import qualified Language.Daicker.Span as S
@@ -33,13 +33,13 @@ import qualified System.IO as IO
 import System.Process
 
 eval :: (Eq a) => Bundle a -> Expr a -> ExceptT (RuntimeError a) IO (Expr a)
-eval bundle@(Bundle p ms c ss as) v = case v of
+eval bundle@(Bundle ms as) v = case v of
   e@(s :< EError {}) -> pure e
   s :< EArray vs -> (:<) s . EArray <$> mapM (eval bundle) vs
   s :< EObject vs -> (:<) s . EObject <$> mapM (\(k, e) -> (,) k <$> eval bundle e) vs
-  s :< EVar i -> case findExprWithBundle bundle i of
-    Right (a, bundle) -> eval bundle a
-    Left ((StaticError m s) : _) -> throwError $ RuntimeError m s (ExitFailure 1)
+  s :< EVar i@(_ :< Identifier name) -> case findExpr bundle name of
+    Just (bundle, a) -> eval bundle a
+    Nothing -> throwError $ RuntimeError ("not defined: " <> name) s (ExitFailure 1)
   s :< ECall f args -> do
     args <-
       mapM
@@ -51,11 +51,11 @@ eval bundle@(Bundle p ms c ss as) v = case v of
     f' <- eval bundle f
     case f' of
       (s :< ELambda pms (s' :< e) t) -> do
-        args <- zipArg pms args
-        eval (Bundle p ms c ss (as <> args)) (s' :< e)
+        args <- packArg pms args
+        eval (Bundle ms (appendArgument as args)) (s' :< e)
       (s :< EFixtureFun pms e ex) -> do
-        args <- zipArg pms args
-        res <- liftIO $ e s args
+        args <- packArg pms args
+        res <- liftIO $ e s (map abandonType args)
         eval bundle res
       (s :< e) ->
         case args of
@@ -71,41 +71,3 @@ eval bundle@(Bundle p ms c ss as) v = case v of
   v -> pure v
   where
     expand (_ :< EArray es) = es
-
-zipArg :: [Parameter ann] -> [Argument ann] -> ExceptT (RuntimeError ann) IO [(String, Expr ann)]
-zipArg params args =
-  (<>)
-    <$> liftEither (zipPositionedArg positionedParams positionedArgs)
-    <*> liftEither (zipKeywordArg keywordParams keywordArgs)
-  where
-    positionedParams = filter isPositionedParam params
-    keywordParams = filter isKeywordParam params
-    positionedArgs = filter isPositionedArg args
-    keywordArgs = filter isKeywordArg args
-    isPositionedParam :: Parameter ann -> Bool
-    isPositionedParam (_ :< PositionedParameter {}) = True
-    isPositionedParam _ = False
-    isKeywordParam :: Parameter ann -> Bool
-    isKeywordParam (_ :< KeywordParameter {}) = True
-    isKeywordParam _ = False
-    isPositionedArg :: Argument ann -> Bool
-    isPositionedArg (_ :< PositionedArgument {}) = True
-    isPositionedArg _ = False
-    isKeywordArg :: Argument ann -> Bool
-    isKeywordArg (_ :< KeywordArgument {}) = True
-    isKeywordArg _ = False
-    zipPositionedArg :: [Parameter ann] -> [Argument ann] -> Either (RuntimeError ann) [(String, Expr ann)]
-    zipPositionedArg (p : ps) ((_ :< PositionedArgument False a) : as) = ((paramName p, a) :) <$> zipPositionedArg ps as
-    zipPositionedArg [] _ = pure []
-    zipKeywordArg :: [Parameter ann] -> [Argument ann] -> Either (RuntimeError ann) [(String, Expr ann)]
-    zipKeywordArg (p@(_ :< KeywordParameter (s :< Identifier name) _ _ _ defaultValue) : ps) as = do
-      value <- case find (\(_ :< KeywordArgument (_ :< Identifier name') e) -> name == name') as of
-        Just (_ :< KeywordArgument _ a) -> pure a
-        Nothing -> case defaultValue of
-          Just e -> pure e
-          Nothing -> Left $ RuntimeError ("Missing keyword argument: " <> name) s (ExitFailure 1)
-      ((paramName p, value) :) <$> zipKeywordArg ps as
-    zipKeywordArg [] _ = pure []
-    paramName :: Parameter ann -> String
-    paramName (_ :< PositionedParameter (i :< Identifier name) _ _ _ _) = name
-    paramName (_ :< KeywordParameter (i :< Identifier name) _ _ _ _) = name
