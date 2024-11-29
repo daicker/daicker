@@ -1,3 +1,5 @@
+{-# LANGUAGE TupleSections #-}
+
 module Language.Daicker.Bundler where
 
 import Control.Comonad.Cofree (Cofree ((:<)))
@@ -6,7 +8,7 @@ import Control.Monad.Error.Class (MonadError (throwError), liftEither)
 import Control.Monad.Except (ExceptT, withExceptT)
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.List (find)
-import Data.Maybe (fromJust)
+import Data.Maybe (isJust)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -30,45 +32,134 @@ import Language.Daicker.AST
 import Language.Daicker.Error (RuntimeError, StaticError (StaticError))
 import Language.Daicker.Parser (pModule, parse)
 import Language.Daicker.Span (Span)
-import Language.Daicker.StdLib (prelude, stdlib)
+import qualified Language.Daicker.StdLib as SL
+import Language.Haskell.TH.Lens (HasName (name))
 import System.Directory (doesFileExist)
 import System.IO (readFile)
 
 data Bundle a = Bundle
-  { prelude :: Module a,
-    modules :: ModuleBundle a,
-    current :: Module a,
-    statements :: StatementBundle a,
-    arguments :: [(String, Expr a)]
+  { moduleBundle :: ModuleBundle a,
+    argumentBundle :: ArgumentBundle a
   }
   deriving (Show, Eq)
 
-type StatementBundle a = [(String, (Statement a, Module a))]
+data ModuleBundle a = ModuleBundle
+  { preludeModule :: Module a,
+    currentModule :: Module a,
+    dependencyModules :: [(URL a, ModuleBundle a)]
+  }
+  deriving (Show, Eq)
 
-type ModuleBundle a = [(String, Module a)]
+data ArgumentBundle a = ArgumentBundle
+  { currentArguments :: [PackedArgument a],
+    parentArguments :: Maybe (ArgumentBundle a)
+  }
+  deriving (Show, Eq)
 
-findExpr :: String -> [Statement a] -> Maybe (Statement a)
-findExpr n ss = find (\s@(_ :< SExpr (_ :< Identifier n') _) -> n' == n) $ filter isExpr ss
+type PackedArgument a = (String, (Expr a, Maybe (Type a)))
 
-findType :: String -> [Statement a] -> Maybe (Statement a)
-findType n ss = find (\s@(_ :< SType (_ :< Identifier n') _) -> n' == n) $ filter isType ss
+findExpr :: Bundle a -> String -> Maybe (Bundle a, Expr a)
+findExpr
+  bundle@( Bundle
+             mb@( ModuleBundle
+                    (_ :< Module _ _ preludeStatements)
+                    (_ :< Module _ _ currentStatements)
+                    dependencyModules
+                  )
+             argumentBundle
+           )
+  name =
+    join
+      $ find
+        isJust
+      $ [maybeArg, maybeExprFromCurrentModule]
+        <> maybeExprFromDependencyModules
+        <> [maybeExprFromPrelude]
+    where
+      -- find expr from arguments
+      maybeArg = (Bundle mb emptyArgumentBundle,) <$> findExprFromArguments argumentBundle name
+      -- find expr from current module
+      maybeExprFromCurrentModule = (Bundle mb emptyArgumentBundle,) <$> findExprFromStatements currentStatements name
+      -- find expr from dependency modules
+      -- TODO: support namespace reference
+      maybeExprFromDependencyModules =
+        map
+          ( ( \(mb, _ :< Module _ _ statements) ->
+                (Bundle mb emptyArgumentBundle,) <$> findExprFromStatements statements name
+            )
+              . (\(_, mb) -> (mb, currentModule mb))
+          )
+          dependencyModules
 
-findExprWithBundle :: Bundle a -> Identifier a -> Either [StaticError a] (Expr a, Bundle a)
-findExprWithBundle b@(Bundle prelude ms cm ss as) (s :< Identifier name) =
-  case lookup name as of
-    Just e -> Right (e, b)
-    Nothing -> case lookup name (filter (\(_, (s, _)) -> isExpr s) ss) of
-      Just (_ :< SExpr _ e, m) -> do
-        ss' <- loadStatements prelude ms m
-        pure (e, Bundle prelude ms m ss' as)
-      Nothing -> Left [StaticError ("not defined: " <> name) s]
+      -- find expr from prelude
+      maybeExprFromPrelude = (Bundle mb emptyArgumentBundle,) <$> findExprFromStatements preludeStatements name
 
-loadStatements :: Module a -> ModuleBundle a -> Module a -> Either [StaticError a] (StatementBundle a)
-loadStatements prelude ms m@(s :< Module is e ss) = do
-  let ss' = map (toPairStatement m) ss
-  bs <- mapM (importedStatements ms) is
-  ps <- exportedStatements prelude
-  pure $ ps <> join bs <> ss'
+findExprFromStatements :: [Statement a] -> String -> Maybe (Expr a)
+findExprFromStatements statements name =
+  case find (\(_ :< SExpr (_ :< Identifier name') _) -> name' == name) statements of
+    Just (_ :< SExpr _ e) -> Just e
+    Nothing -> Nothing
+
+findExprFromArguments :: ArgumentBundle a -> String -> Maybe (Expr a)
+findExprFromArguments bundle name =
+  case find (\(n, _) -> n == name) (currentArguments bundle) of
+    Just (_, (e, _)) -> Just e
+    Nothing -> case parentArguments bundle of
+      Just p -> findExprFromArguments p name
+      Nothing -> Nothing
+
+findType :: Bundle a -> String -> Maybe (Bundle a, Type a)
+findType
+  bundle@( Bundle
+             mb@( ModuleBundle
+                    (_ :< Module _ _ preludeStatements)
+                    (_ :< Module _ _ currentStatements)
+                    dependencyModules
+                  )
+             argumentBundle
+           )
+  name =
+    join
+      $ find
+        isJust
+      $ [maybeArg, maybeTypeFromCurrentModule]
+        <> maybeTypeFromDependencyModules
+        <> [maybeTypeFromPrelude]
+    where
+      -- find expr from arguments
+      maybeArg = (bundle,) <$> findTypeFromArguments argumentBundle name
+      -- find expr from current module
+      maybeTypeFromCurrentModule = (Bundle mb emptyArgumentBundle,) <$> findTypeFromStatements currentStatements name
+      -- find expr from dependency modules
+      -- TODO: support namespace reference
+      maybeTypeFromDependencyModules =
+        map
+          ( ( \(mb, _ :< Module _ _ statements) ->
+                (Bundle mb emptyArgumentBundle,) <$> findTypeFromStatements statements name
+            )
+              . (\(_, mb) -> (mb, currentModule mb))
+          )
+          dependencyModules
+
+      -- find expr from prelude
+      maybeTypeFromPrelude = (Bundle mb emptyArgumentBundle,) <$> findTypeFromStatements preludeStatements name
+
+findTypeFromArguments :: ArgumentBundle a -> String -> Maybe (Type a)
+findTypeFromArguments bundle name =
+  case find (\(n, (_, t)) -> n == name) (currentArguments bundle) of
+    Just (_, (_, t)) -> t
+    Nothing -> case parentArguments bundle of
+      Just p -> findTypeFromArguments p name
+      Nothing -> Nothing
+
+findTypeFromStatements :: [Statement a] -> String -> Maybe (Type a)
+findTypeFromStatements bundle name =
+  case find (\(_ :< SType (_ :< Identifier name') _) -> name' == name) bundle of
+    Just (_ :< SType _ t) -> Just t
+    Nothing -> Nothing
+
+emptyArgumentBundle :: ArgumentBundle a
+emptyArgumentBundle = ArgumentBundle [] Nothing
 
 isExpr :: Statement a -> Bool
 isExpr (_ :< SExpr {}) = True
@@ -78,51 +169,26 @@ isType :: Statement a -> Bool
 isType (_ :< SType {}) = True
 isType _ = False
 
-importedStatements :: ModuleBundle a -> Import a -> Either [StaticError a] (StatementBundle a)
-importedStatements ms (s :< impt) = do
-  case impt of
-    Import (_ :< PartialScope imports) Nothing (_ :< LocalFile url) -> do
-      let m = findModule url
-      ss <- exportedStatements m
-      mapM (findExpr ss) imports
-    Import (_ :< FullScope) Nothing (_ :< LocalFile url) -> do
-      let m = findModule url
-      exprs <- exportedStatements m
-      pure (map (\(k, (e, _)) -> (k, (e, findModule url))) exprs)
-  where
-    findModule url = fromJust $ lookup url ms
-    findExpr exprs i@(s :< Identifier name) = case lookup name exprs of
-      Nothing -> Left [StaticError ("not defined: " <> name) s]
-      Just e -> Right (name, e)
+loadBundle :: Module Span -> ExceptT [StaticError Span] IO (ModuleBundle Span)
+loadBundle m@(_ :< Module is _ _) = do
+  ms <-
+    mapM
+      ( \(_ :< Import _ _ url) -> do
+          m <- readModule url
+          b <- loadBundle m
+          pure (url, b)
+      )
+      is
+  pure (ModuleBundle SL.prelude m ms)
 
-exportedStatements :: Module a -> Either [StaticError a] (StatementBundle a)
-exportedStatements m@(s :< Module _ export ss) = case export of
-  Just (_ :< Export names) -> mapM findExpr names
-  Nothing -> pure $ map (toPairStatement m) ss
-  where
-    exprs = map (toPairStatement m) ss
-    findExpr i@(s :< Identifier name) = case lookup name exprs of
-      Nothing -> Left [StaticError ("not defined: " <> name) s]
-      Just e -> Right (name, e)
-
-toPairStatement :: Module a -> Statement a -> (String, (Statement a, Module a))
-toPairStatement m s@(_ :< SExpr (_ :< Identifier name) _) = (name, (s, m))
-toPairStatement m s@(_ :< SType (_ :< Identifier name) _) = (name, (s, m))
-
-loadModules :: [Import Span] -> ExceptT [StaticError Span] IO (ModuleBundle Span)
-loadModules = foldr (\i -> (<*>) ((<>) <$> importModules i)) (pure [])
-
-importModules :: Import Span -> ExceptT [StaticError Span] IO (ModuleBundle Span)
-importModules (s :< Import _ _ url) = readModule url
-
-readModule :: URL Span -> ExceptT [StaticError Span] IO (ModuleBundle Span)
+readModule :: URL Span -> ExceptT [StaticError Span] IO (Module Span)
 readModule (s :< LocalFile fileName) = do
-  case lookup fileName stdlib of
-    Just m -> pure [(fileName, m)]
+  case lookup fileName SL.stdlib of
+    Just m -> pure m
     Nothing -> do
       src <- withExceptT (\e -> [StaticError e s]) $ safeReadFile fileName
-      (m@(_ :< Module is _ _), tokens) <- liftEither $ parse pModule fileName src
-      (<>) [(fileName, m)] <$> loadModules is
+      (m, _) <- liftEither $ parse pModule fileName src
+      pure m
 
 safeReadFile :: FilePath -> ExceptT String IO Text
 safeReadFile filePath = do
