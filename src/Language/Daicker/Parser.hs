@@ -257,14 +257,14 @@ pTTerm = do
 pTPrimary :: Parser (Type Span)
 pTPrimary =
   choice
-    [ pTAccessor,
-      pTVar,
-      pTArrayOrTuple,
-      pTObject,
-      pTStringLiteral,
+    [ pTStringLiteral,
       pTNumberLiteral,
       pTBoolLiteral,
-      pTNullLiteral
+      pTNullLiteral,
+      pTAccessor,
+      pTVar,
+      pTArrayOrTuple,
+      pTObject
     ]
 
 pTVar :: Parser (Type Span)

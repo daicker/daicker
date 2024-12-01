@@ -67,10 +67,12 @@ findExpr
     join
       $ find
         isJust
-      $ [maybeExprFromCurrentModule]
+      $ [maybeExprFromArguments, maybeExprFromCurrentModule]
         <> maybeExprFromDependencyModules
         <> [maybeExprFromPrelude]
     where
+      -- find expr from arguments
+      maybeExprFromArguments = (env,) <$> findExprFromArguments env name
       -- find expr from current module
       maybeExprFromCurrentModule = (env,) <$> findExprFromStatements currentStatements name
       -- find expr from dependency modules
@@ -88,7 +90,7 @@ findExpr
 
 findExprFromStatements :: [Statement a] -> String -> Maybe (Expr a)
 findExprFromStatements statements name =
-  case find (\(_ :< SExpr (_ :< Identifier name') _) -> name' == name) statements of
+  case find (\(_ :< SExpr (_ :< Identifier name') _) -> name' == name) (filter isExpr statements) of
     Just (_ :< SExpr _ e) -> Just e
     Nothing -> Nothing
 
@@ -136,8 +138,8 @@ findTypeFromArguments env name =
     Nothing -> Nothing
 
 findTypeFromStatements :: [Statement a] -> String -> Maybe (Type a)
-findTypeFromStatements env name =
-  case find (\(_ :< SType (_ :< Identifier name') _) -> name' == name) env of
+findTypeFromStatements statements name =
+  case find (\(_ :< SType (_ :< Identifier name') _) -> name' == name) (filter isType statements) of
     Just (_ :< SType _ t) -> Just t
     Nothing -> Nothing
 

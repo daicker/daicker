@@ -555,7 +555,7 @@ spec = do
               :< SExpr
                 (mkSpan "test" 1 1 1 2 :< Identifier "a")
                 (mkSpan "test" 1 5 1 6 :< ENumber 1),
-            [ Token TKVar (mkSpan "test" 1 1 1 2),
+            [ Token TKFunction (mkSpan "test" 1 1 1 2),
               Token TKSep (mkSpan "test" 1 3 1 4),
               Token TKNumber (mkSpan "test" 1 5 1 6)
             ]
@@ -579,7 +579,7 @@ spec = do
                       (mkSpan "test" 1 8 1 9 :< EVar (mkSpan "test" 1 8 1 9 :< Identifier "a"))
                       Nothing
                 ),
-            [ Token TKVar (mkSpan "test" 1 1 1 2),
+            [ Token TKFunction (mkSpan "test" 1 1 1 2),
               Token TKSep (mkSpan "test" 1 2 1 3),
               Token TKParameter (mkSpan "test" 1 3 1 4),
               Token TKSep (mkSpan "test" 1 4 1 5),
@@ -607,7 +607,7 @@ spec = do
           ( mkSpan "test" 1 1 1 25
               :< SType
                 (mkSpan "test" 1 6 1 11 :< Identifier "Names")
-                ( mkSpan "test" 1 12 1 24
+                ( mkSpan "test" 1 11 1 25
                     :< TFunc
                       [mkSpan "test" 1 12 1 13 :< Identifier "T"]
                       ( mkSpan "test" 1 17 1 25
@@ -687,7 +687,7 @@ spec = do
         `shouldBe` Right
           ( mkSpan "test" 1 1 1 31
               :< Import
-                (mkSpan "test" 1 9 1 13 :< PartialScope [mkSpan "test" 1 9 1 10 :< Identifier "a", mkSpan "test" 1 12 1 13 :< Identifier "b"])
+                (mkSpan "test" 1 8 1 14 :< PartialScope [mkSpan "test" 1 9 1 10 :< Identifier "a", mkSpan "test" 1 12 1 13 :< Identifier "b"])
                 Nothing
                 (mkSpan "test" 1 20 1 31 :< LocalFile "test.daic"),
             [ Token TKKeyword (mkSpan "test" 1 1 1 7),
@@ -708,7 +708,7 @@ spec = do
               :< Module
                 [ mkSpan "test" 1 1 1 30
                     :< Import
-                      (mkSpan "test" 1 10 1 11 :< PartialScope [mkSpan "test" 1 10 1 11 :< Identifier "g"])
+                      (mkSpan "test" 1 8 1 13 :< PartialScope [mkSpan "test" 1 10 1 11 :< Identifier "g"])
                       Nothing
                       (mkSpan "test" 1 19 1 30 :< LocalFile "test.daic")
                 ]
@@ -768,7 +768,7 @@ spec = do
               Token TKSep (mkSpan "test" 2 8 2 9),
               Token TKVar (mkSpan "test" 2 10 2 11),
               Token TKSep (mkSpan "test" 2 12 2 13),
-              Token TKVar (mkSpan "test" 3 1 3 2),
+              Token TKFunction (mkSpan "test" 3 1 3 2),
               Token TKSep (mkSpan "test" 3 2 3 3),
               Token TKParameter (mkSpan "test" 3 3 3 4),
               Token TKSep (mkSpan "test" 3 4 3 5),
@@ -777,7 +777,7 @@ spec = do
               Token TKSep (mkSpan "test" 3 9 3 10),
               Token TKVar (mkSpan "test" 3 10 3 11),
               Token TKSep (mkSpan "test" 3 11 3 12),
-              Token TKVar (mkSpan "test" 4 1 4 2),
+              Token TKFunction (mkSpan "test" 4 1 4 2),
               Token TKSep (mkSpan "test" 4 2 4 3),
               Token TKParameter (mkSpan "test" 4 3 4 4),
               Token TKSep (mkSpan "test" 4 4 4 5),

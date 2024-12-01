@@ -76,3 +76,4 @@ spanPretty (Span p1@(Position file l1 c1) p2@(Position _ l2 c2)) =
   if p1 == p2
     then file <> ":" <> show l1 <> ":" <> show c1
     else file <> ":" <> show l1 <> ":" <> show c1 <> "-" <> show l2 <> ":" <> show c2
+spanPretty (FixtureSpan s) = s
