@@ -16,7 +16,7 @@ import Data.Sequence (mapWithIndex)
 import Data.Text (Text)
 import qualified Data.Text.IO as T
 import Language.Daicker.AST (Argument' (..), Expr, Expr' (..), Identifier, Module, Module' (..), Statement' (SExpr), switchAnn)
-import Language.Daicker.Bundler (Bundle (Bundle), emptyArgumentBundle, findExpr, loadModuleBundle)
+import Language.Daicker.Bundler (findExpr, loadEnvironment)
 import Language.Daicker.CmdArgParser (parseArg)
 import Language.Daicker.Error (CodeError (RuntimeE, StaticE), RuntimeError (RuntimeError), StaticError, codeErrorPretty)
 import Language.Daicker.Executor (eval)
@@ -42,20 +42,18 @@ validate fileName = do
 validate' :: String -> Text -> ExceptT [StaticError Span] IO ()
 validate' fileName src = do
   (m@(_ :< Module is _ _), _) <- liftEither $ parse pModule fileName src
-  mb <- loadModuleBundle m
-  let b = Bundle mb emptyArgumentBundle
-  liftEither $ validateModule b m
+  env <- loadEnvironment m
+  liftEither $ validateModule env m
 
 run :: String -> String -> [Text] -> ExceptT (CodeError Span) IO (Expr Span)
 run fileName funcName args = do
   src <- liftIO $ T.readFile fileName
   (m@(_ :< Module is _ ss), tokens) <- liftEither $ mapLeft StaticE $ parse pModule fileName src
-  mb <- withExceptT StaticE $ loadModuleBundle m
-  let bundle = Bundle mb emptyArgumentBundle
-  e <- case findExpr bundle funcName of
+  env <- withExceptT StaticE $ loadEnvironment m
+  e <- case findExpr env funcName of
     Nothing -> throwError $ RuntimeE $ RuntimeError ("not found: " <> funcName) (mkSpan "command-line-function" 1 1 1 1) (ExitFailure 1)
     Just (_, e) -> pure e
-  withExceptT StaticE $ liftEither $ validateModule bundle m
+  withExceptT StaticE $ liftEither $ validateModule env m
   case e of
     (s :< ELambda pms (s' :< e) t) -> do
       hasStdin <- liftIO $ hReady stdin
@@ -63,13 +61,13 @@ run fileName funcName args = do
       es <- liftEither $ mapLeft StaticE $ mapM (\(i, arg) -> parseArg ("command-line-argument($" <> show i <> ")") input arg) $ zip [1 ..] args
       withExceptT RuntimeE $
         eval
-          bundle
+          env
           ( s
               :< ECall
                 (s :< ELambda pms (s' :< e) t)
                 (map (\e@(s :< _) -> s :< PositionedArgument False e) es)
           )
-    _ -> withExceptT RuntimeE $ eval bundle e
+    _ -> withExceptT RuntimeE $ eval env e
 
 mapLeft :: (a -> c) -> Either a b -> Either c b
 mapLeft f = either (Left . f) Right

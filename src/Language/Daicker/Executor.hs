@@ -22,7 +22,7 @@ import Debug.Trace (traceShow)
 import GHC.Base (join)
 import GHC.IO.Handle (Handle, hClose, hFlush, hGetChar, hGetContents, hIsClosed, hIsEOF)
 import Language.Daicker.AST
-import Language.Daicker.Bundler (Bundle (Bundle), ModuleBundle (ModuleBundle, currentModule, dependencyModules, preludeModule), abandonType, appendArgument, findExpr, packArg)
+import Language.Daicker.Bundler (Environment (Environment, currentModule, dependencyModules, preludeModule), abandonType, appendArguments, findExpr, packArg)
 import Language.Daicker.Error (RuntimeError (RuntimeError), StaticError (StaticError))
 import Language.Daicker.Span (Span (FixtureSpan), mkSpan, union)
 import qualified Language.Daicker.Span as S
@@ -32,37 +32,37 @@ import System.IO (hSetBuffering)
 import qualified System.IO as IO
 import System.Process
 
-eval :: (Eq a) => Bundle a -> Expr a -> ExceptT (RuntimeError a) IO (Expr a)
-eval bundle@(Bundle ms as) v = case v of
+eval :: (Eq a) => Environment a -> Expr a -> ExceptT (RuntimeError a) IO (Expr a)
+eval env v = case v of
   e@(s :< EError {}) -> pure e
-  s :< EArray vs -> (:<) s . EArray <$> mapM (eval bundle) vs
-  s :< EObject vs -> (:<) s . EObject <$> mapM (\(k, e) -> (,) k <$> eval bundle e) vs
-  s :< EVar i@(_ :< Identifier name) -> case findExpr bundle name of
+  s :< EArray vs -> (:<) s . EArray <$> mapM (eval env) vs
+  s :< EObject vs -> (:<) s . EObject <$> mapM (\(k, e) -> (,) k <$> eval env e) vs
+  s :< EVar i@(_ :< Identifier name) -> case findExpr env name of
     Just (bundle, a) -> eval bundle a
     Nothing -> throwError $ RuntimeError ("not defined: " <> name) s (ExitFailure 1)
   s :< ECall f args -> do
     args <-
       mapM
         ( \case
-            (s :< PositionedArgument False e) -> (s :<) . PositionedArgument False <$> eval bundle e
-            (s :< KeywordArgument i e) -> (s :<) . KeywordArgument i <$> eval bundle e
+            (s :< PositionedArgument False e) -> (s :<) . PositionedArgument False <$> eval env e
+            (s :< KeywordArgument i e) -> (s :<) . KeywordArgument i <$> eval env e
         )
         args
-    f' <- eval bundle f
+    f' <- eval env f
     case f' of
       (s :< ELambda pms (s' :< e) t) -> do
         args <- packArg pms args
-        eval (Bundle ms (appendArgument as args)) (s' :< e)
+        eval (appendArguments env args) (s' :< e)
       (s :< EFixtureFun pms e ex) -> do
         args <- packArg pms args
         res <- liftIO $ e s (map abandonType args)
-        eval bundle res
+        eval env res
       (s :< e) ->
         case args of
           [] -> pure $ s :< e
           _ -> throwError $ RuntimeError "Not a function" s (ExitFailure 1)
   s :< EAccessor e (_ :< key) -> do
-    e <- eval bundle e
+    e <- eval env e
     case e of
       (_ :< EObject vs) -> case find (\(_ :< key', _) -> key == key') vs of -- TODO: Implement equality
         Just (_, v) -> pure v

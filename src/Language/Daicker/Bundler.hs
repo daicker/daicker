@@ -1,4 +1,3 @@
-{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE TupleSections #-}
 
 module Language.Daicker.Bundler where
@@ -43,65 +42,49 @@ import System.Directory (doesFileExist)
 import System.Exit (ExitCode (ExitFailure))
 import System.IO (readFile)
 
-data Bundle a = Bundle
-  { moduleBundle :: ModuleBundle a,
-    argumentBundle :: ArgumentBundle a
-  }
-  deriving (Show, Eq)
-
-data ModuleBundle a = ModuleBundle
+data Environment a = Environment
   { preludeModule :: Module a,
     currentModule :: Module a,
-    dependencyModules :: [(URL a, ModuleBundle a)]
-  }
-  deriving (Show, Eq)
-
-data ArgumentBundle a = ArgumentBundle
-  { currentArguments :: [PackedArgument a],
-    parentArguments :: Maybe (ArgumentBundle a)
+    dependencyModules :: [(URL a, Environment a)],
+    packedArguments :: [PackedArgument a]
   }
   deriving (Show, Eq)
 
 type PackedArgument a = (String, (Expr a, Maybe (Type a)))
 
-appendArgument :: ArgumentBundle a -> [PackedArgument a] -> ArgumentBundle a
-appendArgument bundle args = ArgumentBundle args (Just bundle)
+appendArguments :: Environment a -> [PackedArgument a] -> Environment a
+appendArguments (Environment p c d as) as' = Environment p c d (as' <> as)
 
-findExpr :: Bundle a -> String -> Maybe (Bundle a, Expr a)
+findExpr :: Environment a -> String -> Maybe (Environment a, Expr a)
 findExpr
-  bundle@( Bundle
-             mb@( ModuleBundle
-                    (_ :< Module _ _ preludeStatements)
-                    (_ :< Module _ _ currentStatements)
-                    dependencyModules
-                  )
-             argumentBundle
-           )
+  env@( Environment
+          (_ :< Module _ _ preludeStatements)
+          (_ :< Module _ _ currentStatements)
+          dependencyModules
+          args
+        )
   name =
     join
       $ find
         isJust
-      $ [maybeArg, maybeExprFromCurrentModule]
+      $ [maybeExprFromCurrentModule]
         <> maybeExprFromDependencyModules
         <> [maybeExprFromPrelude]
     where
-      -- find expr from arguments
-      maybeArg = (Bundle mb emptyArgumentBundle,) <$> findExprFromArguments argumentBundle name
       -- find expr from current module
-      maybeExprFromCurrentModule = (Bundle mb emptyArgumentBundle,) <$> findExprFromStatements currentStatements name
+      maybeExprFromCurrentModule = (env,) <$> findExprFromStatements currentStatements name
       -- find expr from dependency modules
       -- TODO: support namespace reference
       maybeExprFromDependencyModules =
         map
           ( ( \(mb, _ :< Module _ _ statements) ->
-                (Bundle mb emptyArgumentBundle,) <$> findExprFromStatements statements name
+                (env,) <$> findExprFromStatements statements name
             )
               . (\(_, mb) -> (mb, currentModule mb))
           )
           dependencyModules
-
       -- find expr from prelude
-      maybeExprFromPrelude = (Bundle mb emptyArgumentBundle,) <$> findExprFromStatements preludeStatements name
+      maybeExprFromPrelude = (env,) <$> findExprFromStatements preludeStatements name
 
 findExprFromStatements :: [Statement a] -> String -> Maybe (Expr a)
 findExprFromStatements statements name =
@@ -109,66 +92,54 @@ findExprFromStatements statements name =
     Just (_ :< SExpr _ e) -> Just e
     Nothing -> Nothing
 
-findExprFromArguments :: ArgumentBundle a -> String -> Maybe (Expr a)
-findExprFromArguments bundle name =
-  case find (\(n, _) -> n == name) (currentArguments bundle) of
+findExprFromArguments :: Environment a -> String -> Maybe (Expr a)
+findExprFromArguments env name =
+  case find (\(n, _) -> n == name) (packedArguments env) of
     Just (_, (e, _)) -> Just e
-    Nothing -> case parentArguments bundle of
-      Just p -> findExprFromArguments p name
-      Nothing -> Nothing
+    Nothing -> Nothing
 
-findType :: Bundle a -> String -> Maybe (Bundle a, Type a)
+findType :: Environment a -> String -> Maybe (Environment a, Type a)
 findType
-  bundle@( Bundle
-             mb@( ModuleBundle
-                    (_ :< Module _ _ preludeStatements)
-                    (_ :< Module _ _ currentStatements)
-                    dependencyModules
-                  )
-             argumentBundle
-           )
+  env@( Environment
+          (_ :< Module _ _ preludeStatements)
+          (_ :< Module _ _ currentStatements)
+          dependencyModules
+          arguments
+        )
   name =
     join
       $ find
         isJust
-      $ [maybeArg, maybeTypeFromCurrentModule]
+      $ [maybeTypeFromCurrentModule]
         <> maybeTypeFromDependencyModules
         <> [maybeTypeFromPrelude]
     where
-      -- find expr from arguments
-      maybeArg = (bundle,) <$> findTypeFromArguments argumentBundle name
-      -- find expr from current module
-      maybeTypeFromCurrentModule = (Bundle mb emptyArgumentBundle,) <$> findTypeFromStatements currentStatements name
-      -- find expr from dependency modules
+      -- find type from current module
+      maybeTypeFromCurrentModule = (env,) <$> findTypeFromStatements currentStatements name
+      -- find type from dependency modules
       -- TODO: support namespace reference
       maybeTypeFromDependencyModules =
         map
           ( ( \(mb, _ :< Module _ _ statements) ->
-                (Bundle mb emptyArgumentBundle,) <$> findTypeFromStatements statements name
+                (env,) <$> findTypeFromStatements statements name
             )
               . (\(_, mb) -> (mb, currentModule mb))
           )
           dependencyModules
+      -- find type from prelude
+      maybeTypeFromPrelude = (env,) <$> findTypeFromStatements preludeStatements name
 
-      -- find expr from prelude
-      maybeTypeFromPrelude = (Bundle mb emptyArgumentBundle,) <$> findTypeFromStatements preludeStatements name
-
-findTypeFromArguments :: ArgumentBundle a -> String -> Maybe (Type a)
-findTypeFromArguments bundle name =
-  case find (\(n, (_, t)) -> n == name) (currentArguments bundle) of
+findTypeFromArguments :: Environment a -> String -> Maybe (Type a)
+findTypeFromArguments env name =
+  case find (\(n, (_, t)) -> n == name) (packedArguments env) of
     Just (_, (_, t)) -> t
-    Nothing -> case parentArguments bundle of
-      Just p -> findTypeFromArguments p name
-      Nothing -> Nothing
-
-findTypeFromStatements :: [Statement a] -> String -> Maybe (Type a)
-findTypeFromStatements bundle name =
-  case find (\(_ :< SType (_ :< Identifier name') _) -> name' == name) bundle of
-    Just (_ :< SType _ t) -> Just t
     Nothing -> Nothing
 
-emptyArgumentBundle :: ArgumentBundle a
-emptyArgumentBundle = ArgumentBundle [] Nothing
+findTypeFromStatements :: [Statement a] -> String -> Maybe (Type a)
+findTypeFromStatements env name =
+  case find (\(_ :< SType (_ :< Identifier name') _) -> name' == name) env of
+    Just (_ :< SType _ t) -> Just t
+    Nothing -> Nothing
 
 isExpr :: Statement a -> Bool
 isExpr (_ :< SExpr {}) = True
@@ -178,17 +149,17 @@ isType :: Statement a -> Bool
 isType (_ :< SType {}) = True
 isType _ = False
 
-loadModuleBundle :: Module Span -> ExceptT [StaticError Span] IO (ModuleBundle Span)
-loadModuleBundle m@(_ :< Module is _ _) = do
+loadEnvironment :: Module Span -> ExceptT [StaticError Span] IO (Environment Span)
+loadEnvironment m@(_ :< Module is _ _) = do
   ms <-
     mapM
       ( \(_ :< Import _ _ url) -> do
           m <- readModule url
-          b <- loadModuleBundle m
+          b <- loadEnvironment m
           pure (url, b)
       )
       is
-  pure (ModuleBundle SL.prelude m ms)
+  pure (Environment SL.prelude m ms [])
 
 readModule :: URL Span -> ExceptT [StaticError Span] IO (Module Span)
 readModule (s :< LocalFile fileName) = do
