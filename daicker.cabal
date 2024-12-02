@@ -156,6 +156,7 @@ test-suite daicker-unit-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Language.Daicker.BundlerSpec
       Language.Daicker.ExecutorSpec
       Language.Daicker.ParserSpec
       Paths_daicker

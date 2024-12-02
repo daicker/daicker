@@ -1,4 +1,7 @@
 {-# LANGUAGE TupleSections #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use lambda-case" #-}
 
 module Language.Daicker.Bundler where
 
@@ -79,14 +82,26 @@ findExpr
       -- TODO: support namespace reference
       maybeExprFromDependencyModules =
         map
-          ( ( \(mb, _ :< Module _ _ statements) ->
-                (env,) <$> findExprFromStatements statements name
+          ( ( \(mb, m) ->
+                (mb,) <$> findExprFromStatements (exported m) name
             )
               . (\(_, mb) -> (mb, currentModule mb))
           )
           dependencyModules
       -- find expr from prelude
       maybeExprFromPrelude = (env,) <$> findExprFromStatements preludeStatements name
+
+exported :: Module a -> [Statement a]
+exported (_ :< Module _ Nothing ss) = ss
+exported (_ :< Module _ (Just (_ :< Export es)) ss) =
+  filter
+    ( \s -> case s of
+        _ :< SExpr (i :< Identifier n) _ -> n `elem` names
+        _ :< SType (i :< Identifier n) _ -> n `elem` names
+    )
+    ss
+  where
+    names = map (\(_ :< Identifier n) -> n) es
 
 findExprFromStatements :: [Statement a] -> String -> Maybe (Expr a)
 findExprFromStatements statements name =
@@ -123,7 +138,7 @@ findType
       maybeTypeFromDependencyModules =
         map
           ( ( \(mb, _ :< Module _ _ statements) ->
-                (env,) <$> findTypeFromStatements statements name
+                (mb,) <$> findTypeFromStatements statements name
             )
               . (\(_, mb) -> (mb, currentModule mb))
           )
