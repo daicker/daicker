@@ -22,6 +22,9 @@ import Language.Daicker.Span (Span, Spanned, mkSpan, span)
 import Language.LSP.Protocol.Types (Uri)
 import System.Exit (ExitCode)
 
+class NearlyEq a where
+  (~=) :: a -> a -> Bool
+
 type Module ann = Cofree (Module' ann) ann
 
 data Module' ann a = Module [Import ann] (Maybe (Export ann)) [Statement ann] deriving (Show, Eq)
@@ -68,6 +71,11 @@ data URL' ann a
   | RemoteFile String
   deriving (Show, Eq)
 
+instance NearlyEq (URL a) where
+  (_ :< LocalFile url1) ~= (_ :< LocalFile url2) = url1 == url2
+  (_ :< RemoteFile url1) ~= (_ :< RemoteFile url2) = url1 == url2
+  _ ~= _ = False
+
 instance (Eq ann) => Eq1 (URL' ann) where
   liftEq _ (LocalFile url1) (LocalFile url2) = url1 == url2
   liftEq _ (RemoteFile url1) (RemoteFile url2) = url1 == url2
@@ -102,11 +110,6 @@ instance (Eq ann) => Eq1 (Statement' ann) where
 instance (Show ann) => Show1 (Statement' ann) where
   liftShowsPrec _ _ _ (SExpr i d) = showString $ show "SExpr " <> show i <> show d
   liftShowsPrec _ _ _ (SType i d) = showString $ show "SType " <> show i <> show d
-
-(~=) :: Statement a -> Statement a -> Bool
-(_ :< SExpr {}) ~= (_ :< SExpr {}) = True
-(_ :< SType {}) ~= (_ :< SType {}) = True
-_ ~= _ = False
 
 type Type ann = Cofree (Type' ann) ann
 

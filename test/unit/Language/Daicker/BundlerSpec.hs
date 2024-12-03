@@ -20,13 +20,20 @@ spec = do
       findExpr env "not-found" `shouldBe` Nothing
     it "find internal expr" $ do
       findExpr env "mod1-f2" `shouldBe` Nothing
+    it "find partial import expr" $ do
+      findExpr env "mod2-f1" `shouldBe` Just (env2Stub, "mod2-f1" :< ENull)
+    it "find unimported expr" $ do
+      findExpr env "mod2-f2" `shouldBe` Nothing
 
 env :: Environment String
 env =
   Environment
     { preludeModule = preludeStub,
       currentModule = currentStub,
-      dependencyModules = [("mod1" :< LocalFile "mod1.daic", env1Stub)],
+      dependencyModules =
+        [ ("mod1" :< LocalFile "mod1.daic", env1Stub),
+          ("mod2" :< LocalFile "mod2.daic", env2Stub)
+        ],
       packedArguments = [("arg1", ("arg1" :< ENull, Just $ "type-arg1" :< TNullLiteral))]
     }
 
@@ -43,7 +50,16 @@ currentStub :: Module String
 currentStub =
   "currentStub"
     :< Module
-      ["import" :< Import ("mod1-scope" :< FullScope) Nothing ("mod1" :< LocalFile "mod1.daic")]
+      [ "import" :< Import ("mod1-scope" :< FullScope) Nothing ("mod1" :< LocalFile "mod1.daic"),
+        "import"
+          :< Import
+            ( "mod2-scope"
+                :< PartialScope
+                  ["mod2-f1-import" :< Identifier "mod2-f1"]
+            )
+            Nothing
+            ("mod2" :< LocalFile "mod2.daic")
+      ]
       Nothing
       [ "f1" :< SExpr ("current-f1" :< Identifier "current-f1") ("current-f1" :< ENull)
       ]
@@ -65,4 +81,23 @@ mod1Stub =
       (Just $ "export" :< Export ["export-mod1-f1" :< Identifier "mod1-f1"])
       [ "f1" :< SExpr ("mod1-f1" :< Identifier "mod1-f1") ("mod1-f1" :< ENull),
         "f2" :< SExpr ("mod1-f2" :< Identifier "mod1-f2") ("mod1-f2" :< ENull)
+      ]
+
+env2Stub :: Environment String
+env2Stub =
+  Environment
+    { preludeModule = preludeStub,
+      currentModule = mod2Stub,
+      dependencyModules = [],
+      packedArguments = []
+    }
+
+mod2Stub :: Module String
+mod2Stub =
+  "mod1Stub"
+    :< Module
+      []
+      Nothing
+      [ "f1" :< SExpr ("mod2-f1" :< Identifier "mod2-f1") ("mod2-f1" :< ENull),
+        "f2" :< SExpr ("mod2-f2" :< Identifier "mod2-f2") ("mod2-f2" :< ENull)
       ]

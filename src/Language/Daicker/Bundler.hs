@@ -28,6 +28,7 @@ import Language.Daicker.AST
     ImportScope' (FullScope, PartialScope),
     Module,
     Module' (Module),
+    NearlyEq ((~=)),
     Parameter,
     Parameter' (KeywordParameter, PositionedParameter),
     Statement,
@@ -49,20 +50,20 @@ data Environment a = Environment
   { preludeModule :: Module a,
     currentModule :: Module a,
     dependencyModules :: [(URL a, Environment a)],
-    packedArguments :: [PackedArgument a]
+    packedArguments :: [PackedExpr a]
   }
   deriving (Show, Eq)
 
-type PackedArgument a = (String, (Expr a, Maybe (Type a)))
+type PackedExpr a = (String, (Expr a, Maybe (Type a)))
 
-appendArguments :: Environment a -> [PackedArgument a] -> Environment a
+appendArguments :: Environment a -> [PackedExpr a] -> Environment a
 appendArguments (Environment p c d as) as' = Environment p c d (as' <> as)
 
 findExpr :: Environment a -> String -> Maybe (Environment a, Expr a)
 findExpr
   env@( Environment
           (_ :< Module _ _ preludeStatements)
-          (_ :< Module _ _ currentStatements)
+          (_ :< Module imports _ currentStatements)
           dependencyModules
           args
         )
@@ -79,21 +80,42 @@ findExpr
       -- find expr from current module
       maybeExprFromCurrentModule = (env,) <$> findExprFromStatements currentStatements name
       -- find expr from dependency modules
-      -- TODO: support namespace reference
       maybeExprFromDependencyModules =
         map
-          ( ( \(mb, m) ->
-                (mb,) <$> findExprFromStatements (exported m) name
-            )
-              . (\(_, mb) -> (mb, currentModule mb))
+          ( \impt -> case impt of
+              (_ :< Import scope Nothing url) -> do
+                env' <- findEnvironmentFromURL dependencyModules url
+                expr <- lookup name $ importedExprs scope $ packExprs $ exportedStatements (currentModule env')
+                pure (env', expr)
+              (_ :< Import _ (Just _) _) -> error "not implemented yet: named import"
           )
-          dependencyModules
+          imports
       -- find expr from prelude
       maybeExprFromPrelude = (env,) <$> findExprFromStatements preludeStatements name
 
-exported :: Module a -> [Statement a]
-exported (_ :< Module _ Nothing ss) = ss
-exported (_ :< Module _ (Just (_ :< Export es)) ss) =
+findEnvironmentFromURL :: [(URL a, Environment a)] -> URL a -> Maybe (Environment a)
+findEnvironmentFromURL es url = snd <$> find (\(url', e) -> url' ~= url) es
+
+importedExprs :: ImportScope a -> [(String, Expr a)] -> [(String, Expr a)]
+importedExprs (s :< FullScope) exprs = exprs
+importedExprs (s :< PartialScope names) exprs = filter (\(n, _) -> n `elem` identifierToStrings names) exprs
+
+importedTypes :: ImportScope a -> [(String, Type a)] -> [(String, Type a)]
+importedTypes (s :< FullScope) types = types
+importedTypes (s :< PartialScope names) types = filter (\(n, _) -> n `elem` identifierToStrings names) types
+
+identifierToStrings :: [Identifier a] -> [String]
+identifierToStrings = map (\(_ :< Identifier n) -> n)
+
+packExprs :: [Statement a] -> [(String, Expr a)]
+packExprs ss = map (\(_ :< SExpr (_ :< Identifier name) e) -> (name, e)) (filter isExpr ss)
+
+packTypes :: [Statement a] -> [(String, Type a)]
+packTypes ss = map (\(_ :< SType (_ :< Identifier name) t) -> (name, t)) (filter isType ss)
+
+exportedStatements :: Module a -> [Statement a]
+exportedStatements (_ :< Module _ Nothing ss) = ss
+exportedStatements (_ :< Module _ (Just (_ :< Export es)) ss) =
   filter
     ( \s -> case s of
         _ :< SExpr (i :< Identifier n) _ -> n `elem` names
@@ -119,7 +141,7 @@ findType :: Environment a -> String -> Maybe (Environment a, Type a)
 findType
   env@( Environment
           (_ :< Module _ _ preludeStatements)
-          (_ :< Module _ _ currentStatements)
+          (_ :< Module imports _ currentStatements)
           dependencyModules
           arguments
         )
@@ -137,12 +159,14 @@ findType
       -- TODO: support namespace reference
       maybeTypeFromDependencyModules =
         map
-          ( ( \(mb, _ :< Module _ _ statements) ->
-                (mb,) <$> findTypeFromStatements statements name
-            )
-              . (\(_, mb) -> (mb, currentModule mb))
+          ( \impt -> case impt of
+              (_ :< Import scope Nothing url) -> do
+                env' <- findEnvironmentFromURL dependencyModules url
+                expr <- lookup name $ importedTypes scope $ packTypes $ exportedStatements (currentModule env')
+                pure (env', expr)
+              (_ :< Import _ (Just _) _) -> error "not implemented yet: named import"
           )
-          dependencyModules
+          imports
       -- find type from prelude
       maybeTypeFromPrelude = (env,) <$> findTypeFromStatements preludeStatements name
 
@@ -194,7 +218,7 @@ safeReadFile filePath = do
     then liftIO $ T.readFile filePath
     else throwError ("does not exist: " <> filePath)
 
-packArg :: [Parameter ann] -> [Argument ann] -> ExceptT (RuntimeError ann) IO [PackedArgument ann]
+packArg :: [Parameter ann] -> [Argument ann] -> ExceptT (RuntimeError ann) IO [PackedExpr ann]
 packArg params args =
   (<>)
     <$> liftEither (zipPositionedArg positionedParams positionedArgs)
@@ -216,10 +240,10 @@ packArg params args =
     isKeywordArg :: Argument ann -> Bool
     isKeywordArg (_ :< KeywordArgument {}) = True
     isKeywordArg _ = False
-    zipPositionedArg :: [Parameter ann] -> [Argument ann] -> Either (RuntimeError ann) [PackedArgument ann]
+    zipPositionedArg :: [Parameter ann] -> [Argument ann] -> Either (RuntimeError ann) [PackedExpr ann]
     zipPositionedArg (p@(_ :< PositionedParameter _ _ _ t _) : ps) ((_ :< PositionedArgument False a) : as) = ((paramName p, (a, t)) :) <$> zipPositionedArg ps as
     zipPositionedArg [] _ = pure []
-    zipKeywordArg :: [Parameter ann] -> [Argument ann] -> Either (RuntimeError ann) [PackedArgument ann]
+    zipKeywordArg :: [Parameter ann] -> [Argument ann] -> Either (RuntimeError ann) [PackedExpr ann]
     zipKeywordArg (p@(_ :< KeywordParameter (s :< Identifier name) _ _ t defaultValue) : ps) as = do
       value <- case find (\(_ :< KeywordArgument (_ :< Identifier name') e) -> name == name') as of
         Just (_ :< KeywordArgument _ a) -> pure a
@@ -232,5 +256,5 @@ packArg params args =
     paramName (_ :< PositionedParameter (i :< Identifier name) _ _ _ _) = name
     paramName (_ :< KeywordParameter (i :< Identifier name) _ _ _ _) = name
 
-abandonType :: PackedArgument a -> (String, Expr a)
+abandonType :: PackedExpr a -> (String, Expr a)
 abandonType (n, (e, _)) = (n, e)
