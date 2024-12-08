@@ -491,6 +491,7 @@ pPrimary =
       pObject,
       pArray,
       pString,
+      pStringWithExprExpansion,
       pNumber,
       pBool,
       pNull,
@@ -511,7 +512,7 @@ pCommand = do
               (lexeme $ token TKSep $ char ']')
               pExpr
           )
-    cmd@(cmd' :< _) <- pNakedString (string "") (token TKSep $ string ";")
+    cmd@(cmd' :< _) <- pNakedStringWithExprExpansion (string "") (token TKSep $ string ";")
     pure $
       ECall
         (name' :< EVar (name' :< Identifier name))
@@ -585,12 +586,17 @@ pArray =
       )
 
 pString :: Parser (Expr Span)
-pString = pNakedString (token TKString (char '"')) (token TKString $ char '"')
+pString = lexeme $ tupleToCofree EString <$> spanned tString
+  where
+    tString = token TKString $ char '"' *> manyTill L.charLiteral (char '"')
+
+pStringWithExprExpansion :: Parser (Expr Span)
+pStringWithExprExpansion = pNakedStringWithExprExpansion (token TKString (char '`')) (token TKString $ char '`')
 
 -- | String literal parser.
 -- It can include expression expansion. e.g. "hello #{ "world" }".
-pNakedString :: Parser a -> Parser b -> Parser (Expr Span)
-pNakedString s e = do
+pNakedStringWithExprExpansion :: Parser a -> Parser b -> Parser (Expr Span)
+pNakedStringWithExprExpansion s e = do
   (s, es) <- lexeme $ spanned $ s *> manyTill (pExprInString <|> pSomeChar) e
   case es of
     [] -> pure $ s :< EString ""
@@ -614,9 +620,6 @@ pNakedString s e = do
 
 someTillWithoutEnd :: Parser a -> Parser b -> Parser [a]
 someTillWithoutEnd p end = someTill p (lookAhead end)
-
-manyTillWithoutEnd :: Parser a -> Parser b -> Parser [a]
-manyTillWithoutEnd p end = manyTill p (lookAhead end)
 
 pNumber :: Parser (Expr Span)
 pNumber = lexeme $ tupleToCofree ENumber <$> spanned tNumber

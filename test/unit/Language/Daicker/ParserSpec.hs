@@ -419,11 +419,12 @@ spec = do
           ( mkSpan "test" 1 1 1 14
               :< ECall
                 (mkSpan "test" 1 1 1 2 :< EVar (mkSpan "test" 1 1 1 2 :< Identifier "$"))
-                [ mkSpan "test" 1 3 1 14
-                    :< PositionedArgument False (mkSpan "test" 1 3 1 14 :< EString "echo hello")
+                [ mkSpan "test" 1 3 1 13
+                    :< PositionedArgument False (mkSpan "test" 1 3 1 13 :< EString "echo hello")
                 ],
             [ Token TKVar (mkSpan "test" 1 1 1 2),
-              Token TKString (mkSpan "test" 1 3 1 14)
+              Token TKString (mkSpan "test" 1 3 1 13),
+              Token TKSep (mkSpan "test" 1 13 1 14)
             ]
           )
     it "command sugar syntax with image tag" $ do
@@ -436,14 +437,15 @@ spec = do
                     :< KeywordArgument
                       (mkSpan "test" 1 2 1 16 :< Identifier "image")
                       (mkSpan "test" 1 3 1 15 :< EImage (mkSpan "test" 1 3 1 15 :< Identifier "alpine:3.12")),
-                  mkSpan "test" 1 17 1 28
-                    :< PositionedArgument False (mkSpan "test" 1 17 1 28 :< EString "echo hello")
+                  mkSpan "test" 1 17 1 27
+                    :< PositionedArgument False (mkSpan "test" 1 17 1 27 :< EString "echo hello")
                 ],
             [ Token TKVar (mkSpan "test" 1 1 1 2),
               Token TKSep (mkSpan "test" 1 2 1 3),
               Token TKImage (mkSpan "test" 1 3 1 15),
               Token TKSep (mkSpan "test" 1 15 1 16),
-              Token TKString (mkSpan "test" 1 17 1 28)
+              Token TKString (mkSpan "test" 1 17 1 27),
+              Token TKSep (mkSpan "test" 1 27 1 28)
             ]
           )
   describe "type" $ do
