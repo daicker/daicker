@@ -9,6 +9,7 @@ import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
 import Control.Monad.State (StateT)
 import Control.Monad.State.Class (get, put)
 import Control.Monad.State.Lazy (StateT (runStateT))
+import Data.Functor (($>))
 import Data.Functor.Identity (Identity)
 import Data.List.NonEmpty (NonEmpty (..), some1)
 import Data.Maybe (catMaybes, fromMaybe, isJust)
@@ -510,13 +511,13 @@ pCommand = do
               (lexeme $ token TKSep $ char ']')
               pExpr
           )
-    (cmd', cmd) <- lexeme $ spanned $ token TKString $ manyTill L.charLiteral (string ";")
+    cmd@(cmd' :< _) <- pNakedString (string "") (token TKSep $ string ";")
     pure $
       ECall
         (name' :< EVar (name' :< Identifier name))
         ( catMaybes
             [ fmap (\(image', image) -> image' :< KeywordArgument (image' :< Identifier "image") image) image,
-              Just $ cmd' :< PositionedArgument False (cmd' :< EString cmd)
+              Just $ cmd' :< PositionedArgument False cmd
             ]
         )
   pure $ s :< command
@@ -584,9 +585,38 @@ pArray =
       )
 
 pString :: Parser (Expr Span)
-pString = lexeme $ tupleToCofree EString <$> spanned tString
+pString = pNakedString (token TKString (char '"')) (token TKString $ char '"')
+
+-- | String literal parser.
+-- It can include expression expansion. e.g. "hello #{ "world" }".
+pNakedString :: Parser a -> Parser b -> Parser (Expr Span)
+pNakedString s e = do
+  (s, es) <- lexeme $ spanned $ s *> manyTill (pExprInString <|> pSomeChar) e
+  case es of
+    [] -> pure $ s :< EString ""
+    [e] -> pure e
+    es ->
+      pure $
+        s
+          :< ECall
+            (s :< EVar (s :< Identifier "concat"))
+            [s :< PositionedArgument False (s :< EArray es)]
   where
-    tString = token TKString $ char '"' *> manyTill L.charLiteral (char '"')
+    pSomeChar :: Parser (Expr Span)
+    pSomeChar = do
+      (s, str) <-
+        spanned $
+          token TKString $
+            someTillWithoutEnd L.charLiteral (e $> () <|> string "#{" $> ())
+      pure $ s :< EString str
+    pExprInString :: Parser (Expr Span)
+    pExprInString = between (lexeme $ token TKSep $ string "#{") (token TKSep $ string "}") pExpr
+
+someTillWithoutEnd :: Parser a -> Parser b -> Parser [a]
+someTillWithoutEnd p end = someTill p (lookAhead end)
+
+manyTillWithoutEnd :: Parser a -> Parser b -> Parser [a]
+manyTillWithoutEnd p end = manyTill p (lookAhead end)
 
 pNumber :: Parser (Expr Span)
 pNumber = lexeme $ tupleToCofree ENumber <$> spanned tNumber

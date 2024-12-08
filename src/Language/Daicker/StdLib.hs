@@ -387,6 +387,53 @@ prelude =
                       pure $ sp :< ENumber (a / b)
                   )
                   (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "Number"))
+            ),
+        preludeSpan
+          :< SExpr
+            (preludeSpan :< Identifier "concat")
+            ( preludeSpan
+                :< EFixtureFun
+                  [ preludeSpan
+                      :< PositionedParameter
+                        (preludeSpan :< Identifier "strings")
+                        False
+                        False
+                        (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "List"))
+                        Nothing
+                  ]
+                  ( \sp args -> do
+                      let (_ :< EArray strings) = fromJust $ lookup "strings" args
+                      let strings' = map (\(_ :< EString s) -> s) strings
+                      pure $ sp :< EString (intercalate "" strings')
+                  )
+                  (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "String"))
+            ),
+        preludeSpan
+          :< SExpr
+            (preludeSpan :< Identifier "++")
+            ( preludeSpan
+                :< EFixtureFun
+                  [ preludeSpan
+                      :< PositionedParameter
+                        (preludeSpan :< Identifier "a")
+                        False
+                        False
+                        (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "String"))
+                        Nothing,
+                    preludeSpan
+                      :< PositionedParameter
+                        (preludeSpan :< Identifier "b")
+                        False
+                        False
+                        (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "String"))
+                        Nothing
+                  ]
+                  ( \sp args -> do
+                      let (_ :< EString a) = fromJust $ lookup "a" args
+                      let (_ :< EString b) = fromJust $ lookup "b" args
+                      pure $ sp :< EString (a <> b)
+                  )
+                  (Just $ preludeSpan :< TVar (preludeSpan :< Identifier "String"))
             )
       ]
   where
