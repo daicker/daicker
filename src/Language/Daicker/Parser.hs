@@ -588,10 +588,10 @@ pArray =
 pString :: Parser (Expr Span)
 pString = lexeme $ tupleToCofree EString <$> spanned tString
   where
-    tString = token TKString $ char '"' *> manyTill L.charLiteral (char '"')
+    tString = token TKString $ char '\'' *> manyTill L.charLiteral (char '\'')
 
 pStringWithExprExpansion :: Parser (Expr Span)
-pStringWithExprExpansion = pNakedStringWithExprExpansion (token TKString (char '`')) (token TKString $ char '`')
+pStringWithExprExpansion = pNakedStringWithExprExpansion (token TKString (char '"')) (token TKString $ char '"')
 
 -- | String literal parser.
 -- It can include expression expansion. e.g. "hello #{ "world" }".
@@ -600,7 +600,7 @@ pNakedStringWithExprExpansion s e = do
   (s, es) <- lexeme $ spanned $ s *> manyTill (pExprInString <|> pSomeChar) e
   case es of
     [] -> pure $ s :< EString ""
-    [e] -> pure e
+    [_ :< e] -> pure (s :< e)
     es ->
       pure $
         s

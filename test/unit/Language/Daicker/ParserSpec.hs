@@ -63,14 +63,14 @@ spec = do
             [Token TKNumber (mkSpan "test" 1 1 1 5)]
           )
     it "empty string" $ do
-      parse pExpr "test" "\"\""
+      parse pExpr "test" "''"
         `shouldBe` Right
           ( mkSpan "test" 1 1 1 3
               :< EString "",
             [Token TKString (mkSpan "test" 1 1 1 3)]
           )
     it "string" $ do
-      parse pExpr "test" "\"abc\""
+      parse pExpr "test" "'abc'"
         `shouldBe` Right
           ( mkSpan "test" 1 1 1 6
               :< EString "abc",
@@ -110,7 +110,7 @@ spec = do
             ]
           )
     it "object" $ do
-      parse pExpr "test" "{\"a\": 1, \"b\": 2}"
+      parse pExpr "test" "{'a': 1, 'b': 2}"
         `shouldBe` Right
           ( mkSpan "test" 1 1 1 17
               :< EObject
@@ -387,7 +387,7 @@ spec = do
             ]
           )
     it "bracket accessor" $ do
-      parse pExpr "test" "a[\"b\"]"
+      parse pExpr "test" "a['b']"
         `shouldBe` Right
           ( mkSpan "test" 1 1 1 7
               :< EAccessor
@@ -419,8 +419,8 @@ spec = do
           ( mkSpan "test" 1 1 1 14
               :< ECall
                 (mkSpan "test" 1 1 1 2 :< EVar (mkSpan "test" 1 1 1 2 :< Identifier "$"))
-                [ mkSpan "test" 1 3 1 13
-                    :< PositionedArgument False (mkSpan "test" 1 3 1 13 :< EString "echo hello")
+                [ mkSpan "test" 1 3 1 14
+                    :< PositionedArgument False (mkSpan "test" 1 3 1 14 :< EString "echo hello")
                 ],
             [ Token TKVar (mkSpan "test" 1 1 1 2),
               Token TKString (mkSpan "test" 1 3 1 13),
@@ -437,8 +437,8 @@ spec = do
                     :< KeywordArgument
                       (mkSpan "test" 1 2 1 16 :< Identifier "image")
                       (mkSpan "test" 1 3 1 15 :< EImage (mkSpan "test" 1 3 1 15 :< Identifier "alpine:3.12")),
-                  mkSpan "test" 1 17 1 27
-                    :< PositionedArgument False (mkSpan "test" 1 17 1 27 :< EString "echo hello")
+                  mkSpan "test" 1 17 1 28
+                    :< PositionedArgument False (mkSpan "test" 1 17 1 28 :< EString "echo hello")
                 ],
             [ Token TKVar (mkSpan "test" 1 1 1 2),
               Token TKSep (mkSpan "test" 1 2 1 3),
