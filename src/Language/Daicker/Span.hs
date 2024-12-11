@@ -37,6 +37,9 @@ instance Spanned (WithSpan a) where
 union :: Span -> Span -> Span
 union (Span p1 _) (Span _ p2) = Span p1 p2
 
+instance Semigroup Span where
+  (<>) = union
+
 mkSpan :: FilePath -> Int -> Int -> Int -> Int -> Span
 mkSpan file l1 c1 l2 c2 =
   Span

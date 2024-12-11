@@ -20,6 +20,7 @@ import Language.Daicker.AST
     Argument' (KeywordArgument, PositionedArgument),
     Export' (Export),
     Expr,
+    Expr' (EArray, ENull),
     Identifier,
     Identifier' (Identifier),
     Import,
@@ -39,7 +40,7 @@ import Language.Daicker.AST
   )
 import Language.Daicker.Error (RuntimeError (RuntimeError), StaticError (StaticError))
 import Language.Daicker.Parser (pModule, parse)
-import Language.Daicker.Span (Span)
+import Language.Daicker.Span (Span, union)
 import qualified Language.Daicker.StdLib as SL
 import Language.Haskell.TH.Lens (HasName (name))
 import System.Directory (doesFileExist)
@@ -218,15 +219,15 @@ safeReadFile filePath = do
     then liftIO $ T.readFile filePath
     else throwError ("does not exist: " <> filePath)
 
-packArg :: [Parameter ann] -> [Argument ann] -> ExceptT (RuntimeError ann) IO [PackedExpr ann]
+packArg :: (Semigroup ann) => [Parameter ann] -> [Argument ann] -> ExceptT (RuntimeError ann) IO [PackedExpr ann]
 packArg params args =
   (<>)
-    <$> liftEither (zipPositionedArg positionedParams positionedArgs)
-    <*> liftEither (zipKeywordArg keywordParams keywordArgs)
+    <$> liftEither (packPositionedArg positionedParams positionedArgs)
+    <*> liftEither (packKeywordArg keywordParams keywordArgs)
   where
     positionedParams = filter isPositionedParam params
     keywordParams = filter isKeywordParam params
-    positionedArgs = filter isPositionedArg args
+    positionedArgs = flattenPositionedArg $ filter isPositionedArg args
     keywordArgs = filter isKeywordArg args
     isPositionedParam :: Parameter ann -> Bool
     isPositionedParam (_ :< PositionedParameter {}) = True
@@ -240,21 +241,42 @@ packArg params args =
     isKeywordArg :: Argument ann -> Bool
     isKeywordArg (_ :< KeywordArgument {}) = True
     isKeywordArg _ = False
-    zipPositionedArg :: [Parameter ann] -> [Argument ann] -> Either (RuntimeError ann) [PackedExpr ann]
-    zipPositionedArg (p@(_ :< PositionedParameter _ _ _ t _) : ps) ((_ :< PositionedArgument False a) : as) = ((paramName p, (a, t)) :) <$> zipPositionedArg ps as
-    zipPositionedArg [] _ = pure []
-    zipKeywordArg :: [Parameter ann] -> [Argument ann] -> Either (RuntimeError ann) [PackedExpr ann]
-    zipKeywordArg (p@(_ :< KeywordParameter (s :< Identifier name) _ _ t defaultValue) : ps) as = do
+    flattenPositionedArg :: [Argument ann] -> [Expr ann]
+    flattenPositionedArg ((_ :< PositionedArgument False a) : as) = a : flattenPositionedArg as
+    flattenPositionedArg ((_ :< PositionedArgument True (_ :< EArray es)) : as) = es <> flattenPositionedArg as
+    flattenPositionedArg [] = []
+    packPositionedArg :: (Semigroup ann) => [Parameter ann] -> [Expr ann] -> Either (RuntimeError ann) [PackedExpr ann]
+    packPositionedArg
+      [p@(_ :< PositionedParameter _ True _ t _)]
+      [] = pure []
+    packPositionedArg
+      (p@(_ :< PositionedParameter _ _ _ t (Just e)) : ps)
+      [] = ((paramName p, (e, t)) :) <$> packPositionedArg ps []
+    packPositionedArg
+      (p@(s :< PositionedParameter _ _ True t _) : ps)
+      [] = ((paramName p, (s :< ENull, t)) :) <$> packPositionedArg ps []
+    packPositionedArg
+      [p@(_ :< PositionedParameter _ True _ t _)]
+      as = pure [(paramName p, (foldl1 (<>) (map cofst $ tail as) :< EArray as, t))]
+    packPositionedArg
+      (p@(_ :< PositionedParameter _ _ _ t _) : ps)
+      (a : as) = ((paramName p, (a, t)) :) <$> packPositionedArg ps as
+    packPositionedArg [] _ = pure []
+    packKeywordArg :: [Parameter ann] -> [Argument ann] -> Either (RuntimeError ann) [PackedExpr ann]
+    packKeywordArg (p@(_ :< KeywordParameter (s :< Identifier name) _ _ t defaultValue) : ps) as = do
       value <- case find (\(_ :< KeywordArgument (_ :< Identifier name') e) -> name == name') as of
         Just (_ :< KeywordArgument _ a) -> pure a
         Nothing -> case defaultValue of
           Just e -> pure e
           Nothing -> Left $ RuntimeError ("Missing keyword argument: " <> name) s (ExitFailure 1)
-      ((paramName p, (value, t)) :) <$> zipKeywordArg ps as
-    zipKeywordArg [] _ = pure []
+      ((paramName p, (value, t)) :) <$> packKeywordArg ps as
+    packKeywordArg [] _ = pure []
     paramName :: Parameter ann -> String
     paramName (_ :< PositionedParameter (i :< Identifier name) _ _ _ _) = name
     paramName (_ :< KeywordParameter (i :< Identifier name) _ _ _ _) = name
 
 abandonType :: PackedExpr a -> (String, Expr a)
 abandonType (n, (e, _)) = (n, e)
+
+cofst :: Cofree f a -> a
+cofst (m :< _) = m

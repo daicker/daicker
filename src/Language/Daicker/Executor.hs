@@ -32,7 +32,7 @@ import System.IO (hSetBuffering)
 import qualified System.IO as IO
 import System.Process
 
-eval :: (Eq a) => Environment a -> Expr a -> ExceptT (RuntimeError a) IO (Expr a)
+eval :: (Semigroup a, Eq a) => Environment a -> Expr a -> ExceptT (RuntimeError a) IO (Expr a)
 eval env v = case v of
   e@(s :< EError {}) -> pure e
   s :< EArray vs -> (:<) s . EArray <$> mapM (eval env) vs
