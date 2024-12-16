@@ -1,6 +1,4 @@
 {-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TupleSections #-}
 
 module Language.Daicker.Entry where
 
@@ -15,7 +13,7 @@ import qualified Data.ByteString.Lazy.Char8 as B
 import Data.Sequence (mapWithIndex)
 import Data.Text (Text)
 import qualified Data.Text.IO as T
-import Language.Daicker.AST (Argument' (..), Expr, Expr' (..), Identifier, Module, Module' (..), Statement' (SExpr), switchAnn)
+import Language.Daicker.AST (Argument, Argument' (..), Expr, Expr' (..), Identifier, Module, Module' (..), Statement' (SExpr), switchAnn)
 import Language.Daicker.Bundler (findExpr, loadEnvironment)
 import Language.Daicker.CmdArgParser (parseArg)
 import Language.Daicker.Error (CodeError (RuntimeE, StaticE), RuntimeError (RuntimeError), StaticError, codeErrorPretty)
@@ -45,6 +43,12 @@ validate' fileName src = do
   env <- loadEnvironment m
   liftEither $ validateModule env m
 
+readModule :: String -> ExceptT (CodeError Span) IO (Module Span)
+readModule fileName = do
+  src <- liftIO $ T.readFile fileName
+  (m, _) <- liftEither $ mapLeft StaticE $ parse pModule fileName src
+  pure m
+
 run :: String -> String -> [Text] -> ExceptT (CodeError Span) IO (Expr Span)
 run fileName funcName args = do
   src <- liftIO $ T.readFile fileName
@@ -59,14 +63,7 @@ run fileName funcName args = do
       hasStdin <- liftIO $ hReady stdin
       input <- liftIO $ if hasStdin then Just <$> B.getContents else pure Nothing
       es <- liftEither $ mapLeft StaticE $ mapM (\(i, arg) -> parseArg ("command-line-argument($" <> show i <> ")") input arg) $ zip [1 ..] args
-      withExceptT RuntimeE $
-        eval
-          env
-          ( s
-              :< ECall
-                (s :< ELambda pms (s' :< e) t)
-                (map (\e@(s :< _) -> s :< PositionedArgument False e) es)
-          )
+      withExceptT RuntimeE $ eval env (s :< ECall (s :< ELambda pms (s' :< e) t) es)
     _ -> withExceptT RuntimeE $ eval env e
 
 mapLeft :: (a -> c) -> Either a b -> Either c b

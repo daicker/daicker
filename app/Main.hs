@@ -2,18 +2,14 @@
 
 module Main where
 
-import Control.Comonad.Cofree
 import Control.Monad (join, void)
 import Control.Monad.Except (runExceptT)
-import Control.Monad.Writer.Strict
 import Data.Aeson (decode, encode)
 import Data.Aeson.Types (Value)
 import Data.ByteString.Lazy.Char8 (pack, unpack)
-import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import GHC.IO.IOMode (IOMode (..))
 import GHC.IO.StdHandles (openFile)
-import Language.Daicker.AST (Expr, Expr' (EArray, ELambda, ENull, EString), Module, Module' (Module))
 import Language.Daicker.DLS (serve)
 import Language.Daicker.Entry (hExitWithCodeErrors, hExitWithExpr, withDevNull)
 import qualified Language.Daicker.Entry as E
@@ -27,12 +23,12 @@ import Text.Megaparsec (parse, parseErrorPretty)
 opts :: Parser (IO ())
 opts =
   subparser
-    ( command "serve" (info (pure $ void serve) (progDesc "Run daicker language server"))
+    ( command "serve" (info (pure $ void serve) (progDesc "Runs daicker language server."))
         <> command
           "check"
           ( info
               (check <$> fileOpt)
-              (progDesc "Validate daicker file")
+              (progDesc "Validates daicker file")
           )
         <> command
           "run"
@@ -42,7 +38,7 @@ opts =
                   <*> argument str (metavar "FUNCTION")
                   <*> many (argument str (metavar "ARGS"))
               )
-              (progDesc "Execute function" <> noIntersperse)
+              (progDesc "Runs the specific function." <> noIntersperse)
           )
         <> command
           "eval"
@@ -52,7 +48,7 @@ opts =
                   <*> argument str (metavar "FUNCTION")
                   <*> many (argument str (metavar "ARGS"))
               )
-              (progDesc "Execute function" <> noIntersperse)
+              (progDesc "Evaluates the specific function and prints the return value to stdout." <> noIntersperse)
           )
     )
 

@@ -5,25 +5,58 @@ module Language.Daicker.CmdArgParser where
 import Control.Comonad.Cofree (Cofree (..))
 import Data.Aeson (decode)
 import Data.ByteString.Lazy.Char8 (ByteString, pack)
+import Data.Maybe (isJust)
 import Data.Text (Text)
 import Data.Void (Void)
 import Language.Daicker.AST
 import Language.Daicker.Error (StaticError (StaticError), fromParseErrorBundle)
 import Language.Daicker.Span
 import Text.Megaparsec
-import Text.Megaparsec.Char (char, space1, string)
+import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
 type CmdArgParser = Parsec Void Text
 
-parseArg :: String -> Maybe ByteString -> Text -> Either [StaticError Span] (Expr Span)
+parseArg :: String -> Maybe ByteString -> Text -> Either [StaticError Span] (Argument Span)
 parseArg fileName stdinContent src =
-  case parse (pArg stdinContent) fileName src of
+  case parse (pArgument stdinContent) fileName src of
     Right e -> pure e
     Left e -> Left [fromParseErrorBundle e]
 
-pArg :: Maybe ByteString -> CmdArgParser (Expr Span)
-pArg content =
+pArgument :: Maybe ByteString -> CmdArgParser (Argument Span)
+pArgument stdinContent =
+  choice
+    [ try keywordArgument,
+      positionedArgument
+    ]
+  where
+    positionedArgument :: CmdArgParser (Argument Span)
+    positionedArgument = do
+      (WithSpan arg s) <- withSpan $ do
+        v <- pExpr stdinContent
+        isExpanded <- isJust <$> optional (string "...")
+        pure $ PositionedArgument isExpanded v
+      pure $ s :< arg
+    keywordArgument :: CmdArgParser (Argument Span)
+    keywordArgument = do
+      (WithSpan arg s) <- withSpan $ do
+        i <- pIdentifier
+        _ <- lexeme $ char '='
+        v <- pExpr stdinContent
+        pure $ KeywordArgument i v
+      pure $ s :< arg
+
+pIdentifier :: CmdArgParser (Identifier Span)
+pIdentifier = do
+  (WithSpan t s) <-
+    withSpan $
+      (:)
+        <$> (lowerChar <|> upperChar <|> char '_')
+        <*> many (alphaNumChar <|> char '_' <|> char '-')
+  return $ s :< Identifier t
+
+pExpr :: Maybe ByteString -> CmdArgParser (Expr Span)
+pExpr content =
   lexeme $
     choice
       [ pNull,
