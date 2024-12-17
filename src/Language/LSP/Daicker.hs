@@ -8,7 +8,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Language.Daicker.DLS where
+module Language.LSP.Daicker where
 
 import Colog.Core (LogAction (..), Severity (..), WithSeverity (..), (<&))
 import qualified Colog.Core as L
@@ -35,11 +35,11 @@ import Language.Daicker.AST
     Statement,
     Statement' (SExpr, SType),
   )
-import Language.Daicker.Entry (validate')
 import Language.Daicker.Error (CodeError (), StaticError (StaticError), staticErrorListPretty)
 import Language.Daicker.Parser (Token (Token), TokenKind (..), pModule, parse)
 import Language.Daicker.Span (Span (Span), WithSpan (WithSpan), toRange)
 import qualified Language.Daicker.Span as S
+import Language.Daicker.Validator (validate)
 import Language.LSP.Diagnostics
 import Language.LSP.Logging (defaultClientLogger)
 import Language.LSP.Protocol.Lens (HasSemanticTokens (semanticTokens))
@@ -100,7 +100,7 @@ sendSyntaxError logger msg = do
   mdoc <- getVirtualFile doc
   case mdoc of
     Just file -> do
-      vs <- liftIO $ runExceptT $ validate' (T.unpack path) (virtualFileText file)
+      vs <- liftIO $ runExceptT $ validate (T.unpack path) (virtualFileText file)
       sendDiagnostics doc (Just $ virtualFileVersion file) $ fromLeft [] vs
     Nothing -> sendDiagnostics doc Nothing []
 

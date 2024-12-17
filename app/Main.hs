@@ -2,6 +2,8 @@
 
 module Main where
 
+import Command.Daicker.Entry (hExitWithCodeErrors, hExitWithExpr, withDevNull)
+import qualified Command.Daicker.Entry as E
 import Control.Monad (join, void)
 import Control.Monad.Except (runExceptT)
 import Data.Aeson (decode, encode)
@@ -10,11 +12,9 @@ import Data.ByteString.Lazy.Char8 (pack, unpack)
 import Data.Text (Text)
 import GHC.IO.IOMode (IOMode (..))
 import GHC.IO.StdHandles (openFile)
-import Language.Daicker.DLS (serve)
-import Language.Daicker.Entry (hExitWithCodeErrors, hExitWithExpr, withDevNull)
-import qualified Language.Daicker.Entry as E
 import Language.Daicker.Error (staticErrorListPretty)
 import Language.Daicker.Parser (pModule, parse)
+import Language.LSP.Daicker (serve)
 import Options.Applicative
 import System.IO (hClose, hGetContents, hIsClosed, hIsOpen, hPutStrLn, hReady, hWaitForInput, stderr, stdin, stdout)
 import System.IO.Error.Lens (fileName)

@@ -2,11 +2,19 @@ module Language.Daicker.Validator where
 
 import Control.Comonad.Cofree (Cofree ((:<)))
 import Control.Monad (join)
+import Control.Monad.Except (ExceptT, liftEither)
+import Data.Text (Text)
 import Language.Daicker.AST
-import Language.Daicker.Bundler (Environment (currentModule), findExpr)
+import Language.Daicker.Bundler (Environment (currentModule), findExpr, loadEnvironment)
 import Language.Daicker.Error (StaticError (StaticError))
-import Language.Daicker.Parser (parse)
+import Language.Daicker.Parser (pModule, parse)
 import Language.Daicker.Span (Span, spanPretty)
+
+validate :: String -> Text -> ExceptT [StaticError Span] IO ()
+validate fileName src = do
+  (m@(_ :< Module is _ _), _) <- liftEither $ parse pModule fileName src
+  env <- loadEnvironment m
+  liftEither $ validateModule env m
 
 validateModule :: (Eq a) => Environment a -> Module a -> Either [StaticError a] ()
 validateModule b m@(_ :< Module _ e ss) = case es of

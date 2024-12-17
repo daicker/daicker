@@ -1,7 +1,8 @@
 {-# LANGUAGE ExistentialQuantification #-}
 
-module Language.Daicker.Entry where
+module Command.Daicker.Entry where
 
+import Command.Daicker.CmdArgParser (parseArg)
 import Control.Comonad.Cofree (Cofree (..))
 import Control.Monad (liftM, void)
 import Control.Monad.Except (ExceptT, MonadError (throwError), liftEither, runExceptT, withExceptT)
@@ -15,13 +16,12 @@ import Data.Text (Text)
 import qualified Data.Text.IO as T
 import Language.Daicker.AST (Argument, Argument' (..), Expr, Expr' (..), Identifier, Module, Module' (..), Statement' (SExpr), switchAnn)
 import Language.Daicker.Bundler (findExpr, loadEnvironment)
-import Language.Daicker.CmdArgParser (parseArg)
 import Language.Daicker.Error (CodeError (RuntimeE, StaticE), RuntimeError (RuntimeError), StaticError, codeErrorPretty)
 import Language.Daicker.Executor (eval)
 import Language.Daicker.Parser (pModule, parse)
 import Language.Daicker.Span (Span, mkSpan, spanPretty)
 import Language.Daicker.StdLib (prelude)
-import Language.Daicker.Validator (validateModule)
+import Language.Daicker.Validator as V
 import System.Directory (createDirectoryIfMissing)
 import System.Exit (ExitCode (ExitFailure, ExitSuccess), exitFailure, exitSuccess, exitWith)
 import System.FilePath ((</>))
@@ -35,13 +35,7 @@ initialize = do
 validate :: String -> ExceptT [StaticError Span] IO ()
 validate fileName = do
   src <- liftIO $ T.readFile fileName
-  validate' fileName src
-
-validate' :: String -> Text -> ExceptT [StaticError Span] IO ()
-validate' fileName src = do
-  (m@(_ :< Module is _ _), _) <- liftEither $ parse pModule fileName src
-  env <- loadEnvironment m
-  liftEither $ validateModule env m
+  V.validate fileName src
 
 readModule :: String -> ExceptT (CodeError Span) IO (Module Span)
 readModule fileName = do

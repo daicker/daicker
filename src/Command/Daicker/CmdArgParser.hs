@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Language.Daicker.CmdArgParser where
+module Command.Daicker.CmdArgParser where
 
 import Control.Comonad.Cofree (Cofree (..))
 import Data.Aeson (decode)

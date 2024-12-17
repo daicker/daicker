@@ -73,3 +73,6 @@ emptyModule =
       Nothing
       [ 0 :< SExpr (0 :< Identifier "empty") (0 :< ENull)
       ]
+
+instance Semigroup Integer where
+  (<>) = (+)

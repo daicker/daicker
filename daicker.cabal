@@ -22,11 +22,10 @@ source-repository head
 
 library
   exposed-modules:
+      Command.Daicker.CmdArgParser
+      Command.Daicker.Entry
       Language.Daicker.AST
       Language.Daicker.Bundler
-      Language.Daicker.CmdArgParser
-      Language.Daicker.DLS
-      Language.Daicker.Entry
       Language.Daicker.Error
       Language.Daicker.Executor
       Language.Daicker.Infer
@@ -35,6 +34,7 @@ library
       Language.Daicker.StdLib
       Language.Daicker.Storage
       Language.Daicker.Validator
+      Language.LSP.Daicker
   other-modules:
       Paths_daicker
   hs-source-dirs:
