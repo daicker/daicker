@@ -22,8 +22,9 @@ source-repository head
 
 library
   exposed-modules:
-      Command.Daicker.CmdArgParser
       Command.Daicker.Entry
+      Command.Daicker.Parser
+      Command.Daicker.Storage
       Language.Daicker.AST
       Language.Daicker.Bundler
       Language.Daicker.Error
@@ -32,7 +33,6 @@ library
       Language.Daicker.Parser
       Language.Daicker.Span
       Language.Daicker.StdLib
-      Language.Daicker.Storage
       Language.Daicker.Validator
       Language.LSP.Daicker
   other-modules:

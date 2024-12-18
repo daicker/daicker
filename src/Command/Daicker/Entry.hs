@@ -2,7 +2,7 @@
 
 module Command.Daicker.Entry where
 
-import Command.Daicker.CmdArgParser (parseArg)
+import Command.Daicker.Parser (parseArg)
 import Control.Comonad.Cofree (Cofree (..))
 import Control.Monad (join, liftM, void)
 import Control.Monad.Except (ExceptT, MonadError (throwError), liftEither, runExceptT, withExceptT)

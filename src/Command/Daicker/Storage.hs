@@ -1,4 +1,4 @@
-module Language.Daicker.Storage where
+module Command.Daicker.Storage where
 
 import Control.Monad.Except (ExceptT, MonadError (throwError))
 import Control.Monad.IO.Class (MonadIO (liftIO))
