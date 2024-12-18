@@ -10,7 +10,7 @@ import Data.Text (Text)
 import Data.Void (Void)
 import Language.Daicker.AST
 import Language.Daicker.Error (StaticError (StaticError), fromParseErrorBundle)
-import Language.Daicker.Parser (Parser, TokenKind (..), lexeme, pBool, pNull, pNumber, pString, parse, spanned, tLowerIdentifier, token, tupleToCofree)
+import Language.Daicker.Parser (Parser, TokenKind (..), lexeme, pBool, pImage, pNull, pNumber, pString, parse, spanned, tLowerIdentifier, token, tupleToCofree)
 import Language.Daicker.Span
 import Text.Megaparsec
   ( MonadParsec (try),
@@ -55,6 +55,7 @@ pExpr content =
       [ pNull,
         pBool,
         pNumber,
+        pImage,
         pStdin content,
         pString,
         pImplicitString
