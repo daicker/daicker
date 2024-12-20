@@ -2,7 +2,8 @@
 
 module Command.Daicker.Entry where
 
-import Command.Daicker.Parser (parseArg)
+import Command.Daicker.Parser (RootCommand (..), pRootCommand)
+import Command.Daicker.Parser.Argument (parseArg)
 import Control.Comonad.Cofree (Cofree (..))
 import Control.Monad (join, liftM, void)
 import Control.Monad.Except (ExceptT, MonadError (throwError), liftEither, runExceptT, withExceptT)
@@ -21,12 +22,11 @@ import Language.Daicker.AST (Argument, Argument' (..), Expr, Expr' (..), Identif
 import Language.Daicker.Bundler (findExpr, loadEnvironment)
 import Language.Daicker.Error (CodeError (RuntimeE, StaticE), RuntimeError (RuntimeError), StaticError, codeErrorPretty, staticErrorListPretty)
 import qualified Language.Daicker.Executor as E
-import Language.Daicker.Parser (pModule, parse)
+import Language.Daicker.Parser (Token, pModule, parse)
 import Language.Daicker.Span (Span, mkSpan, spanPretty)
 import Language.Daicker.StdLib (prelude)
 import qualified Language.Daicker.Validator as V
 import Language.LSP.Daicker (serve)
-import Options.Applicative
 import System.Directory (createDirectoryIfMissing)
 import System.Exit (ExitCode (ExitFailure, ExitSuccess), exitFailure, exitSuccess, exitWith)
 import System.FilePath ((</>))
@@ -34,67 +34,24 @@ import System.IO (Handle, IOMode (..), hClose, hGetContents, hIsClosed, hIsOpen,
 import System.IO.Error.Lens (fileName)
 import Text.Megaparsec (parseErrorPretty)
 
-opts :: Parser (IO ())
-opts =
-  subparser
-    ( command "serve" (info (pure $ void serve) (progDesc "Runs daicker language server."))
-        <> command
-          "check"
-          ( info
-              (check <$> fileOpt)
-              (progDesc "Validates daicker file")
-          )
-        <> command
-          "run"
-          ( info
-              ( run
-                  <$> fileOpt
-                  <*> argument str (metavar "FUNCTION")
-                  <*> many (argument str (metavar "ARGS"))
-              )
-              (progDesc "Runs the specific function." <> noIntersperse)
-          )
-        <> command
-          "eval"
-          ( info
-              ( eval
-                  <$> fileOpt
-                  <*> argument str (metavar "FUNCTION")
-                  <*> many (argument str (metavar "ARGS"))
-              )
-              (progDesc "Evaluates the specific function and prints the return value to stdout." <> noIntersperse)
-          )
-    )
-
-fileOpt :: Parser String
-fileOpt =
-  strOption
-    ( long "file"
-        <> short 'f'
-        <> metavar "FILENAME"
-        <> value "main.daic"
-    )
-
-check :: String -> IO ()
-check fileName = do
-  res <- runExceptT $ validate fileName
-  case res of
-    Right _ -> hPutStrLn stderr "The module is valid!"
-    Left es -> hPutStrLn stderr $ staticErrorListPretty es
-
-run :: String -> String -> [Text] -> IO ()
-run fileName funcName args = do
-  res <- runExceptT (run' fileName funcName args)
-  case res of
-    Left e -> hExitWithCodeErrors stderr e
-    Right e -> withDevNull (`hExitWithExpr` e)
-
-eval :: String -> String -> [Text] -> IO ()
-eval fileName funcName args = do
-  res <- runExceptT (run' fileName funcName args)
-  case res of
-    Left e -> hExitWithCodeErrors stderr e
-    Right e -> hExitWithExpr stdout e
+runRootCommand :: RootCommand -> IO ()
+runRootCommand cmd = case cmd of
+  Serve -> void serve
+  Check fileName -> do
+    res <- runExceptT $ validate fileName
+    case res of
+      Right _ -> hPutStrLn stderr "The module is valid!"
+      Left es -> hPutStrLn stderr $ staticErrorListPretty es
+  Run fileName funcName args -> do
+    res <- runExceptT (evaluate fileName funcName args)
+    case res of
+      Left e -> hExitWithCodeErrors stderr e
+      Right e -> withDevNull (`hExitWithExpr` e)
+  Eval fileName funcName args -> do
+    res <- runExceptT (evaluate fileName funcName args)
+    case res of
+      Left e -> hExitWithCodeErrors stderr e
+      Right e -> hExitWithExpr stdout e
 
 initialize :: IO ()
 initialize = do
@@ -106,16 +63,9 @@ validate fileName = do
   src <- liftIO $ T.readFile fileName
   V.validate fileName src
 
-readModule :: String -> ExceptT (CodeError Span) IO (Module Span)
-readModule fileName = do
-  src <- liftIO $ T.readFile fileName
-  (m, _) <- liftEither $ mapLeft StaticE $ parse pModule fileName src
-  pure m
-
-run' :: String -> String -> [Text] -> ExceptT (CodeError Span) IO (Expr Span)
-run' fileName funcName args = do
-  src <- liftIO $ T.readFile fileName
-  (m@(_ :< Module is _ ss), tokens) <- liftEither $ mapLeft StaticE $ parse pModule fileName src
+evaluate :: String -> String -> [Text] -> ExceptT (CodeError Span) IO (Expr Span)
+evaluate fileName funcName args = do
+  (m@(_ :< Module is _ ss), tokens) <- readModule fileName
   env <- withExceptT StaticE $ loadEnvironment m
   e <- case findExpr env funcName of
     Nothing -> throwError $ RuntimeE $ RuntimeError ("not found: " <> funcName) (mkSpan "command-line-function" 1 1 1 1) (ExitFailure 1)
@@ -123,11 +73,20 @@ run' fileName funcName args = do
   withExceptT StaticE $ liftEither $ V.validateModule env m
   case e of
     (s :< ELambda pms (s' :< e) t) -> do
-      hasStdin <- liftIO $ hReady stdin
-      input <- liftIO $ if hasStdin then Just <$> B.getContents else pure Nothing
+      input <- liftIO getStdin
       es <- liftEither $ mapLeft StaticE $ mapM (\(i, arg) -> parseArg ("command-line-argument($" <> show i <> ")") input arg) $ zip [1 ..] args
       withExceptT RuntimeE $ E.eval env (s :< ECall (s :< ELambda pms (s' :< e) t) es)
     _ -> withExceptT RuntimeE $ E.eval env e
+  where
+    getStdin :: IO (Maybe B.ByteString)
+    getStdin = do
+      hasStdin <- hReady stdin
+      if hasStdin then Just <$> B.getContents else pure Nothing
+
+readModule :: String -> ExceptT (CodeError Span) IO (Module Span, [Token])
+readModule fileName = do
+  src <- liftIO $ T.readFile fileName
+  liftEither $ mapLeft StaticE $ parse pModule fileName src
 
 mapLeft :: (a -> c) -> Either a b -> Either c b
 mapLeft f = either (Left . f) Right

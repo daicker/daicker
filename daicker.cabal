@@ -24,6 +24,8 @@ library
   exposed-modules:
       Command.Daicker.Entry
       Command.Daicker.Parser
+      Command.Daicker.Parser.Argument
+      Command.Daicker.Parser.Option
       Command.Daicker.Storage
       Language.Daicker.AST
       Language.Daicker.Bundler
