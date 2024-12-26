@@ -11,6 +11,10 @@ data RootCommand
   | Check String
   | Run String String [Text]
   | Eval String String [Text]
+  | InitState
+  | GetState String
+  | SetState String ByteString
+  | DeleteState String
   deriving (Show, Eq)
 
 pRootCommand :: Parser RootCommand
@@ -42,6 +46,36 @@ pRootCommand =
                   <*> many (argument str (metavar "ARGS"))
               )
               (progDesc "Evaluates the specific function and prints the return value to stdout." <> noIntersperse)
+          )
+        <> command
+          "state"
+          ( info
+              ( subparser
+                  ( command "init" (info (pure InitState) (progDesc "Initializes the state."))
+                      <> command
+                        "get"
+                        ( info
+                            (GetState <$> argument str (metavar "STATE NAME"))
+                            (progDesc "Get the specific state.")
+                        )
+                      <> command
+                        "set"
+                        ( info
+                            ( SetState
+                                <$> argument str (metavar "STATE NAME")
+                                <*> argument str (metavar "STATE")
+                            )
+                            (progDesc "Set the specific state .")
+                        )
+                      <> command
+                        "delete"
+                        ( info
+                            (DeleteState <$> argument str (metavar "STATE NAME"))
+                            (progDesc "Delete the specific.")
+                        )
+                  )
+              )
+              (progDesc "Manages the state of the specific function.")
           )
     )
 

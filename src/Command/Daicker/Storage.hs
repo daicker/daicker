@@ -19,6 +19,6 @@ readData name = do
     Just e -> pure e
     Nothing -> throwError $ RuntimeError ("Cannot read data: " <> name) () (ExitFailure 1)
 
-writeData :: String -> Expr () -> IO ()
+writeData :: String -> Expr a -> IO ()
 writeData name e =
   B.writeFile (stateDir </> name <.> "json") (encode e)

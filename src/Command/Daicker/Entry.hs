@@ -4,6 +4,7 @@ module Command.Daicker.Entry where
 
 import Command.Daicker.Parser (RootCommand (..), pRootCommand)
 import Command.Daicker.Parser.Argument (parseArg)
+import Command.Daicker.Storage (readData, writeData)
 import Control.Comonad.Cofree (Cofree (..))
 import Control.Monad (join, liftM, void)
 import Control.Monad.Except (ExceptT, MonadError (throwError), liftEither, runExceptT, withExceptT)
@@ -52,6 +53,10 @@ runRootCommand cmd = case cmd of
     case res of
       Left e -> hExitWithCodeErrors stderr e
       Right e -> hExitWithExpr stdout e
+  InitState -> initialize
+  GetState name -> hPutStrLn stderr "Not implemented"
+  SetState name content -> hPutStrLn stderr "Not implemented"
+  DeleteState name -> hPutStrLn stderr "Not implemented"
 
 initialize :: IO ()
 initialize = do
@@ -77,11 +82,11 @@ evaluate fileName funcName args = do
       es <- liftEither $ mapLeft StaticE $ mapM (\(i, arg) -> parseArg ("command-line-argument($" <> show i <> ")") input arg) $ zip [1 ..] args
       withExceptT RuntimeE $ E.eval env (s :< ECall (s :< ELambda pms (s' :< e) t) es)
     _ -> withExceptT RuntimeE $ E.eval env e
-  where
-    getStdin :: IO (Maybe B.ByteString)
-    getStdin = do
-      hasStdin <- hReady stdin
-      if hasStdin then Just <$> B.getContents else pure Nothing
+
+getStdin :: IO (Maybe B.ByteString)
+getStdin = do
+  hasStdin <- hReady stdin
+  if hasStdin then Just <$> B.getContents else pure Nothing
 
 readModule :: String -> ExceptT (CodeError Span) IO (Module Span, [Token])
 readModule fileName = do
