@@ -35,6 +35,8 @@ library
       Language.Daicker.Parser
       Language.Daicker.Span
       Language.Daicker.StdLib
+      Language.Daicker.StdLib.HTTP
+      Language.Daicker.StdLib.Prelude
       Language.Daicker.Validator
       Language.LSP.Daicker
   other-modules:
